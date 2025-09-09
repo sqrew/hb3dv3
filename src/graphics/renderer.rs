@@ -5,7 +5,7 @@ use winit::{dpi::PhysicalSize, window::Window};
 use crate::graphics::{
     BloomRenderer, CameraUniform, CollisionCompute, Frustum, InstancedLineRenderer, Primitive,
     PrimitiveType, Projection, ThirdPersonCamera, Vertex, constants::*, is_visible_sphere,
-    line_batch::ReusableLineBatch, primitive_cache::PrimitiveCache,
+    line_batch::ReusableLineBatch, primitive_cache::PrimitiveCache, ParticleSystem,
 };
 
 pub struct GraphicsEngine {
@@ -28,6 +28,7 @@ pub struct GraphicsEngine {
     frame_count: u32,
     primitive_cache: PrimitiveCache,
     line_batch: ReusableLineBatch,
+    particles: ParticleSystem,
 }
 
 impl GraphicsEngine {
@@ -242,6 +243,9 @@ impl GraphicsEngine {
 
         // Create collision compute system
         let collision_compute = CollisionCompute::new(&device);
+        
+        // Create particle system
+        let particles = ParticleSystem::new(&device, &camera_bind_group_layout);
 
         println!("Graphics engine initialized:");
         println!("- Surface format: {:?}", surface_format);
@@ -278,6 +282,7 @@ impl GraphicsEngine {
             frame_count: 0,
             primitive_cache: PrimitiveCache::new(),
             line_batch: ReusableLineBatch::new(1000), // Estimate 1000 primitives per frame
+            particles,
         })
     }
 
@@ -420,6 +425,9 @@ impl GraphicsEngine {
 
             // Render wireframes using instanced line renderer
             self.render_wireframes_instanced(&mut render_pass, primitives);
+            
+            // Render particles
+            self.particles.render(&mut render_pass, &self.camera_bind_group);
         }
 
         // Step 2: Bloom post-processing disabled - rendering directly to final surface
@@ -535,5 +543,15 @@ impl GraphicsEngine {
         // Always render - even empty to maintain consistent frame timing
         self.line_renderer
             .render_lines(render_pass, &self.camera_bind_group, &lines);
+    }
+    
+    /// Spawn particles at the given position (e.g., bullet+enemy collision)
+    pub fn spawn_particles(&mut self, position: crate::graphics::Vec3) {
+        self.particles.spawn_particles(position);
+    }
+    
+    /// Update particle system (call before render)
+    pub fn update_particles(&mut self) {
+        self.particles.update(&self.device, &self.queue);
     }
 }

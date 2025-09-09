@@ -129,7 +129,9 @@ impl ApplicationHandler for WindowManager {
                                     println!("GPU collision pairs: {:?}", pairs);
                                     
                                     // Process the collisions
-                                    self.engine.scheduler.process_collision_pairs(&pairs);
+                                    if let Some(graphics) = &mut self.graphics_engine {
+                                        self.engine.scheduler.process_collision_pairs(&pairs, graphics);
+                                    }
                                 }
                             }
                             Err(e) => {
@@ -169,6 +171,9 @@ impl ApplicationHandler for WindowManager {
                     
                     // Update camera to follow player
                     graphics_engine.update_camera(nalgebra::Point3::new(player_pos.x, player_pos.y, player_pos.z));
+                    
+                    // Update particle system
+                    graphics_engine.update_particles();
                     
                     // Render the primitives
                     if let Err(e) = graphics_engine.render(&primitives) {

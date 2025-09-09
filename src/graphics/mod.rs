@@ -21,6 +21,7 @@ pub mod constants;
 pub mod primitive_cache;
 pub mod line_batch;
 pub mod collision_compute;
+pub mod particles;
 
 // Re-export main types
 pub use renderer::GraphicsEngine;
@@ -34,3 +35,4 @@ pub use primitive_type::PrimitiveType;
 pub use types::{Vec3, Transform};
 pub use render_data::Primitive;
 pub use collision_compute::{CollisionCompute, CollisionPair};
+pub use particles::ParticleSystem;

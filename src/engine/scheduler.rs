@@ -131,22 +131,28 @@ impl Scheduler {
     }
     
     /// Process collision pairs from GPU collision detection
-    pub fn process_collision_pairs(&mut self, collision_pairs: &[(u32, u32)]) {
+    pub fn process_collision_pairs(&mut self, collision_pairs: &[(u32, u32)], graphics: &mut crate::graphics::GraphicsEngine) {
         for &(entity_a_id, entity_b_id) in collision_pairs {
             // Check if it's a bullet hitting an enemy
             if let Some(bullet_damage) = self.bullets.get_bullet_damage(crate::engine::entity::EntityId(entity_a_id)) {
-                if self.enemies.damage_enemy(crate::engine::entity::EntityId(entity_b_id), bullet_damage) {
-                    // Bullet hit enemy - remove bullet
-                    self.bullets.remove_bullet_by_entity_id(crate::engine::entity::EntityId(entity_a_id));
-                    println!("💥 Collision! Bullet {} hit Enemy {}", entity_a_id, entity_b_id);
+                if let Some(enemy_pos) = self.enemies.get_enemy_position(crate::engine::entity::EntityId(entity_b_id)) {
+                    if self.enemies.damage_enemy(crate::engine::entity::EntityId(entity_b_id), bullet_damage) {
+                        // Bullet hit enemy - spawn particles and remove bullet
+                        graphics.spawn_particles(enemy_pos);
+                        self.bullets.remove_bullet_by_entity_id(crate::engine::entity::EntityId(entity_a_id));
+                        println!("💥 Collision! Bullet {} hit Enemy {}", entity_a_id, entity_b_id);
+                    }
                 }
             }
             // Check reverse (enemy hit by bullet)
             else if let Some(bullet_damage) = self.bullets.get_bullet_damage(crate::engine::entity::EntityId(entity_b_id)) {
-                if self.enemies.damage_enemy(crate::engine::entity::EntityId(entity_a_id), bullet_damage) {
-                    // Bullet hit enemy - remove bullet
-                    self.bullets.remove_bullet_by_entity_id(crate::engine::entity::EntityId(entity_b_id));
-                    println!("💥 Collision! Bullet {} hit Enemy {}", entity_b_id, entity_a_id);
+                if let Some(enemy_pos) = self.enemies.get_enemy_position(crate::engine::entity::EntityId(entity_a_id)) {
+                    if self.enemies.damage_enemy(crate::engine::entity::EntityId(entity_a_id), bullet_damage) {
+                        // Bullet hit enemy - spawn particles and remove bullet
+                        graphics.spawn_particles(enemy_pos);
+                        self.bullets.remove_bullet_by_entity_id(crate::engine::entity::EntityId(entity_b_id));
+                        println!("💥 Collision! Bullet {} hit Enemy {}", entity_b_id, entity_a_id);
+                    }
                 }
             }
         }

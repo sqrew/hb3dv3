@@ -170,4 +170,14 @@ impl EnemyManager {
         }
         false
     }
+    
+    /// Get enemy position by entity ID
+    pub fn get_enemy_position(&self, entity_id: crate::engine::entity::EntityId) -> Option<Vec3> {
+        for enemy in &self.enemies {
+            if enemy.entity_id() == entity_id {
+                return Some(enemy.position());
+            }
+        }
+        None
+    }
 }
