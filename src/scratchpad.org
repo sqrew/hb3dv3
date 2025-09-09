@@ -1,0 +1,21 @@
+#+title: Scratchpad
+
+
+
+  1. Dynamic primitive updates - Your current system assumes static primitives. You'll need efficient per-frame position/rotation updates for moving enemies/bullets
+  2. Depth-based visual effects:
+    - Line thickness scaling with distance (far = thinner)
+    - Alpha falloff for depth perception
+    - Z-fighting prevention for overlapping wireframes
+  3. Visual feedback systems:
+    - Flash/highlight effects when enemies are hit
+    - Scale pulsing for different enemy types
+    - Color lerping for damage/health states
+  4. Performance for dynamic scenes:
+    - Efficient instance buffer updates (currently static)
+    - Frustum culling optimization for fast-moving camera
+    - Maybe that distance culling we discussed
+  5. Wireframe improvements:
+    - Anti-aliased lines
+    - Consistent line thickness across zoom levels
+    - Better line intersection handling

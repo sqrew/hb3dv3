@@ -1,0 +1,209 @@
+use crate::engine::Vec3;
+use crate::input::InputManager;
+
+#[derive(Debug, Clone)]
+pub enum WeaponType {
+    BasicBlaster,
+    RapidFire,
+    Shotgun,
+}
+
+#[derive(Debug, Clone)]
+pub struct WeaponStats {
+    pub damage: f32,
+    pub fire_rate: f32,  // Shots per second
+    pub bullet_speed: f32,
+    pub bullet_lifetime: f32,
+    pub projectile_count: u8, // For shotguns/spread weapons
+    pub spread_angle: f32,    // Degrees of spread
+}
+
+impl WeaponStats {
+    pub fn basic_blaster() -> Self {
+        Self {
+            damage: 25.0,
+            fire_rate: 3.0,
+            bullet_speed: 20.0,
+            bullet_lifetime: 3.0,
+            projectile_count: 1,
+            spread_angle: 0.0,
+        }
+    }
+    
+    pub fn rapid_fire() -> Self {
+        Self {
+            damage: 15.0,
+            fire_rate: 8.0,
+            bullet_speed: 25.0,
+            bullet_lifetime: 2.5,
+            projectile_count: 1,
+            spread_angle: 0.0,
+        }
+    }
+    
+    pub fn shotgun() -> Self {
+        Self {
+            damage: 12.0,
+            fire_rate: 1.5,
+            bullet_speed: 18.0,
+            bullet_lifetime: 2.0,
+            projectile_count: 5,
+            spread_angle: 15.0,
+        }
+    }
+}
+
+pub struct Weapon {
+    weapon_type: WeaponType,
+    stats: WeaponStats,
+    last_fire_time: f32,
+    total_time: f32,
+}
+
+impl Weapon {
+    pub fn new(weapon_type: WeaponType) -> Self {
+        let stats = match weapon_type {
+            WeaponType::BasicBlaster => WeaponStats::basic_blaster(),
+            WeaponType::RapidFire => WeaponStats::rapid_fire(),
+            WeaponType::Shotgun => WeaponStats::shotgun(),
+        };
+        
+        Self {
+            weapon_type,
+            stats,
+            last_fire_time: 0.0,
+            total_time: 0.0,
+        }
+    }
+    
+    pub fn update(&mut self, delta_time: f32) {
+        self.total_time += delta_time;
+    }
+    
+    pub fn can_fire(&self) -> bool {
+        let time_since_last_shot = self.total_time - self.last_fire_time;
+        time_since_last_shot >= (1.0 / self.stats.fire_rate)
+    }
+    
+    pub fn try_fire(&mut self, origin: Vec3, direction: Vec3) -> Option<Vec<BulletSpawnRequest>> {
+        if !self.can_fire() {
+            return None;
+        }
+        
+        self.last_fire_time = self.total_time;
+        
+        let mut requests = Vec::new();
+        
+        if self.stats.projectile_count == 1 {
+            // Single projectile
+            requests.push(BulletSpawnRequest {
+                position: origin,
+                direction: direction.normalize(),
+                speed: self.stats.bullet_speed,
+                lifetime: self.stats.bullet_lifetime,
+                damage: self.stats.damage,
+            });
+        } else {
+            // Multiple projectiles (shotgun-style)
+            let spread_rad = self.stats.spread_angle.to_radians();
+            let half_spread = spread_rad / 2.0;
+            
+            for i in 0..self.stats.projectile_count {
+                let t = if self.stats.projectile_count == 1 {
+                    0.0
+                } else {
+                    (i as f32) / (self.stats.projectile_count - 1) as f32
+                };
+                
+                let angle_offset = -half_spread + (t * spread_rad);
+                
+                // Rotate the direction vector around the up axis
+                let cos_angle = angle_offset.cos();
+                let sin_angle = angle_offset.sin();
+                
+                let spread_direction = Vec3::new(
+                    direction.x * cos_angle - direction.z * sin_angle,
+                    direction.y,
+                    direction.x * sin_angle + direction.z * cos_angle,
+                );
+                
+                requests.push(BulletSpawnRequest {
+                    position: origin,
+                    direction: spread_direction.normalize(),
+                    speed: self.stats.bullet_speed,
+                    lifetime: self.stats.bullet_lifetime,
+                    damage: self.stats.damage,
+                });
+            }
+        }
+        
+        Some(requests)
+    }
+    
+    pub fn weapon_type(&self) -> &WeaponType {
+        &self.weapon_type
+    }
+    
+    pub fn stats(&self) -> &WeaponStats {
+        &self.stats
+    }
+}
+
+#[derive(Debug)]
+pub struct BulletSpawnRequest {
+    pub position: Vec3,
+    pub direction: Vec3,
+    pub speed: f32,
+    pub lifetime: f32,
+    pub damage: f32,
+}
+
+pub struct WeaponManager {
+    current_weapon: Weapon,
+    available_weapons: Vec<WeaponType>,
+    current_weapon_index: usize,
+}
+
+impl WeaponManager {
+    pub fn new() -> Self {
+        let available_weapons = vec![
+            WeaponType::BasicBlaster,
+            WeaponType::RapidFire,
+            WeaponType::Shotgun,
+        ];
+        
+        Self {
+            current_weapon: Weapon::new(WeaponType::BasicBlaster),
+            available_weapons,
+            current_weapon_index: 0,
+        }
+    }
+    
+    pub fn update(&mut self, delta_time: f32, input: &InputManager) {
+        self.current_weapon.update(delta_time);
+        
+        // Handle weapon switching (could use number keys or scroll wheel)
+        // TODO: Implement weapon switching input
+    }
+    
+    pub fn try_fire(&mut self, origin: Vec3, direction: Vec3) -> Option<Vec<BulletSpawnRequest>> {
+        self.current_weapon.try_fire(origin, direction)
+    }
+    
+    pub fn current_weapon(&self) -> &Weapon {
+        &self.current_weapon
+    }
+    
+    pub fn switch_weapon(&mut self, weapon_type: WeaponType) {
+        if let Some(index) = self.available_weapons.iter().position(|w| std::mem::discriminant(w) == std::mem::discriminant(&weapon_type)) {
+            self.current_weapon_index = index;
+            self.current_weapon = Weapon::new(weapon_type);
+        }
+    }
+    
+    pub fn cycle_weapon(&mut self) {
+        self.current_weapon_index = (self.current_weapon_index + 1) % self.available_weapons.len();
+        let new_weapon_type = self.available_weapons[self.current_weapon_index].clone();
+        self.current_weapon = Weapon::new(new_weapon_type);
+    }
+}
