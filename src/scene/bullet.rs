@@ -1,6 +1,60 @@
 use crate::engine::entity::{EntityId, EntityType};
 use crate::engine::{CollisionMask, Vec3};
+use crate::engine::dispatcher::{EventType, CollisionEvent};
 use crate::graphics::{Color, Primitive, PrimitiveType};
+
+/// Unified projectile type system - defines what kind of projectile to spawn
+#[derive(Debug, Clone)]
+pub enum ProjectileType {
+    /// Basic projectile - fast, lightweight, no special effects
+    Basic { 
+        damage: f32, 
+        velocity: Vec3, 
+        lifetime: f32 
+    },
+    /// Custom projectile with arbitrary effects
+    Custom { 
+        damage: f32, 
+        velocity: Vec3, 
+        lifetime: f32, 
+        effects: ProjectileEffects 
+    },
+}
+
+/// Container for complex projectile effects
+pub struct ProjectileEffects {
+    pub on_hit: Option<Vec<Box<dyn OnHitEffect>>>,
+    pub on_expire: Option<Vec<Box<dyn OnExpireEffect>>>,
+}
+
+impl std::fmt::Debug for ProjectileEffects {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ProjectileEffects")
+            .field("on_hit", &self.on_hit.as_ref().map(|v| format!("{} effects", v.len())))
+            .field("on_expire", &self.on_expire.as_ref().map(|v| format!("{} effects", v.len())))
+            .finish()
+    }
+}
+
+impl Clone for ProjectileEffects {
+    fn clone(&self) -> Self {
+        // Note: We can't clone trait objects, so we just create empty effects
+        // This is a limitation for now - custom effects can't be cloned
+        Self {
+            on_hit: None,
+            on_expire: None,
+        }
+    }
+}
+
+impl Default for ProjectileEffects {
+    fn default() -> Self {
+        Self {
+            on_hit: None,
+            on_expire: None,
+        }
+    }
+}
 
 pub struct Bullet {
     entity_id: EntityId,
@@ -10,6 +64,7 @@ pub struct Bullet {
     damage: f32,
     collision_radius: f32,
     collision_mask: CollisionMask,
+    marked_for_removal: bool,
 }
 
 impl Bullet {
@@ -22,6 +77,7 @@ impl Bullet {
             damage,
             collision_radius: 0.1,
             collision_mask: CollisionMask::from(EntityType::PlayerBullet),
+            marked_for_removal: false,
         }
     }
 
@@ -31,7 +87,7 @@ impl Bullet {
     }
 
     pub fn is_alive(&self) -> bool {
-        self.ttl > 0.0
+        self.ttl > 0.0 && !self.marked_for_removal
     }
 
     pub fn position(&self) -> Vec3 {
@@ -53,10 +109,15 @@ impl Bullet {
     pub fn damage(&self) -> f32 {
         self.damage
     }
+
+    pub fn mark_for_removal(&mut self) {
+        self.marked_for_removal = true;
+    }
 }
 pub struct BulletManager {
     bullets: Vec<Bullet>,
     metabullets: Vec<MetaBullet>,
+    event_queue: Vec<EventType>,
 }
 
 impl BulletManager {
@@ -64,6 +125,7 @@ impl BulletManager {
         BulletManager {
             bullets: Vec::new(),
             metabullets: Vec::new(),
+            event_queue: Vec::new(),
         }
     }
 
@@ -82,35 +144,6 @@ impl BulletManager {
         self.metabullets.retain(|mb| mb.is_alive());
     }
 
-    pub fn spawn_bullet(
-        &mut self,
-        entity_id: EntityId,
-        pos: Vec3,
-        speed: f32,
-        direction: Vec3,
-        ttl: f32,
-        damage: f32,
-    ) {
-        let vel = direction.normalize() * speed;
-        self.bullets
-            .push(Bullet::new(entity_id, pos, vel, ttl, damage));
-    }
-    pub fn spawn_metabullet(
-        &mut self,
-        entity_id: EntityId,
-        pos: Vec3,
-        speed: f32,
-        direction: Vec3,
-        ttl: f32,
-        damage: f32,
-        on_hit: Option<Vec<Box<dyn OnHitEffect>>>,
-        on_expire: Option<Vec<Box<dyn OnExpireEffect>>>,
-    ) {
-        let vel = direction.normalize() * speed;
-        self.metabullets.push(MetaBullet::new(
-            entity_id, pos, vel, ttl, damage, on_hit, on_expire,
-        ));
-    }
 
     pub fn get_render_data(&self) -> Vec<Primitive> {
         let mut renderable: Vec<Primitive> = Vec::new();
@@ -240,6 +273,73 @@ impl BulletManager {
         }
         false
     }
+    
+    /// Get and clear the event queue
+    pub fn drain_events(&mut self) -> Vec<EventType> {
+        self.event_queue.drain(..).collect()
+    }
+    
+    /// Queue an event
+    pub fn queue_event(&mut self, event: EventType) {
+        self.event_queue.push(event);
+    }
+    
+    /// Queue a collision event when bullet hits something
+    pub fn register_hit(&mut self, bullet_id: EntityId, target_id: EntityId, impact_point: Vec3) {
+        if let Some(damage) = self.get_bullet_damage(bullet_id) {
+            self.event_queue.push(EventType::Collision(CollisionEvent::BulletHitEnemy {
+                bullet_id,
+                enemy_id: target_id,
+                damage,
+                impact_point,
+            }));
+        }
+    }
+    
+    /// Mark a bullet for removal by entity ID (for collision processing)
+    pub fn mark_bullet_for_removal(&mut self, entity_id: EntityId) {
+        // Check regular bullets
+        for bullet in &mut self.bullets {
+            if bullet.entity_id() == entity_id {
+                bullet.mark_for_removal();
+                return;
+            }
+        }
+        // Check metabullets
+        for metabullet in &mut self.metabullets {
+            if metabullet.entity_id() == entity_id {
+                metabullet.mark_for_removal();
+                return;
+            }
+        }
+    }
+    
+    /// Unified projectile spawning method
+    pub fn spawn_projectile(
+        &mut self, 
+        entity_id: EntityId, 
+        position: Vec3, 
+        projectile_type: ProjectileType
+    ) {
+        match projectile_type {
+            ProjectileType::Basic { damage, velocity, lifetime } => {
+                // Create lightweight Bullet (same performance as before)
+                self.bullets.push(Bullet::new(entity_id, position, velocity, lifetime, damage));
+            },
+            ProjectileType::Custom { damage, velocity, lifetime, effects } => {
+                // Create MetaBullet with custom effects
+                self.metabullets.push(MetaBullet::new(
+                    entity_id, 
+                    position, 
+                    velocity, 
+                    lifetime, 
+                    damage,
+                    effects.on_hit,
+                    effects.on_expire
+                ));
+            },
+        }
+    }
 }
 
 pub struct MetaBullet {
@@ -250,6 +350,7 @@ pub struct MetaBullet {
     damage: f32,
     collision_radius: f32,
     collision_mask: CollisionMask,
+    marked_for_removal: bool,
     on_hit: Option<Vec<Box<dyn OnHitEffect>>>,
     on_expire: Option<Vec<Box<dyn OnExpireEffect>>>,
 }
@@ -272,6 +373,7 @@ impl MetaBullet {
             damage,
             collision_radius: 0.15,
             collision_mask: CollisionMask::from(EntityType::PlayerBullet),
+            marked_for_removal: false,
             on_hit,
             on_expire,
         }
@@ -283,7 +385,7 @@ impl MetaBullet {
     }
 
     pub fn is_alive(&self) -> bool {
-        self.ttl > 0.0
+        self.ttl > 0.0 && !self.marked_for_removal
     }
 
     pub fn position(&self) -> Vec3 {
@@ -304,6 +406,10 @@ impl MetaBullet {
 
     pub fn damage(&self) -> f32 {
         self.damage
+    }
+
+    pub fn mark_for_removal(&mut self) {
+        self.marked_for_removal = true;
     }
 }
 

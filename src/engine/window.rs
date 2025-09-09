@@ -98,7 +98,26 @@ impl ApplicationHandler for WindowManager {
                 };
                 
                 // Single engine update that handles everything
-                let (primitives, player_pos) = self.engine.update(delta_time, &self.input_manager, camera_forward, camera_right, camera_up);
+                let (primitives, player_pos, graphics_events) = self.engine.update(delta_time, &self.input_manager, camera_forward, camera_right, camera_up);
+                
+                // Process graphics events from dispatcher
+                if let Some(graphics_engine) = &mut self.graphics_engine {
+                    for event in graphics_events {
+                        match event {
+                            crate::engine::dispatcher::GraphicsEvent::SpawnParticles { position, velocity: _, count: _, lifetime: _, color: _ } => {
+                                graphics_engine.spawn_particles(position);
+                            }
+                            crate::engine::dispatcher::GraphicsEvent::DrawLine { start, end, color, duration } => {
+                                // Debug line drawing - could be implemented with line renderer
+                                println!("📐 Debug line: {:?} -> {:?} (color: {:?}, duration: {})", start, end, color, duration);
+                            }
+                            crate::engine::dispatcher::GraphicsEvent::ScreenShake { intensity, duration } => {
+                                // Screen shake - could be implemented by modifying camera offset
+                                println!("📳 Screen shake: intensity {}, duration {}", intensity, duration);
+                            }
+                        }
+                    }
+                }
                 
                 // GPU collision detection
                 // Always use GPU collision detection
@@ -128,10 +147,8 @@ impl ApplicationHandler for WindowManager {
                                     
                                     println!("GPU collision pairs: {:?}", pairs);
                                     
-                                    // Process the collisions
-                                    if let Some(graphics) = &mut self.graphics_engine {
-                                        self.engine.scheduler.process_collision_pairs(&pairs, graphics);
-                                    }
+                                    // Process collisions using CollisionManager to generate events
+                                    self.engine.process_collisions(&pairs);
                                 }
                             }
                             Err(e) => {

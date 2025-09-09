@@ -1,5 +1,6 @@
 use crate::engine::entity::{EntityId, EntityType};
 use crate::engine::{CollisionMask, Vec3};
+use crate::engine::dispatcher::{EventType, EnemyEvent};
 use crate::graphics::{Color, Primitive, PrimitiveType};
 
 pub struct Enemy {
@@ -61,20 +62,19 @@ impl Enemy {
 
     pub fn take_damage(&mut self, damage: f32) {
         self.health -= damage;
-        if self.health <= 0.0 {
-            println!("💀 Enemy {} destroyed by damage!", self.entity_id.id());
-        }
     }
 }
 
 pub struct EnemyManager {
     enemies: Vec<Enemy>,
+    event_queue: Vec<EventType>,
 }
 
 impl EnemyManager {
     pub fn new() -> Self {
         Self {
             enemies: Vec::new(),
+            event_queue: Vec::new(),
         }
     }
 
@@ -84,11 +84,11 @@ impl EnemyManager {
     ) {
         // Spawn a few enemies in interesting positions
         for i in 0..500 {
-            let angle = (i as f32 / 5.0) * std::f32::consts::TAU;
+            let angle = (i as f32 / 50.0) * std::f32::consts::TAU;
             let radius = 8.0;
             let pos = Vec3::new(
                 angle.cos() * radius,
-                (i as f32) * 0.5 - 1.0,
+                (i as f32) * 0.25 - 1.0,
                 angle.sin() * radius,
             );
             let vel = Vec3::new(-angle.sin() * 2.0, 0.0, angle.cos() * 2.0);
@@ -128,7 +128,6 @@ impl EnemyManager {
     pub fn remove_enemy(&mut self, index: usize) -> bool {
         if index < self.enemies.len() {
             self.enemies.remove(index);
-            println!("💀 Enemy {} destroyed!", index);
             true
         } else {
             false
@@ -162,15 +161,70 @@ impl EnemyManager {
         entity_id: crate::engine::entity::EntityId,
         damage: f32,
     ) -> bool {
+        self.damage_enemy_direct(entity_id, damage, entity_id)
+    }
+    
+    /// Damage enemy directly without generating damage events (used by collision system)
+    pub fn damage_enemy_direct(
+        &mut self,
+        entity_id: crate::engine::entity::EntityId,
+        damage: f32,
+        source: crate::engine::entity::EntityId,
+    ) -> bool {
         for enemy in &mut self.enemies {
             if enemy.entity_id() == entity_id {
+                let old_health = enemy.health;
                 enemy.take_damage(damage);
+                
+                // Check if enemy died
+                if enemy.health <= 0.0 && old_health > 0.0 {
+                    // Generate death event
+                    self.event_queue.push(EventType::Enemy(EnemyEvent::Die {
+                        enemy_id: entity_id,
+                    }));
+                    println!("💀 Enemy {} died from {} damage (source: {})!", entity_id.0, damage, source.0);
+                }
+                
                 return true;
             }
         }
         false
     }
     
+    /// Damage enemy and generate damage event (used by event system)
+    pub fn damage_enemy_with_event(
+        &mut self,
+        entity_id: crate::engine::entity::EntityId,
+        damage: f32,
+        source: crate::engine::entity::EntityId,
+    ) -> bool {
+        for enemy in &mut self.enemies {
+            if enemy.entity_id() == entity_id {
+                let old_health = enemy.health;
+                enemy.take_damage(damage);
+                
+                // Generate damage event
+                self.event_queue.push(EventType::Enemy(EnemyEvent::TakeDamage {
+                    enemy_id: entity_id,
+                    amount: damage,
+                    source,
+                }));
+                
+                // Check if enemy died
+                if enemy.health <= 0.0 && old_health > 0.0 {
+                    // Generate death event
+                    self.event_queue.push(EventType::Enemy(EnemyEvent::Die {
+                        enemy_id: entity_id,
+                    }));
+                    println!("💀 Enemy {} died from {} damage (source: {})!", entity_id.0, damage, source.0);
+                }
+                
+                return true;
+            }
+        }
+        false
+    }
+
     /// Get enemy position by entity ID
     pub fn get_enemy_position(&self, entity_id: crate::engine::entity::EntityId) -> Option<Vec3> {
         for enemy in &self.enemies {
@@ -179,5 +233,38 @@ impl EnemyManager {
             }
         }
         None
+    }
+    
+    /// Get and clear enemy events
+    pub fn drain_events(&mut self) -> Vec<EventType> {
+        self.event_queue.drain(..).collect()
+    }
+    
+    /// Handle enemy events from dispatcher
+    pub fn handle_event(&mut self, event: crate::engine::dispatcher::EnemyEvent) {
+        use crate::engine::dispatcher::EnemyEvent;
+        match event {
+            EnemyEvent::TakeDamage { enemy_id, amount, source } => {
+                self.damage_enemy_with_event(enemy_id, amount, source);
+            }
+            EnemyEvent::Die { enemy_id } => {
+                // Mark enemy as dead (damage_enemy already handles this)
+                for enemy in &mut self.enemies {
+                    if enemy.entity_id() == enemy_id {
+                        enemy.take_damage(9999.0); // Ensure death
+                        break;
+                    }
+                }
+            }
+            EnemyEvent::Spawn { position, enemy_type: _ } => {
+                // Note: Runtime enemy spawning requires access to EntityManager
+                // For now, we create a temporary ID that won't collide with existing systems
+                // This should be properly integrated with EntityManager in the future
+                let temp_id = (self.enemies.len() as u32).wrapping_add(50000); // Large offset to avoid collisions
+                let enemy_entity = crate::engine::entity::EntityId(temp_id);
+                self.enemies.push(Enemy::new(enemy_entity, position, Vec3::zeros(), 50.0));
+                println!("🔴 Spawned enemy {} at {:?} (temp ID - needs EntityManager integration)", enemy_entity.0, position);
+            }
+        }
     }
 }

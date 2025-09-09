@@ -35,17 +35,19 @@ impl Scheduler {
     pub fn update(&mut self, delta_time: f32, input: &InputManager, camera_forward: Vec3, camera_right: Vec3, camera_up: Vec3) {
         // Update player movement
         if let Some(bullet_requests) = self.player.update(delta_time, input, camera_forward, camera_right, camera_up) {
-            // Spawn bullets from player weapon
+            // Spawn bullets from player weapon using new projectile system
             for request in bullet_requests.iter() {
                 let bullet_entity = self.entity_manager.create_entity(EntityType::PlayerBullet);
-                self.bullets.spawn_bullet(
-                    bullet_entity,
-                    request.position,
-                    request.speed,
-                    request.direction,
-                    request.lifetime,
-                    request.damage,
-                );
+                
+                // Create basic projectile type from request
+                let velocity = request.direction * request.speed;
+                let projectile_type = crate::scene::bullet::ProjectileType::Basic {
+                    damage: request.damage,
+                    velocity,
+                    lifetime: request.lifetime,
+                };
+                
+                self.bullets.spawn_projectile(bullet_entity, request.position, projectile_type);
             }
         }
         
@@ -110,6 +112,11 @@ impl Scheduler {
         &self.player
     }
     
+    /// Get mutable access to the player manager
+    pub fn player_mut(&mut self) -> &mut PlayerManager {
+        &mut self.player
+    }
+    
     /// Get access to the enemy manager
     pub fn enemies(&self) -> &EnemyManager {
         &self.enemies
@@ -130,33 +137,6 @@ impl Scheduler {
         &mut self.bullets
     }
     
-    /// Process collision pairs from GPU collision detection
-    pub fn process_collision_pairs(&mut self, collision_pairs: &[(u32, u32)], graphics: &mut crate::graphics::GraphicsEngine) {
-        for &(entity_a_id, entity_b_id) in collision_pairs {
-            // Check if it's a bullet hitting an enemy
-            if let Some(bullet_damage) = self.bullets.get_bullet_damage(crate::engine::entity::EntityId(entity_a_id)) {
-                if let Some(enemy_pos) = self.enemies.get_enemy_position(crate::engine::entity::EntityId(entity_b_id)) {
-                    if self.enemies.damage_enemy(crate::engine::entity::EntityId(entity_b_id), bullet_damage) {
-                        // Bullet hit enemy - spawn particles and remove bullet
-                        graphics.spawn_particles(enemy_pos);
-                        self.bullets.remove_bullet_by_entity_id(crate::engine::entity::EntityId(entity_a_id));
-                        println!("💥 Collision! Bullet {} hit Enemy {}", entity_a_id, entity_b_id);
-                    }
-                }
-            }
-            // Check reverse (enemy hit by bullet)
-            else if let Some(bullet_damage) = self.bullets.get_bullet_damage(crate::engine::entity::EntityId(entity_b_id)) {
-                if let Some(enemy_pos) = self.enemies.get_enemy_position(crate::engine::entity::EntityId(entity_a_id)) {
-                    if self.enemies.damage_enemy(crate::engine::entity::EntityId(entity_a_id), bullet_damage) {
-                        // Bullet hit enemy - spawn particles and remove bullet
-                        graphics.spawn_particles(enemy_pos);
-                        self.bullets.remove_bullet_by_entity_id(crate::engine::entity::EntityId(entity_b_id));
-                        println!("💥 Collision! Bullet {} hit Enemy {}", entity_b_id, entity_a_id);
-                    }
-                }
-            }
-        }
-    }
     
     /// Simple CPU-based collision detection (temporary fallback)
     pub fn check_collisions_cpu(&mut self) {

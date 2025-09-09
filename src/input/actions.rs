@@ -25,6 +25,10 @@ pub enum Action {
     Dash,
     Interact,
     PlasmaBurst,
+    
+    // Weapon switching
+    NextWeapon,
+    PrevWeapon,
 
     // UI/Menu
     Menu,
@@ -188,14 +192,29 @@ impl Default for ActionBindings {
         bindings.insert(
             Action::Interact,
             vec![
-                InputBinding::keyboard(KeyCode::KeyE).with_gamepad_button(Button::West), // E key + X button (West on Xbox)
+                InputBinding::keyboard(KeyCode::KeyF).with_gamepad_button(Button::West), // F key + X button (West on Xbox)
             ],
         );
 
         bindings.insert(
             Action::PlasmaBurst,
             vec![
-                InputBinding::keyboard(KeyCode::KeyF).with_gamepad_button(Button::North), // F key + Y button (North on Xbox)
+                InputBinding::keyboard(KeyCode::KeyG).with_gamepad_button(Button::North), // G key + Y button (North on Xbox)
+            ],
+        );
+
+        // Weapon switching
+        bindings.insert(
+            Action::NextWeapon,
+            vec![
+                InputBinding::keyboard(KeyCode::KeyQ).with_gamepad_button(Button::RightTrigger2), // Q key + Right Bumper
+            ],
+        );
+
+        bindings.insert(
+            Action::PrevWeapon,
+            vec![
+                InputBinding::keyboard(KeyCode::KeyE).with_gamepad_button(Button::LeftTrigger2), // E key + Left Bumper
             ],
         );
 
