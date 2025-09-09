@@ -50,19 +50,55 @@ impl Dispatcher {
         // Collect events first to avoid borrow conflicts
         let events: Vec<EventType> = self.execution_queue.drain(..).collect();
 
+        // Optimization: Batch events by type for more efficient processing
+        let mut player_events = Vec::new();
+        let mut enemy_events = Vec::new();
+        let mut collision_events = Vec::new();
+        let mut weapon_events = Vec::new();
+        let mut graphics_events_batch = Vec::new();
+        let mut audio_events = Vec::new();
+        let mut debug_events = Vec::new();
+
+        // Group events by type
         for event in events {
             match event {
-                EventType::Player(e) => scheduler.player_mut().handle_event(e),
-                EventType::Enemy(e) => scheduler.enemies_mut().handle_event(e),
-                EventType::Collision(e) => {
-                    Self::handle_collision_event(e, scheduler, graphics_events)
-                }
-                EventType::Weapon(e) => Self::handle_weapon_event(e, scheduler),
-                EventType::Graphics(e) => graphics_events.push(e),
-                EventType::Audio(e) => Self::handle_audio_event(e),
-                EventType::Debug(e) => Self::handle_debug_event(e),
+                EventType::Player(e) => player_events.push(e),
+                EventType::Enemy(e) => enemy_events.push(e),
+                EventType::Collision(e) => collision_events.push(e),
+                EventType::Weapon(e) => weapon_events.push(e),
+                EventType::Graphics(e) => graphics_events_batch.push(e),
+                EventType::Audio(e) => audio_events.push(e),
+                EventType::Debug(e) => debug_events.push(e),
             }
         }
+
+        // Process batches - order matters for dependencies
+        // 1. Process collision events first (they generate other events)
+        Self::handle_collision_events_batch(collision_events, scheduler, graphics_events);
+
+        // 2. Process player events (could affect weapon state)
+        for event in player_events {
+            scheduler.player_mut().handle_event(event);
+        }
+
+        // 3. Process enemy events
+        for event in enemy_events {
+            scheduler.enemies_mut().handle_event(event);
+        }
+
+        // 4. Process weapon events
+        for event in weapon_events {
+            Self::handle_weapon_event(event, scheduler);
+        }
+
+        // 5. Process graphics events (visual effects)
+        graphics_events.extend(graphics_events_batch);
+
+        // 6. Process audio events (sound effects)
+        Self::handle_audio_events_batch(audio_events);
+
+        // 7. Process debug events
+        Self::handle_debug_events_batch(debug_events);
     }
 
     fn sort_events_by_priority(&mut self) {
@@ -153,6 +189,95 @@ impl Dispatcher {
                 } else {
                     println!("Playing global sound {} with volume {}", sound_id, volume);
                 }
+            }
+        }
+    }
+
+    fn handle_collision_events_batch(
+        events: Vec<CollisionEvent>,
+        scheduler: &mut crate::engine::scheduler::Scheduler,
+        graphics_events: &mut Vec<GraphicsEvent>,
+    ) {
+        if events.is_empty() {
+            return;
+        }
+
+        // Group collision events by type for more efficient processing
+        let mut bullet_hits: Vec<CollisionEvent> = Vec::new();
+        let mut enemy_hits: Vec<CollisionEvent> = Vec::new();
+
+        for event in events {
+            match event {
+                CollisionEvent::BulletHitEnemy { .. } => bullet_hits.push(event),
+                CollisionEvent::EnemyHitPlayer { .. } => enemy_hits.push(event),
+            }
+        }
+
+        // Batch process bullet hits - optimize bullet removal and particle spawning
+        let mut bullets_to_remove = Vec::new();
+        
+        for event in bullet_hits {
+            match event {
+                CollisionEvent::BulletHitEnemy {
+                    bullet_id,
+                    enemy_id,
+                    damage,
+                    impact_point,
+                } => {
+                    // Apply damage directly
+                    scheduler.enemies_mut().damage_enemy_direct(enemy_id, damage, bullet_id);
+                    
+                    // Collect bullet for batch removal
+                    bullets_to_remove.push(bullet_id);
+                    
+                    // Queue particle effect
+                    use crate::graphics::Color;
+                    graphics_events.push(GraphicsEvent::SpawnParticles {
+                        position: impact_point,
+                        velocity: Vec3::new(0.0, 1.0, 0.0),
+                        count: 15,
+                        lifetime: 0.8,
+                        color: Color::new(1.0, 0.6, 0.2, 1.0),
+                    });
+                }
+                CollisionEvent::EnemyHitPlayer { .. } => {
+                    // This should not happen in bullet_hits batch, but handle gracefully
+                    unreachable!("EnemyHitPlayer event should not be in bullet_hits batch");
+                }
+            }
+        }
+        
+        // Batch remove all bullets at once (more efficient than individual removals)
+        for bullet_id in bullets_to_remove {
+            scheduler.bullets_mut().mark_bullet_for_removal(bullet_id);
+        }
+
+        // Batch process enemy hits (could group damage, screen effects, etc.)
+        for event in enemy_hits {
+            Self::handle_collision_event(event, scheduler, graphics_events);
+        }
+    }
+
+    fn handle_audio_events_batch(events: Vec<AudioEvent>) {
+        if events.is_empty() {
+            return;
+        }
+        
+        // Batch process audio events - could optimize by grouping by sound type, position, etc.
+        for event in events {
+            Self::handle_audio_event(event);
+        }
+    }
+
+    fn handle_debug_events_batch(events: Vec<DebugEvent>) {
+        if events.is_empty() {
+            return;
+        }
+        
+        // Batch debug events - could group similar log messages, suppress duplicates, etc.
+        for event in events {
+            match event {
+                DebugEvent::Log(message) => println!("[DEBUG] {}", message),
             }
         }
     }
