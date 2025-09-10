@@ -9,10 +9,6 @@ impl EntityId {
     }
 }
 
-/// Constants for special EntityIds
-pub const INVALID_ENTITY_ID: EntityId = EntityId(0);
-pub const NULL_ENTITY_ID: EntityId = EntityId(0);
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum EntityType {
     Player,
@@ -137,99 +133,107 @@ impl<'a> EntityLookup<'a> {
             bullet_manager,
         }
     }
-    
+
     /// Get the player's entity ID
     pub fn get_player_entity_id(&self) -> EntityId {
         self.player_manager.player().entity_id()
     }
-    
+
     /// Get all enemy entity IDs
     pub fn get_enemy_entity_ids(&self) -> Vec<EntityId> {
-        self.enemy_manager.enemies()
+        self.enemy_manager
+            .enemies()
             .iter()
             .map(|enemy| enemy.entity_id())
             .collect()
     }
-    
+
     /// Get all bullet entity IDs of a specific type
     pub fn get_bullet_entity_ids_by_type(&self, bullet_type: EntityType) -> Vec<EntityId> {
         let mut entity_ids = Vec::new();
-        
+
         match bullet_type {
             EntityType::PlayerBullet => {
                 entity_ids.extend(
-                    self.bullet_manager.bullets()
+                    self.bullet_manager
+                        .bullets()
                         .iter()
-                        .map(|bullet| bullet.entity_id())
+                        .map(|bullet| bullet.entity_id()),
                 );
                 entity_ids.extend(
-                    self.bullet_manager.metabullets()
+                    self.bullet_manager
+                        .metabullets()
                         .iter()
-                        .map(|bullet| bullet.entity_id())
+                        .map(|bullet| bullet.entity_id()),
                 );
-            },
+            }
             EntityType::EnemyBullet => {
                 // When we add enemy bullets, they'll go here
-            },
+            }
             _ => {
                 // Invalid bullet type, return empty
             }
         }
-        
+
         entity_ids
     }
-    
+
     /// Get all entity IDs of a specific type
     pub fn get_entities_by_type(&self, entity_type: EntityType) -> Vec<EntityId> {
         match entity_type {
             EntityType::Player => vec![self.get_player_entity_id()],
             EntityType::Enemy => self.get_enemy_entity_ids(),
-            EntityType::PlayerBullet => self.get_bullet_entity_ids_by_type(EntityType::PlayerBullet),
+            EntityType::PlayerBullet => {
+                self.get_bullet_entity_ids_by_type(EntityType::PlayerBullet)
+            }
             EntityType::EnemyBullet => self.get_bullet_entity_ids_by_type(EntityType::EnemyBullet),
         }
     }
-    
+
     /// Get the position of any entity by its ID
     pub fn get_entity_position(&self, entity_id: EntityId) -> Option<crate::engine::Vec3> {
         // Check player
         if self.player_manager.player().entity_id() == entity_id {
             return Some(self.player_manager.player().position());
         }
-        
+
         // Check enemies
         for enemy in self.enemy_manager.enemies() {
             if enemy.entity_id() == entity_id {
                 return Some(enemy.position());
             }
         }
-        
+
         // Check bullets
         for bullet in self.bullet_manager.bullets() {
             if bullet.entity_id() == entity_id {
                 return Some(bullet.position());
             }
         }
-        
+
         // Check metabullets
         for bullet in self.bullet_manager.metabullets() {
             if bullet.entity_id() == entity_id {
                 return Some(bullet.position());
             }
         }
-        
+
         None
     }
-    
+
     /// Get positions of multiple entities at once
-    pub fn get_entity_positions(&self, entity_ids: &[EntityId]) -> Vec<(EntityId, crate::engine::Vec3)> {
+    pub fn get_entity_positions(
+        &self,
+        entity_ids: &[EntityId],
+    ) -> Vec<(EntityId, crate::engine::Vec3)> {
         let mut positions = Vec::new();
-        
+
         for &entity_id in entity_ids {
             if let Some(position) = self.get_entity_position(entity_id) {
                 positions.push((entity_id, position));
             }
         }
-        
+
         positions
     }
 }

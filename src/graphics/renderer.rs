@@ -556,7 +556,7 @@ impl GraphicsEngine {
     }
     
     /// Update particle system (call before render)
-    pub fn update_particles(&mut self) {
-        self.particles.update(&self.device, &self.queue);
+    pub fn update_particles(&mut self, delta_time: f32) {
+        self.particles.update(&self.device, &self.queue, delta_time);
     }
 }

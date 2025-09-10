@@ -63,6 +63,7 @@ pub struct ParticleSystem {
     alive_count_buffer: wgpu::Buffer,
     spawn_queue_buffer: wgpu::Buffer,
     spawn_count_buffer: wgpu::Buffer,
+    delta_time_buffer: wgpu::Buffer,
     
     // Bind groups
     compute_bind_group: wgpu::BindGroup,
@@ -105,6 +106,12 @@ impl ParticleSystem {
             label: Some("Spawn Count Buffer"),
             contents: bytemuck::cast_slice(&[0u32]),
             usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
+        });
+        
+        let delta_time_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Delta Time Buffer"),
+            contents: bytemuck::cast_slice(&[0.016f32]), // Default to 60 FPS
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
         });
         
         // Create compute bind group layout
@@ -151,6 +158,16 @@ impl ParticleSystem {
                     },
                     count: None,
                 },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 4,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
             ],
         });
         
@@ -174,6 +191,10 @@ impl ParticleSystem {
                 wgpu::BindGroupEntry {
                     binding: 3,
                     resource: spawn_count_buffer.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 4,
+                    resource: delta_time_buffer.as_entire_binding(),
                 },
             ],
         });
@@ -286,6 +307,7 @@ impl ParticleSystem {
             alive_count_buffer,
             spawn_queue_buffer,
             spawn_count_buffer,
+            delta_time_buffer,
             compute_bind_group,
             render_bind_group,
             spawn_queue: Vec::new(),
@@ -318,7 +340,7 @@ impl ParticleSystem {
     }
     
     /// Update particle system on GPU
-    pub fn update(&mut self, device: &wgpu::Device, queue: &wgpu::Queue) {
+    pub fn update(&mut self, device: &wgpu::Device, queue: &wgpu::Queue, delta_time: f32) {
         // Upload spawn requests if any
         if !self.spawn_queue.is_empty() {
             queue.write_buffer(
@@ -338,6 +360,13 @@ impl ParticleSystem {
                 bytemuck::cast_slice(&[0u32]),
             );
         }
+        
+        // Upload delta time
+        queue.write_buffer(
+            &self.delta_time_buffer,
+            0,
+            bytemuck::cast_slice(&[delta_time]),
+        );
         
         let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
             label: Some("Particle Update Command Encoder"),

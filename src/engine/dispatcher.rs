@@ -142,7 +142,7 @@ impl Dispatcher {
                     position: impact_point,
                     velocity: Vec3::new(0.0, 1.0, 0.0), // Default upward
                     count: 50,
-                    lifetime: 2.0,
+                    lifetime: 1.2, // Reduced for faster slot recycling
                     color: Color::new(1.0, 0.6, 0.2, 1.0), // Orange sparks
                 });
             }
@@ -238,7 +238,7 @@ impl Dispatcher {
                         position: impact_point,
                         velocity: Vec3::new(0.0, 1.0, 0.0),
                         count: 50,
-                        lifetime: 2.0,
+                        lifetime: 1.2, // Reduced for faster slot recycling
                         color: Color::new(1.0, 0.6, 0.2, 1.0),
                     });
                 }

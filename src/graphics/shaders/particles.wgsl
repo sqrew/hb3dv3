@@ -23,6 +23,7 @@ struct SpawnRequest {
 @group(0) @binding(1) var<storage, read_write> alive_count: atomic<u32>;
 @group(0) @binding(2) var<storage, read> spawn_queue: array<SpawnRequest>;
 @group(0) @binding(3) var<storage, read> spawn_count: u32;
+@group(0) @binding(4) var<uniform> delta_time: f32;
 
 // Constants
 const MAX_PARTICLES: u32 = 8192u;
@@ -41,7 +42,7 @@ fn update_particles(@builtin(global_invocation_id) global_id: vec3<u32>) {
     let index = global_id.x;
     if (index >= MAX_PARTICLES) { return; }
     
-    let dt = 0.016; // ~60 FPS delta time
+    let dt = delta_time;
     
     // Update existing particles
     if (particles[index].life > 0.0) {
@@ -70,24 +71,36 @@ fn spawn_particles(@builtin(global_invocation_id) global_id: vec3<u32>) {
     // Spawn particles for this collision using event data
     for (var i = 0u; i < spawn_req.count; i++) {
         let particle_seed = base_seed + i;
-        let particle_index = (spawn_index * spawn_req.count + i) % MAX_PARTICLES;
+        // Better slot distribution using prime numbers to avoid clustering
+        let primary_index = (spawn_index * 113u + i * 79u + global_id.x * 31u) % MAX_PARTICLES;
         
-        // Only spawn if slot is free
-        if (particles[particle_index].life <= 0.0) {
+        // Search for free slot with fallback (try up to 8 slots)
+        var particle_index = primary_index;
+        var found_slot = false;
+        for (var search = 0u; search < 8u; search++) {
+            if (particles[particle_index].life <= 0.0) {
+                found_slot = true;
+                break;
+            }
+            particle_index = (particle_index + 97u) % MAX_PARTICLES; // Another prime for search step
+        }
+        
+        // Only spawn if we found a free slot
+        if (found_slot) {
             // Generate random velocity based on collision direction
             let rand1 = random(particle_seed + 1u) * 2.0 - 1.0;
             let rand2 = random(particle_seed + 2u) * 2.0 - 1.0;
             let rand3 = random(particle_seed + 3u) * 2.0 - 1.0;
             let rand4 = random(particle_seed + 4u);
             
-            // Generate random velocity similar to original system but using collision data as hint
-            let speed = 3.0 + rand4 * 5.0; // Random speed between 3-8 (reduced from 5-15)
+            // Generate random velocity with much higher speeds for proper delta time
+            let speed = 30.0 + rand4 * 60.0; // Random speed between 30-90 (4x+ increase for dramatic effect)
             
-            // Create a mostly upward direction with some randomness
+            // Create a more dramatic burst with wider spread
             let random_direction = normalize(vec3<f32>(
-                rand1 * 0.5,           // Small horizontal spread
-                abs(rand2) + 0.5,      // Mostly upward (0.5 to 1.5 range)  
-                rand3 * 0.5            // Small horizontal spread
+                rand1 * 1.5,           // Wider horizontal spread
+                abs(rand2) * 0.8 + 0.3, // Mix of upward and horizontal (0.3 to 1.1 range)  
+                rand3 * 1.5            // Wider horizontal spread
             ));
             
             // Apply the speed to the direction

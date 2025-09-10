@@ -190,7 +190,7 @@ impl ApplicationHandler for WindowManager {
                     graphics_engine.update_camera(nalgebra::Point3::new(player_pos.x, player_pos.y, player_pos.z));
                     
                     // Update particle system
-                    graphics_engine.update_particles();
+                    graphics_engine.update_particles(delta_time);
                     
                     // Render the primitives
                     if let Err(e) = graphics_engine.render(&primitives) {
