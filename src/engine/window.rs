@@ -104,8 +104,8 @@ impl ApplicationHandler for WindowManager {
                 if let Some(graphics_engine) = &mut self.graphics_engine {
                     for event in graphics_events {
                         match event {
-                            crate::engine::dispatcher::GraphicsEvent::SpawnParticles { position, velocity: _, count: _, lifetime: _, color: _ } => {
-                                graphics_engine.spawn_particles(position);
+                            crate::engine::dispatcher::GraphicsEvent::SpawnParticles { position, velocity, count, lifetime, color } => {
+                                graphics_engine.spawn_particles(position, velocity, count, lifetime, color);
                             }
                             crate::engine::dispatcher::GraphicsEvent::DrawLine { start, end, color, duration } => {
                                 // Debug line drawing - could be implemented with line renderer

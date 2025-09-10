@@ -141,8 +141,8 @@ impl Dispatcher {
                 graphics_events.push(GraphicsEvent::SpawnParticles {
                     position: impact_point,
                     velocity: Vec3::new(0.0, 1.0, 0.0), // Default upward
-                    count: 15,
-                    lifetime: 0.8,
+                    count: 50,
+                    lifetime: 2.0,
                     color: Color::new(1.0, 0.6, 0.2, 1.0), // Orange sparks
                 });
             }
@@ -215,7 +215,7 @@ impl Dispatcher {
 
         // Batch process bullet hits - optimize bullet removal and particle spawning
         let mut bullets_to_remove = Vec::new();
-        
+
         for event in bullet_hits {
             match event {
                 CollisionEvent::BulletHitEnemy {
@@ -225,18 +225,20 @@ impl Dispatcher {
                     impact_point,
                 } => {
                     // Apply damage directly
-                    scheduler.enemies_mut().damage_enemy_direct(enemy_id, damage, bullet_id);
-                    
+                    scheduler
+                        .enemies_mut()
+                        .damage_enemy_direct(enemy_id, damage, bullet_id);
+
                     // Collect bullet for batch removal
                     bullets_to_remove.push(bullet_id);
-                    
+
                     // Queue particle effect
                     use crate::graphics::Color;
                     graphics_events.push(GraphicsEvent::SpawnParticles {
                         position: impact_point,
                         velocity: Vec3::new(0.0, 1.0, 0.0),
-                        count: 15,
-                        lifetime: 0.8,
+                        count: 50,
+                        lifetime: 2.0,
                         color: Color::new(1.0, 0.6, 0.2, 1.0),
                     });
                 }
@@ -246,7 +248,7 @@ impl Dispatcher {
                 }
             }
         }
-        
+
         // Batch remove all bullets at once (more efficient than individual removals)
         for bullet_id in bullets_to_remove {
             scheduler.bullets_mut().mark_bullet_for_removal(bullet_id);
@@ -262,7 +264,7 @@ impl Dispatcher {
         if events.is_empty() {
             return;
         }
-        
+
         // Batch process audio events - could optimize by grouping by sound type, position, etc.
         for event in events {
             Self::handle_audio_event(event);
@@ -273,7 +275,7 @@ impl Dispatcher {
         if events.is_empty() {
             return;
         }
-        
+
         // Batch debug events - could group similar log messages, suppress duplicates, etc.
         for event in events {
             match event {

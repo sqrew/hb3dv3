@@ -6,11 +6,16 @@ struct Particle {
     velocity: vec3<f32>,
     life: f32,
     max_life: f32,
+    color: vec4<f32>, // Store collision event color
 }
 
 struct SpawnRequest {
     position: vec3<f32>,
     count: u32,
+    velocity: vec3<f32>,
+    lifetime: f32,
+    color: vec4<f32>, // RGBA
+    padding: vec4<f32>, // For alignment
 }
 
 // Particle buffers (for compute shaders)
@@ -21,8 +26,6 @@ struct SpawnRequest {
 
 // Constants
 const MAX_PARTICLES: u32 = 8192u;
-const PARTICLES_PER_COLLISION: u32 = 20u;
-const PARTICLE_LIFETIME: f32 = 2.0;
 
 // Simple random function
 fn random(seed: u32) -> f32 {
@@ -64,27 +67,38 @@ fn spawn_particles(@builtin(global_invocation_id) global_id: vec3<u32>) {
     let spawn_req = spawn_queue[spawn_index];
     let base_seed = spawn_index * 1000u;
     
-    // Spawn particles for this collision
-    for (var i = 0u; i < PARTICLES_PER_COLLISION; i++) {
+    // Spawn particles for this collision using event data
+    for (var i = 0u; i < spawn_req.count; i++) {
         let particle_seed = base_seed + i;
-        let particle_index = (spawn_index * PARTICLES_PER_COLLISION + i) % MAX_PARTICLES;
+        let particle_index = (spawn_index * spawn_req.count + i) % MAX_PARTICLES;
         
         // Only spawn if slot is free
         if (particles[particle_index].life <= 0.0) {
-            // Generate random velocity
+            // Generate random velocity based on collision direction
             let rand1 = random(particle_seed + 1u) * 2.0 - 1.0;
             let rand2 = random(particle_seed + 2u) * 2.0 - 1.0;
             let rand3 = random(particle_seed + 3u) * 2.0 - 1.0;
             let rand4 = random(particle_seed + 4u);
             
-            let speed = 5.0 + rand4 * 10.0;
-            let velocity = normalize(vec3<f32>(rand1, abs(rand2), rand3)) * speed;
+            // Generate random velocity similar to original system but using collision data as hint
+            let speed = 3.0 + rand4 * 5.0; // Random speed between 3-8 (reduced from 5-15)
+            
+            // Create a mostly upward direction with some randomness
+            let random_direction = normalize(vec3<f32>(
+                rand1 * 0.5,           // Small horizontal spread
+                abs(rand2) + 0.5,      // Mostly upward (0.5 to 1.5 range)  
+                rand3 * 0.5            // Small horizontal spread
+            ));
+            
+            // Apply the speed to the direction
+            let final_velocity = random_direction * speed;
             
             particles[particle_index] = Particle(
                 spawn_req.position,
-                velocity,
-                PARTICLE_LIFETIME,
-                PARTICLE_LIFETIME
+                final_velocity,
+                spawn_req.lifetime * (0.8 + rand4 * 0.4), // Vary lifetime slightly
+                spawn_req.lifetime,
+                spawn_req.color // Use collision event color
             );
             
             atomicAdd(&alive_count, 1u);
@@ -113,9 +127,9 @@ fn vs_main(@builtin(instance_index) instance_index: u32) -> VertexOutput {
         let world_pos = vec4<f32>(particle.position, 1.0);
         output.position = view_proj * world_pos;
         
-        // Fade out over lifetime
+        // Fade out over lifetime using collision event color
         let life_ratio = particle.life / particle.max_life;
-        output.color = vec4<f32>(1.0, 0.8, 0.2, life_ratio); // Orange fade
+        output.color = vec4<f32>(particle.color.rgb, particle.color.a * life_ratio);
     } else {
         // Dead particle - render offscreen
         output.position = vec4<f32>(-10.0, -10.0, -10.0, 1.0);

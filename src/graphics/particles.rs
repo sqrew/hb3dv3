@@ -20,7 +20,7 @@ struct GpuParticle {
     _padding2: f32,
     life: f32,
     max_life: f32,
-    _padding3: [f32; 2],
+    color: [f32; 4], // RGBA
 }
 
 impl Default for GpuParticle {
@@ -32,7 +32,7 @@ impl Default for GpuParticle {
             _padding2: 0.0,
             life: 0.0,
             max_life: 0.0,
-            _padding3: [0.0; 2],
+            color: [0.0; 4],
         }
     }
 }
@@ -43,6 +43,10 @@ impl Default for GpuParticle {
 struct SpawnRequest {
     position: [f32; 3],
     count: u32,
+    velocity: [f32; 3],
+    lifetime: f32,
+    color: [f32; 4], // RGBA
+    _padding: [f32; 4], // Ensure 16-byte alignment
 }
 
 /// GPU particle system
@@ -288,14 +292,29 @@ impl ParticleSystem {
         }
     }
     
-    /// Add a particle spawn request at the given position (e.g., bullet+enemy collision)
-    pub fn spawn_particles(&mut self, position: Vec3) {
+    /// Add a particle spawn request with full collision event data
+    pub fn spawn_particles(&mut self, position: Vec3, velocity: Vec3, count: u32, lifetime: f32, color: crate::graphics::Color) {
         if self.spawn_queue.len() < MAX_SPAWN_REQUESTS as usize {
             self.spawn_queue.push(SpawnRequest {
                 position: [position.x, position.y, position.z],
-                count: PARTICLES_PER_COLLISION,
+                count,
+                velocity: [velocity.x, velocity.y, velocity.z],
+                lifetime,
+                color: [color.r, color.g, color.b, color.a],
+                _padding: [0.0; 4],
             });
         }
+    }
+    
+    /// Add a particle spawn request at the given position with default values (backwards compatibility)
+    pub fn spawn_particles_simple(&mut self, position: Vec3) {
+        self.spawn_particles(
+            position,
+            Vec3::new(0.0, 1.0, 0.0), // Default upward velocity
+            PARTICLES_PER_COLLISION,
+            0.8,
+            crate::graphics::Color::new(1.0, 0.6, 0.2, 1.0), // Orange sparks
+        );
     }
     
     /// Update particle system on GPU

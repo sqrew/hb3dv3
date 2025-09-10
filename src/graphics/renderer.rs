@@ -545,9 +545,14 @@ impl GraphicsEngine {
             .render_lines(render_pass, &self.camera_bind_group, &lines);
     }
     
-    /// Spawn particles at the given position (e.g., bullet+enemy collision)
-    pub fn spawn_particles(&mut self, position: crate::graphics::Vec3) {
-        self.particles.spawn_particles(position);
+    /// Spawn particles with full collision event data
+    pub fn spawn_particles(&mut self, position: crate::graphics::Vec3, velocity: crate::graphics::Vec3, count: u32, lifetime: f32, color: crate::graphics::Color) {
+        self.particles.spawn_particles(position, velocity, count, lifetime, color);
+    }
+    
+    /// Spawn particles at the given position with default values (backwards compatibility)
+    pub fn spawn_particles_simple(&mut self, position: crate::graphics::Vec3) {
+        self.particles.spawn_particles_simple(position);
     }
     
     /// Update particle system (call before render)
