@@ -23,7 +23,7 @@ impl WeaponStats {
     pub fn basic_blaster() -> Self {
         Self {
             damage: 25.0,
-            fire_rate: 10.0,
+            fire_rate: 1.0,
             bullet_speed: 20.0,
             bullet_lifetime: 10.0,
             projectile_count: 1,
@@ -203,18 +203,18 @@ impl WeaponManager {
                 direction,
                 projectile_count: bullet_requests.len() as u32,
             }));
-            
+
             Some(bullet_requests)
         } else {
             None
         }
     }
-    
+
     /// Get and clear weapon events
     pub fn drain_events(&mut self) -> Vec<EventType> {
         self.event_queue.drain(..).collect()
     }
-    
+
     /// Check if there are pending events
     pub fn has_events(&self) -> bool {
         !self.event_queue.is_empty()
@@ -241,7 +241,7 @@ impl WeaponManager {
         self.current_weapon = Weapon::new(new_weapon_type);
         println!("🔫 Switched to {:?}", self.current_weapon.weapon_type());
     }
-    
+
     pub fn cycle_weapon_backward(&mut self) {
         if self.current_weapon_index == 0 {
             self.current_weapon_index = self.available_weapons.len() - 1;

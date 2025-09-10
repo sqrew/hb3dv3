@@ -1,6 +1,6 @@
 use crate::engine::{Vec3, CollisionMask};
 use crate::engine::entity::{EntityId, EntityType};
-use crate::engine::dispatcher::{EventType, PlayerEvent};
+use crate::engine::dispatcher::EventType;
 use crate::input::{InputManager, Action};
 use crate::graphics::{Primitive, PrimitiveType, Color};
 use crate::scene::{WeaponManager, BulletSpawnRequest};
