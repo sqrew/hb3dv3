@@ -2,6 +2,7 @@ use crate::engine::entity::{EntityId, EntityType};
 use crate::engine::{CollisionMask, Vec3};
 use crate::engine::dispatcher::{EventType, CollisionEvent};
 use crate::graphics::{Color, Primitive, PrimitiveType};
+use crate::scene::GravityAffected;
 
 /// Unified projectile type system - defines what kind of projectile to spawn
 #[derive(Debug, Clone)]
@@ -65,6 +66,8 @@ pub struct Bullet {
     collision_radius: f32,
     collision_mask: CollisionMask,
     marked_for_removal: bool,
+    mass: f32,
+    applied_force: Vec3,
 }
 
 impl Bullet {
@@ -78,12 +81,24 @@ impl Bullet {
             collision_radius: 0.1,
             collision_mask: CollisionMask::from(EntityType::PlayerBullet),
             marked_for_removal: false,
+            mass: 0.5, // Light bullet mass in kg
+            applied_force: Vec3::zeros(),
         }
     }
 
     pub fn update(&mut self, dt: f32) {
+        // Apply gravitational forces (F = ma, so a = F/m)
+        let gravity_acceleration = self.applied_force / self.mass;
+        
+        // Update velocity with gravity effects (bullets are ballistic)
+        self.vel += gravity_acceleration * dt;
+        
+        // Update position
         self.pos += self.vel * dt;
         self.ttl -= dt;
+        
+        // Reset applied force for next frame
+        self.applied_force = Vec3::zeros();
     }
 
     pub fn is_alive(&self) -> bool {
@@ -114,6 +129,21 @@ impl Bullet {
         self.marked_for_removal = true;
     }
 }
+
+impl GravityAffected for Bullet {
+    fn position(&self) -> Vec3 {
+        self.pos
+    }
+    
+    fn mass(&self) -> f32 {
+        self.mass
+    }
+    
+    fn apply_force(&mut self, force: Vec3) {
+        self.applied_force += force;
+    }
+}
+
 pub struct BulletManager {
     bullets: Vec<Bullet>,
     metabullets: Vec<MetaBullet>,
@@ -177,6 +207,10 @@ impl BulletManager {
 
     pub fn bullets(&self) -> &[Bullet] {
         &self.bullets
+    }
+    
+    pub fn bullets_mut(&mut self) -> &mut [Bullet] {
+        &mut self.bullets
     }
 
     pub fn metabullets(&self) -> &[MetaBullet] {

@@ -2,6 +2,7 @@ use crate::engine::dispatcher::{EnemyEvent, EventType};
 use crate::engine::entity::{EntityId, EntityType};
 use crate::engine::{CollisionMask, Vec3};
 use crate::graphics::{Color, Primitive, PrimitiveType};
+use crate::scene::GravityAffected;
 
 pub struct Enemy {
     entity_id: EntityId,
@@ -10,6 +11,8 @@ pub struct Enemy {
     health: f32,
     collision_radius: f32,
     collision_mask: CollisionMask,
+    mass: f32,
+    applied_force: Vec3,
 }
 
 impl Enemy {
@@ -21,23 +24,35 @@ impl Enemy {
             health,
             collision_radius: 0.6,
             collision_mask: CollisionMask::from(EntityType::Enemy),
+            mass: 25.0, // Enemy mass in kg
+            applied_force: Vec3::zeros(),
         }
     }
 
     pub fn update(&mut self, dt: f32) {
+        // Apply gravitational forces (F = ma, so a = F/m)
+        let gravity_acceleration = self.applied_force / self.mass;
+        
+        // Update velocity with both AI movement and gravity
+        self.vel += gravity_acceleration * dt;
+        
+        // Update position
         self.pos += self.vel * dt;
 
-        // Simple AI: bounce off boundaries
-        if self.pos.x.abs() > 15.0 {
+        // Simple AI: bounce off boundaries (but allow gravity to override)
+        if self.pos.x.abs() > 15.0 && self.applied_force.magnitude() < 10.0 {
             self.vel.x = -self.vel.x;
         }
-        if self.pos.z.abs() > 15.0 {
+        if self.pos.z.abs() > 15.0 && self.applied_force.magnitude() < 10.0 {
             self.vel.z = -self.vel.z;
         }
 
-        // Keep enemies within bounds
-        self.pos.x = self.pos.x.clamp(-20.0, 20.0);
-        self.pos.z = self.pos.z.clamp(-20.0, 20.0);
+        // Keep enemies within reasonable bounds (but allow gravity to pull them)
+        self.pos.x = self.pos.x.clamp(-50.0, 50.0);
+        self.pos.z = self.pos.z.clamp(-50.0, 50.0);
+        
+        // Reset applied force for next frame
+        self.applied_force = Vec3::zeros();
     }
 
     pub fn position(&self) -> Vec3 {
@@ -83,7 +98,7 @@ impl EnemyManager {
         entity_manager: &mut crate::engine::entity::EntityManager,
     ) {
         // Spawn a few enemies in interesting positions
-        for i in 0..50000 {
+        for i in 0..500 {
             let angle = (i as f32 / 50.0) * std::f32::consts::TAU;
             let radius = 8.0;
             let pos = Vec3::new(
@@ -123,6 +138,10 @@ impl EnemyManager {
 
     pub fn enemies(&self) -> &[Enemy] {
         &self.enemies
+    }
+    
+    pub fn enemies_mut(&mut self) -> &mut [Enemy] {
+        &mut self.enemies
     }
 
     pub fn remove_enemy(&mut self, index: usize) -> bool {
@@ -284,5 +303,19 @@ impl EnemyManager {
                 );
             }
         }
+    }
+}
+
+impl GravityAffected for Enemy {
+    fn position(&self) -> Vec3 {
+        self.pos
+    }
+    
+    fn mass(&self) -> f32 {
+        self.mass
+    }
+    
+    fn apply_force(&mut self, force: Vec3) {
+        self.applied_force += force;
     }
 }

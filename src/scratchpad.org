@@ -1,6 +1,6 @@
 #+title: Scratchpad
 
-
+physics.rs max effected entities const is 1024, needs to be leagues higher
 
   1. Dynamic primitive updates - Your current system assumes static primitives. You'll need efficient per-frame position/rotation updates for moving enemies/bullets
   2. Depth-based visual effects:

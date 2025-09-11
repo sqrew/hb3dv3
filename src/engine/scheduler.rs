@@ -1,4 +1,4 @@
-use crate::scene::{BulletManager, EnemyManager, PlayerManager};
+use crate::scene::{BulletManager, EnemyManager, PlayerManager, PhysicsManager, GravityAffected};
 use crate::input::InputManager;
 use crate::graphics::{Primitive, Vec3};
 use crate::engine::entity::{EntityManager, EntityType, EntityLookup};
@@ -8,6 +8,7 @@ pub struct Scheduler {
     player: PlayerManager,
     enemies: EnemyManager,
     bullets: BulletManager,
+    physics: PhysicsManager,
 }
 
 impl Scheduler {
@@ -25,6 +26,7 @@ impl Scheduler {
             player: PlayerManager::new(player_entity),
             enemies,
             bullets: BulletManager::new(),
+            physics: PhysicsManager::new(),
         }
     }
 
@@ -33,6 +35,10 @@ impl Scheduler {
     }
     
     pub fn update(&mut self, delta_time: f32, input: &InputManager, camera_forward: Vec3, camera_right: Vec3, camera_up: Vec3) {
+        self.update_with_physics(delta_time, input, camera_forward, camera_right, camera_up, None, None);
+    }
+    
+    pub fn update_with_physics(&mut self, delta_time: f32, input: &InputManager, camera_forward: Vec3, camera_right: Vec3, camera_up: Vec3, device: Option<&wgpu::Device>, queue: Option<&wgpu::Queue>) {
         // Update player movement
         if let Some(bullet_requests) = self.player.update(delta_time, input, camera_forward, camera_right, camera_up) {
             // Spawn bullets from player weapon using new projectile system
@@ -54,6 +60,11 @@ impl Scheduler {
         self.enemies.update(delta_time);
         self.bullets.update(delta_time);
         
+        // Apply gravitational forces to all affected objects
+        if let (Some(device), Some(queue)) = (device, queue) {
+            // Update physics using the helper method that handles the complexity
+            self.update_physics_forces(device, queue, delta_time);
+        }
     }
     
     pub fn postupdate(&mut self) {
@@ -137,6 +148,75 @@ impl Scheduler {
         &mut self.bullets
     }
     
+    /// Get access to the physics manager
+    pub fn physics(&self) -> &PhysicsManager {
+        &self.physics
+    }
+    
+    /// Get mutable access to the physics manager
+    pub fn physics_mut(&mut self) -> &mut PhysicsManager {
+        &mut self.physics
+    }
+    
+    /// Initialize GPU physics resources (call after graphics context is available)
+    pub fn initialize_physics_gpu(&mut self, device: &wgpu::Device) {
+        self.physics.initialize_gpu(device);
+        
+        // Example: Add some gravitational bodies to the scene
+        self.setup_example_gravitational_bodies();
+    }
+    
+    /// Setup some example gravitational bodies for demonstration
+    fn setup_example_gravitational_bodies(&mut self) {
+        // Add a large planet at the center
+        let _planet_id = self.physics.add_planet(
+            Vec3::new(0.0, 0.0, 0.0),  // position
+            50000.0,                    // mass  
+            5.0                         // radius
+        );
+        
+        // Add some asteroids with orbital motion
+        let _asteroid1_id = self.physics.add_asteroid(
+            Vec3::new(15.0, 0.0, 0.0), // position
+            100.0,                      // mass
+            Vec3::new(0.0, 0.0, 8.0),   // orbital velocity
+            1.0                         // radius
+        );
+        
+        let _asteroid2_id = self.physics.add_asteroid(
+            Vec3::new(-10.0, 0.0, 10.0), // position
+            80.0,                         // mass  
+            Vec3::new(5.0, 0.0, -4.0),    // orbital velocity
+            0.8                           // radius
+        );
+        
+        println!("🪐 Physics system initialized with {} gravitational bodies", 
+                self.physics.gravitational_bodies().len());
+    }
+    
+    /// Update physics forces for all gravity-affected objects in one efficient GPU call
+    fn update_physics_forces(&mut self, device: &wgpu::Device, queue: &wgpu::Queue, delta_time: f32) {
+        // Collect ALL affected objects into a single batch for efficient GPU processing
+        let mut all_objects: Vec<&mut dyn GravityAffected> = Vec::new();
+        
+        // Add player
+        all_objects.push(self.player.player_mut());
+        
+        // Add all enemies
+        for enemy in self.enemies.enemies_mut().iter_mut() {
+            all_objects.push(enemy);
+        }
+        
+        // Add all bullets
+        for bullet in self.bullets.bullets_mut().iter_mut() {
+            all_objects.push(bullet);
+        }
+        
+        // Single GPU call for all objects - much more efficient!
+        if !all_objects.is_empty() {
+            self.physics.update_gravity_batch(device, queue, &mut all_objects, delta_time);
+        }
+    }
     
     /// Simple CPU-based collision detection (temporary fallback)
     pub fn check_collisions_cpu(&mut self) {

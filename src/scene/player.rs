@@ -3,7 +3,7 @@ use crate::engine::entity::{EntityId, EntityType};
 use crate::engine::dispatcher::EventType;
 use crate::input::{InputManager, Action};
 use crate::graphics::{Primitive, PrimitiveType, Color};
-use crate::scene::{WeaponManager, BulletSpawnRequest};
+use crate::scene::{WeaponManager, BulletSpawnRequest, GravityAffected};
 
 pub struct Player {
     entity_id: EntityId,
@@ -14,6 +14,8 @@ pub struct Player {
     collision_radius: f32,
     collision_mask: CollisionMask,
     weapon_manager: WeaponManager,
+    mass: f32,
+    applied_force: Vec3,
 }
 
 impl Player {
@@ -27,6 +29,8 @@ impl Player {
             collision_radius: 0.8,
             collision_mask: CollisionMask::from(EntityType::Player),
             weapon_manager: WeaponManager::new(),
+            mass: 75.0, // Player mass in kg
+            applied_force: Vec3::zeros(),
         }
     }
     
@@ -46,11 +50,20 @@ impl Player {
         // Combine all movement vectors
         let movement_direction = forward_movement + right_movement + up_movement;
         
-        // Update velocity based on camera-relative input
-        self.vel = movement_direction * self.speed;
+        // Update velocity based on camera-relative input + gravity forces
+        let input_velocity = movement_direction * self.speed;
+        
+        // Apply gravitational forces (F = ma, so a = F/m)
+        let gravity_acceleration = self.applied_force / self.mass;
+        
+        // Combine input movement with gravity effects
+        self.vel = input_velocity + gravity_acceleration * delta_time;
         
         // Update position
         self.pos += self.vel * delta_time;
+        
+        // Reset applied force for next frame
+        self.applied_force = Vec3::zeros();
         
         // Clamp to reasonable bounds (simple boundary)
         self.pos.x = self.pos.x.clamp(-50.0, 50.0);
@@ -97,6 +110,20 @@ impl Player {
         self.health += amount;
         self.health = self.health.min(100.0); // Cap at max health
         println!("💚 Player healed {} points, health: {}", amount, self.health);
+    }
+}
+
+impl GravityAffected for Player {
+    fn position(&self) -> Vec3 {
+        self.pos
+    }
+    
+    fn mass(&self) -> f32 {
+        self.mass
+    }
+    
+    fn apply_force(&mut self, force: Vec3) {
+        self.applied_force += force;
     }
 }
 
