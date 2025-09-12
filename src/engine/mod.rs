@@ -35,6 +35,11 @@ impl Engine {
     
     // Single update method that handles everything
     pub fn update(&mut self, delta_time: f32, input: &crate::input::InputManager, camera_forward: Vec3, camera_right: Vec3, camera_up: Vec3) -> (Vec<crate::graphics::Primitive>, Vec3, Vec<dispatcher::GraphicsEvent>) {
+        self.update_with_gpu(delta_time, input, camera_forward, camera_right, camera_up, None, None)
+    }
+    
+    // Update method with optional GPU context for physics
+    pub fn update_with_gpu(&mut self, delta_time: f32, input: &crate::input::InputManager, camera_forward: Vec3, camera_right: Vec3, camera_up: Vec3, device: Option<&wgpu::Device>, queue: Option<&wgpu::Queue>) -> (Vec<crate::graphics::Primitive>, Vec3, Vec<dispatcher::GraphicsEvent>) {
         // Update time tracking
         self.time.update(delta_time);
         
@@ -52,8 +57,8 @@ impl Engine {
         // Pre-update
         self.scheduler.preupdate();
         
-        // Main update
-        self.scheduler.update(delta_time, input, camera_forward, camera_right, camera_up);
+        // Main update with physics support
+        self.scheduler.update_with_physics(delta_time, input, camera_forward, camera_right, camera_up, device, queue);
         
         // Post-update
         self.scheduler.postupdate();
@@ -101,5 +106,28 @@ impl Engine {
             &self.scheduler.enemies(),
             &self.scheduler.entity_manager(),
         );
+        
+        // Handle bullet removals from large body collisions
+        let bullets_to_remove = self.collision_manager.drain_bullets_to_remove();
+        for bullet_id in bullets_to_remove {
+            self.scheduler.bullets_mut().mark_bullet_for_removal(bullet_id);
+        }
+        
+        // Handle enemy removals from large body collisions
+        let enemies_to_remove = self.collision_manager.drain_enemies_to_remove();
+        for enemy_id in enemies_to_remove {
+            self.scheduler.enemies_mut().mark_enemy_for_removal(enemy_id);
+        }
+        
+        // Handle bullet velocity changes from bullet-bullet collisions
+        let velocity_changes = self.collision_manager.drain_bullet_velocity_changes();
+        for (bullet_id, new_velocity) in velocity_changes {
+            self.scheduler.bullets_mut().set_bullet_velocity(bullet_id, new_velocity);
+        }
+    }
+    
+    /// Initialize physics GPU system
+    pub fn initialize_physics_gpu(&mut self, device: &wgpu::Device) {
+        self.scheduler.initialize_physics_gpu(device);
     }
 }

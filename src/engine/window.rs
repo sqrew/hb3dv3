@@ -54,6 +54,11 @@ impl ApplicationHandler for WindowManager {
 
         self.window = Some(window);
         self.graphics_engine = Some(graphics_engine);
+        
+        // Initialize physics GPU system now that graphics context is available
+        if let Some(graphics_engine) = &self.graphics_engine {
+            self.engine.initialize_physics_gpu(graphics_engine.device());
+        }
     }
 
     fn window_event(
@@ -97,8 +102,22 @@ impl ApplicationHandler for WindowManager {
                     (Vec3::new(0.0, 0.0, -1.0), Vec3::new(1.0, 0.0, 0.0), Vec3::new(0.0, 1.0, 0.0))
                 };
                 
-                // Single engine update that handles everything
-                let (primitives, player_pos, graphics_events) = self.engine.update(delta_time, &self.input_manager, camera_forward, camera_right, camera_up);
+                // Single engine update that handles everything with GPU physics
+                let (primitives, player_pos, graphics_events) = if let Some(graphics_engine) = &self.graphics_engine {
+                    // Pass GPU context for physics calculations
+                    self.engine.update_with_gpu(
+                        delta_time, 
+                        &self.input_manager, 
+                        camera_forward, 
+                        camera_right, 
+                        camera_up,
+                        Some(graphics_engine.device()),
+                        Some(graphics_engine.queue())
+                    )
+                } else {
+                    // Fallback without GPU context
+                    self.engine.update(delta_time, &self.input_manager, camera_forward, camera_right, camera_up)
+                };
                 
                 // Process graphics events from dispatcher
                 if let Some(graphics_engine) = &mut self.graphics_engine {
@@ -130,9 +149,10 @@ impl ApplicationHandler for WindowManager {
                         let enemies = self.engine.scheduler.enemies().enemies();
                         let bullets = self.engine.scheduler.bullets().bullets();
                         let metabullets = self.engine.scheduler.bullets().metabullets();
+                        let large_bodies = self.engine.scheduler.large_bodies().bodies();
                         
                         graphics_engine.collision_compute().update_entities(
-                            player, enemies, bullets, metabullets
+                            player, enemies, bullets, metabullets, large_bodies
                         );
                         
                         // Dispatch and read GPU collision results

@@ -48,11 +48,21 @@ impl CollisionMask {
     pub const ENEMY: CollisionMask =
         CollisionMask((1 << EntityType::Player as u32) | (1 << EntityType::PlayerBullet as u32));
 
-    /// Player bullets collide with enemies only
-    pub const PLAYER_BULLET: CollisionMask = CollisionMask(1 << EntityType::Enemy as u32);
+    /// Player bullets collide with enemies and other player bullets
+    pub const PLAYER_BULLET: CollisionMask = CollisionMask(
+        (1 << EntityType::Enemy as u32) | (1 << EntityType::PlayerBullet as u32)
+    );
 
     /// Enemy bullets collide with player only (when implemented)
     pub const ENEMY_BULLET: CollisionMask = CollisionMask(1 << EntityType::Player as u32);
+    
+    /// Large bodies collide with everything that can hit them
+    pub const LARGE_BODY: CollisionMask = CollisionMask(
+        (1 << EntityType::Player as u32) | 
+        (1 << EntityType::Enemy as u32) | 
+        (1 << EntityType::PlayerBullet as u32) | 
+        (1 << EntityType::EnemyBullet as u32)
+    );
 }
 
 impl Default for CollisionMask {
@@ -68,6 +78,7 @@ impl From<EntityType> for CollisionMask {
             EntityType::Enemy => CollisionMask::ENEMY,
             EntityType::PlayerBullet => CollisionMask::PLAYER_BULLET,
             EntityType::EnemyBullet => CollisionMask::ENEMY_BULLET,
+            EntityType::LargeBody => CollisionMask::LARGE_BODY,
         }
     }
 }
@@ -76,12 +87,21 @@ impl From<EntityType> for CollisionMask {
 pub struct CollisionManager {
     /// Events generated from collision processing
     event_queue: Vec<crate::engine::dispatcher::EventType>,
+    /// Bullets to remove due to large body collisions
+    bullets_to_remove: Vec<crate::engine::entity::EntityId>,
+    /// Enemies to remove due to large body collisions
+    enemies_to_remove: Vec<crate::engine::entity::EntityId>,
+    /// Bullet velocity changes to apply (entity_id, new_velocity)
+    bullet_velocity_changes: Vec<(crate::engine::entity::EntityId, crate::engine::Vec3)>,
 }
 
 impl CollisionManager {
     pub fn new() -> Self {
         Self {
             event_queue: Vec::new(),
+            bullets_to_remove: Vec::new(),
+            enemies_to_remove: Vec::new(),
+            bullet_velocity_changes: Vec::new(),
         }
     }
 
@@ -188,6 +208,176 @@ impl CollisionManager {
                         ));
                     println!("Enemy {} hit Player {}", entity_b.0, entity_a.0);
                 }
+                // PlayerBullet hits LargeBody
+                (
+                    Some(crate::engine::entity::EntityType::PlayerBullet),
+                    Some(crate::engine::entity::EntityType::LargeBody),
+                ) => {
+                    // Queue bullet for removal (handle in post-processing)
+                    self.bullets_to_remove.push(entity_a);
+                    
+                    // Generate collision event with impact point for particle effects
+                    if let Some(bullet) = bullet_manager.bullets().iter().find(|b| b.entity_id() == entity_a) {
+                        self.event_queue.push(crate::engine::dispatcher::EventType::Collision(
+                            crate::engine::dispatcher::CollisionEvent::BulletHitLargeBody {
+                                bullet_id: entity_a,
+                                large_body_id: entity_b,
+                                impact_point: bullet.position(),
+                            },
+                        ));
+                    }
+                    
+                    println!("PlayerBullet {} hit LargeBody {} (bullet destroyed)", entity_a.0, entity_b.0);
+                }
+                // LargeBody hits PlayerBullet (reverse)
+                (
+                    Some(crate::engine::entity::EntityType::LargeBody),
+                    Some(crate::engine::entity::EntityType::PlayerBullet),
+                ) => {
+                    // Queue bullet for removal (handle in post-processing)
+                    self.bullets_to_remove.push(entity_b);
+                    
+                    // Generate collision event with impact point for particle effects
+                    if let Some(bullet) = bullet_manager.bullets().iter().find(|b| b.entity_id() == entity_b) {
+                        self.event_queue.push(crate::engine::dispatcher::EventType::Collision(
+                            crate::engine::dispatcher::CollisionEvent::BulletHitLargeBody {
+                                bullet_id: entity_b,
+                                large_body_id: entity_a,
+                                impact_point: bullet.position(),
+                            },
+                        ));
+                    }
+                    
+                    println!("PlayerBullet {} hit LargeBody {} (bullet destroyed)", entity_b.0, entity_a.0);
+                }
+                // Enemy hits LargeBody
+                (
+                    Some(crate::engine::entity::EntityType::Enemy),
+                    Some(crate::engine::entity::EntityType::LargeBody),
+                ) => {
+                    // Queue enemy for removal (instant death on large body collision)
+                    self.enemies_to_remove.push(entity_a);
+                    
+                    // Generate collision event with impact point for particle effects
+                    if let Some(enemy_pos) = enemy_manager.get_enemy_position(entity_a) {
+                        self.event_queue.push(crate::engine::dispatcher::EventType::Collision(
+                            crate::engine::dispatcher::CollisionEvent::EnemyHitLargeBody {
+                                enemy_id: entity_a,
+                                large_body_id: entity_b,
+                                impact_point: enemy_pos,
+                            },
+                        ));
+                    }
+                    
+                    println!("Enemy {} destroyed by LargeBody {}", entity_a.0, entity_b.0);
+                }
+                // LargeBody hits Enemy (reverse)
+                (
+                    Some(crate::engine::entity::EntityType::LargeBody),
+                    Some(crate::engine::entity::EntityType::Enemy),
+                ) => {
+                    // Queue enemy for removal (instant death on large body collision)
+                    self.enemies_to_remove.push(entity_b);
+                    
+                    // Generate collision event with impact point for particle effects
+                    if let Some(enemy_pos) = enemy_manager.get_enemy_position(entity_b) {
+                        self.event_queue.push(crate::engine::dispatcher::EventType::Collision(
+                            crate::engine::dispatcher::CollisionEvent::EnemyHitLargeBody {
+                                enemy_id: entity_b,
+                                large_body_id: entity_a,
+                                impact_point: enemy_pos,
+                            },
+                        ));
+                    }
+                    
+                    println!("Enemy {} destroyed by LargeBody {}", entity_b.0, entity_a.0);
+                }
+                // Player hits LargeBody
+                (
+                    Some(crate::engine::entity::EntityType::Player),
+                    Some(crate::engine::entity::EntityType::LargeBody),
+                ) => {
+                    // Player takes damage from hitting large body
+                    println!("Player {} collided with LargeBody {} (impact damage)", entity_a.0, entity_b.0);
+                    // Could add impact damage event here
+                }
+                // LargeBody hits Player (reverse)
+                (
+                    Some(crate::engine::entity::EntityType::LargeBody),
+                    Some(crate::engine::entity::EntityType::Player),
+                ) => {
+                    // Player takes damage from hitting large body
+                    println!("Player {} collided with LargeBody {} (impact damage)", entity_b.0, entity_a.0);
+                    // Could add impact damage event here
+                }
+                // PlayerBullet hits PlayerBullet (bullet-bullet collision)
+                (
+                    Some(crate::engine::entity::EntityType::PlayerBullet),
+                    Some(crate::engine::entity::EntityType::PlayerBullet),
+                ) => {
+                    // Get both bullet velocities and positions for elastic collision
+                    if let (Some(vel_a), Some(vel_b)) = (
+                        bullet_manager.get_bullet_velocity(entity_a),
+                        bullet_manager.get_bullet_velocity(entity_b)
+                    ) {
+                        // Calculate separation direction to prevent repeated collisions
+                        if let (Some(bullet_a), Some(bullet_b)) = (
+                            bullet_manager.bullets().iter().find(|b| b.entity_id() == entity_a),
+                            bullet_manager.bullets().iter().find(|b| b.entity_id() == entity_b)
+                        ) {
+                            // Calculate separation vector (from bullet_b to bullet_a)
+                            let separation = bullet_a.position() - bullet_b.position();
+                            let separation_magnitude = separation.magnitude();
+                            
+                            if separation_magnitude > 0.001 {
+                                let separation_dir = separation / separation_magnitude;
+                                
+                                // Add small separation impulse to prevent sticking
+                                // This pushes bullets apart slightly after collision
+                                const SEPARATION_IMPULSE: f32 = 2.0; // Adjust as needed
+                                let separation_velocity = separation_dir * SEPARATION_IMPULSE;
+                                
+                                // Apply elastic collision + separation impulse
+                                self.bullet_velocity_changes.push((entity_a, vel_b + separation_velocity));
+                                self.bullet_velocity_changes.push((entity_b, vel_a - separation_velocity));
+                            } else {
+                                // Fallback: if bullets are at exact same position, use random separation
+                                let random_dir = crate::engine::Vec3::new(
+                                    (entity_a.0 as f32 * 0.1).sin(),
+                                    (entity_b.0 as f32 * 0.1).cos(),
+                                    0.0
+                                ).normalize();
+                                const SEPARATION_IMPULSE: f32 = 2.0;
+                                let separation_velocity = random_dir * SEPARATION_IMPULSE;
+                                
+                                self.bullet_velocity_changes.push((entity_a, vel_b + separation_velocity));
+                                self.bullet_velocity_changes.push((entity_b, vel_a - separation_velocity));
+                            }
+                        } else {
+                            // Fallback to original behavior if bullets not found
+                            self.bullet_velocity_changes.push((entity_a, vel_b));
+                            self.bullet_velocity_changes.push((entity_b, vel_a));
+                        }
+                        
+                        // Generate collision event with impact point for particle effects
+                        // Calculate approximate impact point as midpoint between bullets
+                        if let (Some(bullet_a), Some(bullet_b)) = (
+                            bullet_manager.bullets().iter().find(|b| b.entity_id() == entity_a),
+                            bullet_manager.bullets().iter().find(|b| b.entity_id() == entity_b)
+                        ) {
+                            let impact_point = (bullet_a.position() + bullet_b.position()) * 0.5;
+                            self.event_queue.push(crate::engine::dispatcher::EventType::Collision(
+                                crate::engine::dispatcher::CollisionEvent::BulletHitBullet {
+                                    bullet_a_id: entity_a,
+                                    bullet_b_id: entity_b,
+                                    impact_point,
+                                },
+                            ));
+                        }
+                        
+                        println!("⚡ Bullet-bullet collision! {} <-> {}", entity_a.0, entity_b.0);
+                    }
+                }
                 _ => {
                     // Unhandled collision type or invalid entities
                     if type_a.is_none() || type_b.is_none() {
@@ -214,6 +404,21 @@ impl CollisionManager {
     /// Get event count without draining
     pub fn event_count(&self) -> usize {
         self.event_queue.len()
+    }
+    
+    /// Get and clear bullets that need to be removed due to large body collisions
+    pub fn drain_bullets_to_remove(&mut self) -> Vec<crate::engine::entity::EntityId> {
+        self.bullets_to_remove.drain(..).collect()
+    }
+    
+    /// Get and clear enemies that need to be removed due to large body collisions
+    pub fn drain_enemies_to_remove(&mut self) -> Vec<crate::engine::entity::EntityId> {
+        self.enemies_to_remove.drain(..).collect()
+    }
+    
+    /// Get and clear bullet velocity changes that need to be applied
+    pub fn drain_bullet_velocity_changes(&mut self) -> Vec<(crate::engine::entity::EntityId, crate::engine::Vec3)> {
+        self.bullet_velocity_changes.drain(..).collect()
     }
 }
 

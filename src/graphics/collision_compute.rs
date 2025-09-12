@@ -68,6 +68,17 @@ impl GpuEntity {
             _padding: 0,
         }
     }
+    
+    pub fn from_large_body(large_body: &crate::scene::LargeBody) -> Self {
+        Self {
+            position: [large_body.position().x, large_body.position().y, large_body.position().z],
+            radius: large_body.collision_radius(),
+            entity_id: large_body.entity_id().id(),
+            entity_type: EntityType::LargeBody as u32,
+            collision_mask: large_body.collision_mask().0,
+            _padding: 0,
+        }
+    }
 }
 
 /// Collision pair output from GPU
@@ -332,6 +343,7 @@ impl CollisionCompute {
         enemies: &[crate::scene::Enemy],
         bullets: &[crate::scene::Bullet],
         metabullets: &[crate::scene::MetaBullet],
+        large_bodies: &[crate::scene::LargeBody],
     ) {
         self.cpu_entities.clear();
         
@@ -351,6 +363,11 @@ impl CollisionCompute {
         // Add metabullets
         for metabullet in metabullets {
             self.cpu_entities.push(GpuEntity::from_metabullet(metabullet));
+        }
+        
+        // Add large bodies
+        for large_body in large_bodies {
+            self.cpu_entities.push(GpuEntity::from_large_body(large_body));
         }
     }
     

@@ -23,11 +23,11 @@ impl WeaponStats {
     pub fn basic_blaster() -> Self {
         Self {
             damage: 25.0,
-            fire_rate: 10.0,
+            fire_rate: 100.0,
             bullet_speed: 100.0,
-            bullet_lifetime: 10.0,
+            bullet_lifetime: 30.0,
             projectile_count: 1,
-            spread_angle: 0.0,
+            spread_angle: 1.0,
         }
     }
 

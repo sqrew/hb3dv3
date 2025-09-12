@@ -46,8 +46,10 @@ The application follows a layered entity-component-like architecture with distin
 **Scene/Game Layer** (`src/scene/`):
 - **Player System**: Player entity with movement, health, and weapon management
 - **Enemy System**: Enemy entities with AI and behavior
-- **Bullet System**: Projectile physics and collision handling
+- **Bullet System**: Projectile physics with bullet-bullet collision and deflection
 - **Weapon System**: Weapon management and firing mechanics
+- **Large Body System**: Gravitational celestial bodies (planets, stars, black holes, etc.)
+- **Physics System**: GPU-accelerated gravitational forces and N-body simulation
 
 ### Key Design Patterns
 
@@ -60,6 +62,12 @@ The application follows a layered entity-component-like architecture with distin
 **Camera-Relative Movement**: Player movement is calculated relative to the camera's orientation, providing intuitive 3D controls.
 
 **Instanced Rendering**: The graphics system uses GPU instancing to efficiently render multiple instances of primitives with minimal draw calls.
+
+**GPU-Accelerated Physics**: Gravitational forces and collision detection are computed on the GPU for high-performance simulation with large entity counts.
+
+**Event-Driven Collision System**: Collision detection generates events that trigger particle effects, physics responses, and gameplay mechanics.
+
+**Deferred Processing**: Collision responses like velocity changes and entity removals are queued and applied in batches to avoid borrowing conflicts.
 
 ### Key Dependencies
 
@@ -74,3 +82,36 @@ The application follows a layered entity-component-like architecture with distin
 The project uses Rust 2024 edition and includes comprehensive gamepad support with automatic fallback when gamepads are unavailable. The codebase is architected as a modular game engine with clear separation between rendering, input, and game logic systems.
 
 The engine supports advanced rendering features including bloom effects, frustum culling, and efficient instanced rendering for large numbers of entities.
+
+## Advanced Features
+
+### Collision System
+- **GPU Collision Detection**: High-performance collision detection using GPU compute shaders
+- **Multi-Type Interactions**: Handles bullet-enemy, bullet-large body, enemy-large body, and bullet-bullet collisions
+- **Collision Masks**: Efficient filtering system to determine which entity types can collide
+- **Deferred Response Processing**: Collision responses are queued and applied in batches for optimal performance
+
+### Physics Simulation  
+- **Gravitational N-Body**: Real gravitational physics affecting all entities based on mass and distance
+- **GPU-Accelerated Forces**: Force calculations performed in parallel on GPU compute shaders
+- **Orbital Mechanics**: Bullets and enemies follow realistic trajectories around celestial bodies
+- **Bullet-Bullet Deflection**: Elastic collision physics between projectiles for emergent gameplay
+
+### Large Body System
+- **8 Celestial Body Types**: BlackHole, Star, Planet, NeutronStar, GasGiant, Asteroid, SpaceStation, Moon
+- **Individual Properties**: Each type has distinct mass, radius, color, and collision characteristics  
+- **Ratio-Based Collision**: Visual radius vs collision radius separation for gameplay tuning (e.g., 0.75 ratio for BlackHoles)
+- **Physics Integration**: Large bodies participate in N-body gravitational simulation
+
+### Particle Effects
+- **Collision-Triggered Particles**: Different particle effects for each collision type
+  - Enemy destruction: 100 cyan particles, 1.0s lifetime
+  - Bullet vs Large Body: 10 yellow particles, 0.8s lifetime  
+  - Bullet vs Bullet: 5 white particles, 0.6s lifetime
+- **GPU Particle System**: Efficient particle rendering with configurable count, lifetime, and colors
+- **Impact Point Calculation**: Particles spawn at precise collision locations
+
+### Performance Characteristics
+- **Scalable Architecture**: Maintains 75+ FPS even with hundreds of entities and complex physics
+- **Batch Processing**: Collision detection, physics updates, and particle spawning performed in batches
+- **GPU Utilization**: Heavy computational work offloaded to GPU for maximum performance

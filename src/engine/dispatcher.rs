@@ -141,9 +141,9 @@ impl Dispatcher {
                 graphics_events.push(GraphicsEvent::SpawnParticles {
                     position: impact_point,
                     velocity: Vec3::new(0.0, 1.0, 0.0), // Default upward
-                    count: 50,
+                    count: 25,
                     lifetime: 1.2, // Reduced for faster slot recycling
-                    color: Color::new(1.0, 0.6, 0.2, 1.0), // Orange sparks
+                    color: Color::YELLOW,
                 });
             }
             CollisionEvent::EnemyHitPlayer {
@@ -153,6 +153,48 @@ impl Dispatcher {
             } => {
                 scheduler.player_mut().player_mut().take_damage(damage);
                 // Could queue screen shake event
+            }
+            CollisionEvent::EnemyHitLargeBody {
+                enemy_id: _,
+                large_body_id: _,
+                impact_point,
+            } => {
+                // Spawn explosion particles at impact point
+                graphics_events.push(GraphicsEvent::SpawnParticles {
+                    position: impact_point,
+                    velocity: Vec3::new(0.0, 0.0, 0.0), // Explosion spreads in all directions
+                    count: 100,                         // More particles for dramatic effect
+                    lifetime: 1.0,                      // Longer lifetime for visibility
+                    color: Color::CYAN,
+                });
+            }
+            CollisionEvent::BulletHitLargeBody {
+                bullet_id: _,
+                large_body_id: _,
+                impact_point,
+            } => {
+                // Spawn smaller impact particles for bullet hits
+                graphics_events.push(GraphicsEvent::SpawnParticles {
+                    position: impact_point,
+                    velocity: Vec3::new(0.0, 0.0, 0.0), // Impact sparks spread outward
+                    count: 10,                          // Fewer particles for bullets
+                    lifetime: 0.8,                      // Shorter lifetime for quick effect
+                    color: Color::YELLOW,
+                });
+            }
+            CollisionEvent::BulletHitBullet {
+                bullet_a_id: _,
+                bullet_b_id: _,
+                impact_point,
+            } => {
+                // Spawn spark particles for bullet-bullet collisions
+                graphics_events.push(GraphicsEvent::SpawnParticles {
+                    position: impact_point,
+                    velocity: Vec3::new(0.0, 0.0, 0.0), // Sparks spread in all directions
+                    count: 5,                           // Small spark effect
+                    lifetime: 0.6,                      // Quick flash effect
+                    color: Color::new(0.9, 0.9, 1.0, 1.0), // Bright white sparks
+                });
             }
         }
     }
@@ -205,11 +247,15 @@ impl Dispatcher {
         // Group collision events by type for more efficient processing
         let mut bullet_hits: Vec<CollisionEvent> = Vec::new();
         let mut enemy_hits: Vec<CollisionEvent> = Vec::new();
+        let mut large_body_hits: Vec<CollisionEvent> = Vec::new();
 
         for event in events {
             match event {
                 CollisionEvent::BulletHitEnemy { .. } => bullet_hits.push(event),
                 CollisionEvent::EnemyHitPlayer { .. } => enemy_hits.push(event),
+                CollisionEvent::EnemyHitLargeBody { .. } => large_body_hits.push(event),
+                CollisionEvent::BulletHitLargeBody { .. } => large_body_hits.push(event),
+                CollisionEvent::BulletHitBullet { .. } => large_body_hits.push(event),
             }
         }
 
@@ -246,6 +292,18 @@ impl Dispatcher {
                     // This should not happen in bullet_hits batch, but handle gracefully
                     unreachable!("EnemyHitPlayer event should not be in bullet_hits batch");
                 }
+                CollisionEvent::EnemyHitLargeBody { .. } => {
+                    // This should not happen in bullet_hits batch, but handle gracefully
+                    unreachable!("EnemyHitLargeBody event should not be in bullet_hits batch");
+                }
+                CollisionEvent::BulletHitLargeBody { .. } => {
+                    // This should not happen in bullet_hits batch, but handle gracefully
+                    unreachable!("BulletHitLargeBody event should not be in bullet_hits batch");
+                }
+                CollisionEvent::BulletHitBullet { .. } => {
+                    // This should not happen in bullet_hits batch, but handle gracefully
+                    unreachable!("BulletHitBullet event should not be in bullet_hits batch");
+                }
             }
         }
 
@@ -256,6 +314,11 @@ impl Dispatcher {
 
         // Batch process enemy hits (could group damage, screen effects, etc.)
         for event in enemy_hits {
+            Self::handle_collision_event(event, scheduler, graphics_events);
+        }
+
+        // Batch process large body hits (enemy-large body collisions)
+        for event in large_body_hits {
             Self::handle_collision_event(event, scheduler, graphics_events);
         }
     }
@@ -342,6 +405,21 @@ pub enum CollisionEvent {
         enemy_id: EntityId,
         player_id: EntityId,
         damage: f32,
+    },
+    EnemyHitLargeBody {
+        enemy_id: EntityId,
+        large_body_id: EntityId,
+        impact_point: Vec3,
+    },
+    BulletHitLargeBody {
+        bullet_id: EntityId,
+        large_body_id: EntityId,
+        impact_point: Vec3,
+    },
+    BulletHitBullet {
+        bullet_a_id: EntityId,
+        bullet_b_id: EntityId,
+        impact_point: Vec3,
     },
 }
 

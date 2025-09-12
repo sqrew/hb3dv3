@@ -487,7 +487,7 @@ impl PhysicsManager {
             }
         });
 
-        // Wait for the mapping to complete (synchronous approach)  
+        // Wait for the mapping to complete (synchronous approach)
         device.poll(wgpu::PollType::Wait).unwrap();
 
         // Read the computed forces and apply them
@@ -505,7 +505,7 @@ impl PhysicsManager {
         // Unmap the buffer
         gpu.staging_buffer.unmap();
     }
-    
+
     /// Apply gravitational forces to all affected objects
     pub fn update_gravity<T: GravityAffected>(
         &mut self,
@@ -641,7 +641,11 @@ impl PhysicsManager {
     }
 
     /// CPU batch fallback for gravity calculations
-    fn update_gravity_cpu_batch(&self, affected_objects: &mut [&mut dyn GravityAffected], _delta_time: f32) {
+    fn update_gravity_cpu_batch(
+        &self,
+        affected_objects: &mut [&mut dyn GravityAffected],
+        _delta_time: f32,
+    ) {
         for obj in affected_objects.iter_mut() {
             let obj_pos = obj.position();
             let obj_mass = obj.mass();
@@ -668,7 +672,7 @@ impl PhysicsManager {
             obj.apply_force(total_force);
         }
     }
-    
+
     /// CPU fallback for gravity calculations
     fn update_gravity_cpu<T: GravityAffected>(&self, affected_objects: &mut [T], _delta_time: f32) {
         for obj in affected_objects.iter_mut() {
@@ -701,34 +705,6 @@ impl PhysicsManager {
     /// Get gravitational body data (for rendering or game logic)
     pub fn gravitational_bodies(&self) -> &[GravitationalBody] {
         &self.gravitational_bodies
-    }
-
-    /// Create a planet-like gravitational body
-    pub fn add_planet(&mut self, position: Vec3, mass: f32, radius: f32) -> usize {
-        self.add_gravitational_body(position, mass, Vec3::zeros(), radius)
-    }
-
-    /// Create an asteroid-like gravitational body with initial velocity
-    pub fn add_asteroid(
-        &mut self,
-        position: Vec3,
-        mass: f32,
-        velocity: Vec3,
-        radius: f32,
-    ) -> usize {
-        self.add_gravitational_body(position, mass, velocity, radius)
-    }
-
-    /// Create a space station or artificial structure
-    pub fn add_space_station(&mut self, position: Vec3, mass: f32, radius: f32) -> usize {
-        self.add_gravitational_body(position, mass, Vec3::zeros(), radius)
-    }
-
-    /// Create a black hole (very high mass, small radius)
-    pub fn add_black_hole(&mut self, position: Vec3) -> usize {
-        let mass = 1000000.0; // Extremely high mass
-        let radius = 2.0; // Small but visible
-        self.add_gravitational_body(position, mass, Vec3::zeros(), radius)
     }
 
     /// Clear all gravitational bodies

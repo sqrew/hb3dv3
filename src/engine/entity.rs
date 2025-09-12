@@ -15,6 +15,7 @@ pub enum EntityType {
     Enemy,
     PlayerBullet,
     EnemyBullet,
+    LargeBody,
 }
 
 pub struct EntityManager {
@@ -117,6 +118,7 @@ pub struct EntityLookup<'a> {
     player_manager: &'a crate::scene::PlayerManager,
     enemy_manager: &'a crate::scene::EnemyManager,
     bullet_manager: &'a crate::scene::BulletManager,
+    large_body_manager: &'a crate::scene::LargeBodyManager,
 }
 
 impl<'a> EntityLookup<'a> {
@@ -125,12 +127,14 @@ impl<'a> EntityLookup<'a> {
         player_manager: &'a crate::scene::PlayerManager,
         enemy_manager: &'a crate::scene::EnemyManager,
         bullet_manager: &'a crate::scene::BulletManager,
+        large_body_manager: &'a crate::scene::LargeBodyManager,
     ) -> Self {
         Self {
             entity_manager,
             player_manager,
             enemy_manager,
             bullet_manager,
+            large_body_manager,
         }
     }
 
@@ -187,6 +191,9 @@ impl<'a> EntityLookup<'a> {
                 self.get_bullet_entity_ids_by_type(EntityType::PlayerBullet)
             }
             EntityType::EnemyBullet => self.get_bullet_entity_ids_by_type(EntityType::EnemyBullet),
+            EntityType::LargeBody => {
+                self.large_body_manager.bodies().iter().map(|body| body.entity_id()).collect()
+            }
         }
     }
 
@@ -215,6 +222,13 @@ impl<'a> EntityLookup<'a> {
         for bullet in self.bullet_manager.metabullets() {
             if bullet.entity_id() == entity_id {
                 return Some(bullet.position());
+            }
+        }
+
+        // Check large bodies
+        for large_body in self.large_body_manager.bodies() {
+            if large_body.entity_id() == entity_id {
+                return Some(large_body.position());
             }
         }
 

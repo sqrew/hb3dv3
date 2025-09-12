@@ -32,10 +32,10 @@ impl Enemy {
     pub fn update(&mut self, dt: f32) {
         // Apply gravitational forces (F = ma, so a = F/m)
         let gravity_acceleration = self.applied_force / self.mass;
-        
+
         // Update velocity with both AI movement and gravity
         self.vel += gravity_acceleration * dt;
-        
+
         // Update position
         self.pos += self.vel * dt;
 
@@ -50,7 +50,7 @@ impl Enemy {
         // Keep enemies within reasonable bounds (but allow gravity to pull them)
         self.pos.x = self.pos.x.clamp(-50.0, 50.0);
         self.pos.z = self.pos.z.clamp(-50.0, 50.0);
-        
+
         // Reset applied force for next frame
         self.applied_force = Vec3::zeros();
     }
@@ -139,7 +139,7 @@ impl EnemyManager {
     pub fn enemies(&self) -> &[Enemy] {
         &self.enemies
     }
-    
+
     pub fn enemies_mut(&mut self) -> &mut [Enemy] {
         &mut self.enemies
     }
@@ -251,6 +251,18 @@ impl EnemyManager {
         false
     }
 
+    /// Mark an enemy for removal by setting health to 0 (used by collision system for instant kills)
+    pub fn mark_enemy_for_removal(&mut self, entity_id: crate::engine::entity::EntityId) -> bool {
+        for enemy in &mut self.enemies {
+            if enemy.entity_id() == entity_id {
+                enemy.health = 0.0; // Mark as dead for cleanup
+                println!("☠️ Enemy {} marked for removal", entity_id.0);
+                return true;
+            }
+        }
+        false
+    }
+
     /// Get enemy position by entity ID
     pub fn get_enemy_position(&self, entity_id: crate::engine::entity::EntityId) -> Option<Vec3> {
         for enemy in &self.enemies {
@@ -310,11 +322,11 @@ impl GravityAffected for Enemy {
     fn position(&self) -> Vec3 {
         self.pos
     }
-    
+
     fn mass(&self) -> f32 {
         self.mass
     }
-    
+
     fn apply_force(&mut self, force: Vec3) {
         self.applied_force += force;
     }

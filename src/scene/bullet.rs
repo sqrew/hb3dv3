@@ -128,6 +128,14 @@ impl Bullet {
     pub fn mark_for_removal(&mut self) {
         self.marked_for_removal = true;
     }
+    
+    pub fn velocity(&self) -> Vec3 {
+        self.vel
+    }
+    
+    pub fn set_velocity(&mut self, velocity: Vec3) {
+        self.vel = velocity;
+    }
 }
 
 impl GravityAffected for Bullet {
@@ -289,6 +297,40 @@ impl BulletManager {
         None
     }
     
+    pub fn get_bullet_velocity(&self, entity_id: crate::engine::entity::EntityId) -> Option<Vec3> {
+        // Check regular bullets
+        for bullet in &self.bullets {
+            if bullet.entity_id() == entity_id {
+                return Some(bullet.velocity());
+            }
+        }
+        // Check metabullets  
+        for metabullet in &self.metabullets {
+            if metabullet.entity_id() == entity_id {
+                return Some(metabullet.velocity());
+            }
+        }
+        None
+    }
+    
+    pub fn set_bullet_velocity(&mut self, entity_id: crate::engine::entity::EntityId, velocity: Vec3) -> bool {
+        // Check regular bullets
+        for bullet in &mut self.bullets {
+            if bullet.entity_id() == entity_id {
+                bullet.set_velocity(velocity);
+                return true;
+            }
+        }
+        // Check metabullets
+        for metabullet in &mut self.metabullets {
+            if metabullet.entity_id() == entity_id {
+                metabullet.set_velocity(velocity);
+                return true;
+            }
+        }
+        false
+    }
+    
     /// Remove a bullet by entity ID
     pub fn remove_bullet_by_entity_id(&mut self, entity_id: crate::engine::entity::EntityId) -> bool {
         // Check regular bullets
@@ -444,6 +486,14 @@ impl MetaBullet {
 
     pub fn mark_for_removal(&mut self) {
         self.marked_for_removal = true;
+    }
+    
+    pub fn velocity(&self) -> Vec3 {
+        self.vel
+    }
+    
+    pub fn set_velocity(&mut self, velocity: Vec3) {
+        self.vel = velocity;
     }
 }
 
