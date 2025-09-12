@@ -25,12 +25,12 @@ impl LargeBodyType {
     /// Get default mass for this body type (in kg, scaled for gameplay)
     pub fn default_mass(self) -> f32 {
         match self {
-            LargeBodyType::BlackHole => 1_000_000.0,  // Extreme mass
-            LargeBodyType::WhiteHole => -800_000.0, // Slightly less negative mass for stability
-            LargeBodyType::NeutronStar => 500_000.0,  // Very high mass
-            LargeBodyType::Star => 200_000.0,         // Very high mass for strong gravity
-            LargeBodyType::GasGiant => 100_000.0,     // Large mass
-            LargeBodyType::Planet => 50_000.0,        // Medium mass
+            LargeBodyType::BlackHole => 1_000_000.0, // Extreme mass
+            LargeBodyType::WhiteHole => -900_000.0,  // Slightly less negative mass for stability
+            LargeBodyType::NeutronStar => 500_000.0, // Very high mass
+            LargeBodyType::Star => 200_000.0,        // Very high mass for strong gravity
+            LargeBodyType::GasGiant => 100_000.0,    // Large mass
+            LargeBodyType::Planet => 50_000.0,       // Medium mass
         }
     }
 
@@ -39,9 +39,9 @@ impl LargeBodyType {
         match self {
             LargeBodyType::BlackHole => 2.0,   // Small but visible
             LargeBodyType::WhiteHole => 2.0,   // Same size as black hole, but opposite effect
-            LargeBodyType::NeutronStar => 1.5, // Very small but dense
+            LargeBodyType::NeutronStar => 2.5, // Very small but dense
             LargeBodyType::Star => 5.0,        // Large and bright for visibility
-            LargeBodyType::GasGiant => 12.0,   // Very large
+            LargeBodyType::GasGiant => 15.0,   // Very large
             LargeBodyType::Planet => 5.0,      // Medium size
         }
     }
@@ -325,17 +325,18 @@ impl LargeBodyManager {
         // Handle special case: nearly equal and opposite masses (e.g., BlackHole + WhiteHole)
         let (pos1, pos2, orbital_speed) = if total_mass.abs() < 300_000.0 {
             println!("⚠️  Detected equal and opposite masses - using special case handling");
-            
+
             // Place bodies equidistant from center
             let separation_vector = Vec3::new(separation_distance * 0.5, 0.0, 0.0);
             let pos1 = center_position - separation_vector;
             let pos2 = center_position + separation_vector;
-            
+
             // For equal opposite masses, use reduced orbital speed based on individual masses
             let effective_mass = mass1.abs(); // Use absolute value of one mass
             let gravitational_constant = 6.674e-1; // Same as in shader
-            let orbital_speed = (gravitational_constant * effective_mass / separation_distance).sqrt() * 0.5;
-            
+            let orbital_speed =
+                (gravitational_constant * effective_mass / separation_distance).sqrt() * 0.5;
+
             (pos1, pos2, orbital_speed)
         } else {
             // Normal case: calculate center of mass positions
@@ -349,8 +350,9 @@ impl LargeBodyManager {
 
             // Calculate circular orbital velocity: v = sqrt(G * total_mass / separation)
             let gravitational_constant = 6.674e-1; // Same as in shader
-            let orbital_speed = (gravitational_constant * total_mass.abs() / separation_distance).sqrt();
-            
+            let orbital_speed =
+                (gravitational_constant * total_mass.abs() / separation_distance).sqrt();
+
             (pos1, pos2, orbital_speed)
         };
 

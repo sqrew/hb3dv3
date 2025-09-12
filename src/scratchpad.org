@@ -5,8 +5,8 @@ with full collisions/gravity, events, particles, etc
 
 
 
-
-
+visual on bodies vs collision bounce size is off
+gravity visuals on large bodies
 arena and bounding
 
 
@@ -49,7 +49,6 @@ arena and bounding
   9. Implementation: Extend bullet physics with orbital velocity calculations
 
   10. Tidal Forces & Destruction
-
   11. Roche Limit: Objects get torn apart when too close to massive bodies
   12. Tidal Heating: Objects glow and take damage near massive bodies
   13. Implementation: Add tidal force calculation to compute shaders, progressive destruction particles
@@ -81,4 +80,3 @@ arena and bounding
   30. Exotic Matter Physics
 
   31. Strange Matter: High-density objects with unique collision properties
-  32. Implementation: Add negative gravitational constant bodies, custom collision responses
