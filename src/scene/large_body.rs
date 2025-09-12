@@ -26,7 +26,7 @@ impl LargeBodyType {
     pub fn default_mass(self) -> f32 {
         match self {
             LargeBodyType::BlackHole => 1_000_000.0,  // Extreme mass
-            LargeBodyType::WhiteHole => -1_000_000.0, // Extreme negative mass (repulsion)
+            LargeBodyType::WhiteHole => -800_000.0, // Slightly less negative mass for stability
             LargeBodyType::NeutronStar => 500_000.0,  // Very high mass
             LargeBodyType::Star => 200_000.0,         // Very high mass for strong gravity
             LargeBodyType::GasGiant => 100_000.0,     // Large mass
@@ -60,7 +60,16 @@ impl LargeBodyType {
 
     /// Get default collision radius ratio for this body type (multiplier of visual radius)
     pub fn default_collision_radius_ratio(self) -> f32 {
-        0.8
+        match self {
+            // Smaller collision radii for better orbital mechanics
+            LargeBodyType::Planet => 0.3,
+            LargeBodyType::Star => 0.4,
+            LargeBodyType::GasGiant => 0.5,
+            // Keep larger collision radii for extreme objects
+            LargeBodyType::BlackHole => 0.6,
+            LargeBodyType::WhiteHole => 0.6,
+            LargeBodyType::NeutronStar => 0.5,
+        }
     }
 
     /// Get the primitive type for rendering
@@ -133,7 +142,7 @@ impl LargeBody {
     }
 
     /// Update the large body (currently just updates position from velocity)
-    pub fn update(&mut self, _delta_time: f32) {
+    pub fn update(&mut self, delta_time: f32) {
         // Position will be updated by the PhysicsManager's N-body simulation
         // This is mainly for any game-specific logic we might add later
 
@@ -255,7 +264,6 @@ impl LargeBodyManager {
         &mut self,
         body_type: LargeBodyType,
         position: Vec3,
-        velocity: Vec3,
         physics: &mut PhysicsManager,
         entity_manager: &mut crate::engine::entity::EntityManager,
     ) -> EntityId {
@@ -298,6 +306,107 @@ impl LargeBodyManager {
         self.bodies.push(body);
 
         entity_id
+    }
+
+    /// Spawn a binary pair of large bodies in orbit around each other
+    pub fn spawn_binary_pair(
+        &mut self,
+        body_type1: LargeBodyType,
+        body_type2: LargeBodyType,
+        center_position: Vec3,
+        separation_distance: f32,
+        physics: &mut PhysicsManager,
+        entity_manager: &mut crate::engine::entity::EntityManager,
+    ) -> (EntityId, EntityId) {
+        let mass1 = body_type1.default_mass();
+        let mass2 = body_type2.default_mass();
+        let total_mass = mass1 + mass2;
+
+        // Handle special case: nearly equal and opposite masses (e.g., BlackHole + WhiteHole)
+        let (pos1, pos2, orbital_speed) = if total_mass.abs() < 300_000.0 {
+            println!("⚠️  Detected equal and opposite masses - using special case handling");
+            
+            // Place bodies equidistant from center
+            let separation_vector = Vec3::new(separation_distance * 0.5, 0.0, 0.0);
+            let pos1 = center_position - separation_vector;
+            let pos2 = center_position + separation_vector;
+            
+            // For equal opposite masses, use reduced orbital speed based on individual masses
+            let effective_mass = mass1.abs(); // Use absolute value of one mass
+            let gravitational_constant = 6.674e-1; // Same as in shader
+            let orbital_speed = (gravitational_constant * effective_mass / separation_distance).sqrt() * 0.5;
+            
+            (pos1, pos2, orbital_speed)
+        } else {
+            // Normal case: calculate center of mass positions
+            let mass_ratio1 = mass2 / total_mass; // Distance ratio for body1
+            let mass_ratio2 = mass1 / total_mass; // Distance ratio for body2
+
+            // Position bodies around center of mass
+            let separation_vector = Vec3::new(separation_distance, 0.0, 0.0);
+            let pos1 = center_position - separation_vector * mass_ratio1;
+            let pos2 = center_position + separation_vector * mass_ratio2;
+
+            // Calculate circular orbital velocity: v = sqrt(G * total_mass / separation)
+            let gravitational_constant = 6.674e-1; // Same as in shader
+            let orbital_speed = (gravitational_constant * total_mass.abs() / separation_distance).sqrt();
+            
+            (pos1, pos2, orbital_speed)
+        };
+
+        // Give tangential velocities (perpendicular to separation)
+        let orbital_direction = Vec3::new(0.0, 1.0, 0.0); // Orbit in XZ plane
+        let (vel1, vel2) = if total_mass.abs() < 1.0 {
+            // Equal and opposite masses: both get same speed in opposite directions
+            let vel1 = orbital_direction * orbital_speed;
+            let vel2 = -orbital_direction * orbital_speed;
+            (vel1, vel2)
+        } else {
+            // Normal case: velocities proportional to mass ratios
+            let mass_ratio1 = mass2 / total_mass;
+            let mass_ratio2 = mass1 / total_mass;
+            let vel1 = orbital_direction * orbital_speed * mass_ratio2;
+            let vel2 = -orbital_direction * orbital_speed * mass_ratio1;
+            (vel1, vel2)
+        };
+
+        println!("🌌 Creating binary system:");
+        println!(
+            "  Body 1: {:?} at {:?} with velocity {:?}",
+            body_type1, pos1, vel1
+        );
+        println!(
+            "  Body 2: {:?} at {:?} with velocity {:?}",
+            body_type2, pos2, vel2
+        );
+        println!(
+            "  Orbital speed: {:.2}, separation: {:.2}",
+            orbital_speed, separation_distance
+        );
+
+        let entity1 = self.spawn_body_custom(
+            body_type1,
+            pos1,
+            vel1,
+            mass1,
+            body_type1.default_radius(),
+            body_type1.default_radius() * body_type1.default_collision_radius_ratio(),
+            physics,
+            entity_manager,
+        );
+
+        let entity2 = self.spawn_body_custom(
+            body_type2,
+            pos2,
+            vel2,
+            mass2,
+            body_type2.default_radius(),
+            body_type2.default_radius() * body_type2.default_collision_radius_ratio(),
+            physics,
+            entity_manager,
+        );
+
+        (entity1, entity2)
     }
 
     /// Update all large bodies

@@ -86,6 +86,8 @@ struct PhysicsGpuResources {
 
     // Staging buffer for GPU readback
     staging_buffer: wgpu::Buffer,
+    // N-body staging buffer for large body readback
+    nbody_staging_buffer: wgpu::Buffer,
 
     // Bind groups
     gravity_compute_bind_group: wgpu::BindGroup,
@@ -119,7 +121,9 @@ impl PhysicsManager {
             label: Some("Gravitational Bodies Buffer"),
             size: (MAX_GRAVITATIONAL_BODIES as usize * std::mem::size_of::<GravitationalBody>())
                 as u64,
-            usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
+            usage: wgpu::BufferUsages::STORAGE
+                | wgpu::BufferUsages::COPY_DST
+                | wgpu::BufferUsages::COPY_SRC,
             mapped_at_creation: false,
         });
 
@@ -154,6 +158,15 @@ impl PhysicsManager {
         let staging_buffer = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("Physics Staging Buffer"),
             size: (MAX_AFFECTED_OBJECTS as usize * std::mem::size_of::<GpuAffectedObject>()) as u64,
+            usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
+            mapped_at_creation: false,
+        });
+
+        // Create N-body staging buffer
+        let nbody_staging_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("N-Body Staging Buffer"),
+            size: (MAX_GRAVITATIONAL_BODIES as usize * std::mem::size_of::<GravitationalBody>())
+                as u64,
             usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
             mapped_at_creation: false,
         });
@@ -337,6 +350,7 @@ impl PhysicsManager {
             affected_count_buffer,
             delta_time_buffer,
             staging_buffer,
+            nbody_staging_buffer,
             gravity_compute_bind_group,
             nbody_compute_bind_group,
         }
@@ -471,13 +485,25 @@ impl PhysicsManager {
         }
 
         // Copy computed forces from GPU to staging buffer for readback
-        let copy_size = (self.affected_objects_cache.len() * std::mem::size_of::<GpuAffectedObject>()) as u64;
+        let copy_size =
+            (self.affected_objects_cache.len() * std::mem::size_of::<GpuAffectedObject>()) as u64;
         encoder.copy_buffer_to_buffer(
             &gpu.affected_objects_buffer,
             0,
             &gpu.staging_buffer,
             0,
             copy_size,
+        );
+
+        // Copy N-body results from GPU to staging buffer for large body readback
+        let nbody_copy_size =
+            (self.gravitational_bodies.len() * std::mem::size_of::<GravitationalBody>()) as u64;
+        encoder.copy_buffer_to_buffer(
+            &gpu.gravitational_bodies_buffer,
+            0,
+            &gpu.nbody_staging_buffer,
+            0,
+            nbody_copy_size,
         );
 
         queue.submit(Some(encoder.finish()));
@@ -509,6 +535,46 @@ impl PhysicsManager {
 
         // Unmap the buffer
         gpu.staging_buffer.unmap();
+
+        // Read back N-body results and apply to large bodies
+        if !self.gravitational_bodies.is_empty() {
+            let nbody_buffer_slice = gpu.nbody_staging_buffer.slice(..);
+
+            // Request the buffer to be mapped for reading
+            nbody_buffer_slice.map_async(wgpu::MapMode::Read, |result| {
+                if result.is_err() {
+                    eprintln!("Failed to map N-body staging buffer");
+                }
+            });
+
+            // Wait for the mapping to complete
+            device.poll(wgpu::PollType::Wait).unwrap();
+
+            // Read the computed N-body data and apply to large bodies
+            {
+                let data = nbody_buffer_slice.get_mapped_range();
+                let gpu_bodies: &[GravitationalBody] = bytemuck::cast_slice(&data);
+
+                // Apply the GPU-computed positions and velocities to our gravitational bodies
+                for (grav_body, gpu_body) in
+                    self.gravitational_bodies.iter_mut().zip(gpu_bodies.iter())
+                {
+                    grav_body.position = [
+                        gpu_body.position[0],
+                        gpu_body.position[1],
+                        gpu_body.position[2],
+                    ];
+                    grav_body.velocity = [
+                        gpu_body.velocity[0],
+                        gpu_body.velocity[1],
+                        gpu_body.velocity[2],
+                    ];
+                }
+            }
+
+            // Unmap the N-body buffer
+            gpu.nbody_staging_buffer.unmap();
+        }
     }
 
     /// Apply gravitational forces to all affected objects
@@ -610,13 +676,25 @@ impl PhysicsManager {
         }
 
         // Copy computed forces from GPU to staging buffer for readback
-        let copy_size = (self.affected_objects_cache.len() * std::mem::size_of::<GpuAffectedObject>()) as u64;
+        let copy_size =
+            (self.affected_objects_cache.len() * std::mem::size_of::<GpuAffectedObject>()) as u64;
         encoder.copy_buffer_to_buffer(
             &gpu.affected_objects_buffer,
             0,
             &gpu.staging_buffer,
             0,
             copy_size,
+        );
+
+        // Copy N-body results from GPU to staging buffer for large body readback
+        let nbody_copy_size =
+            (self.gravitational_bodies.len() * std::mem::size_of::<GravitationalBody>()) as u64;
+        encoder.copy_buffer_to_buffer(
+            &gpu.gravitational_bodies_buffer,
+            0,
+            &gpu.nbody_staging_buffer,
+            0,
+            nbody_copy_size,
         );
 
         queue.submit(Some(encoder.finish()));
@@ -648,6 +726,46 @@ impl PhysicsManager {
 
         // Unmap the buffer
         gpu.staging_buffer.unmap();
+
+        // Read back N-body results and apply to large bodies
+        if !self.gravitational_bodies.is_empty() {
+            let nbody_buffer_slice = gpu.nbody_staging_buffer.slice(..);
+
+            // Request the buffer to be mapped for reading
+            nbody_buffer_slice.map_async(wgpu::MapMode::Read, |result| {
+                if result.is_err() {
+                    eprintln!("Failed to map N-body staging buffer");
+                }
+            });
+
+            // Wait for the mapping to complete
+            device.poll(wgpu::PollType::Wait).unwrap();
+
+            // Read the computed N-body data and apply to large bodies
+            {
+                let data = nbody_buffer_slice.get_mapped_range();
+                let gpu_bodies: &[GravitationalBody] = bytemuck::cast_slice(&data);
+
+                // Apply the GPU-computed positions and velocities to our gravitational bodies
+                for (grav_body, gpu_body) in
+                    self.gravitational_bodies.iter_mut().zip(gpu_bodies.iter())
+                {
+                    grav_body.position = [
+                        gpu_body.position[0],
+                        gpu_body.position[1],
+                        gpu_body.position[2],
+                    ];
+                    grav_body.velocity = [
+                        gpu_body.velocity[0],
+                        gpu_body.velocity[1],
+                        gpu_body.velocity[2],
+                    ];
+                }
+            }
+
+            // Unmap the N-body buffer
+            gpu.nbody_staging_buffer.unmap();
+        }
     }
 
     /// CPU batch fallback for gravity calculations
@@ -729,6 +847,32 @@ impl PhysicsManager {
             true
         } else {
             false
+        }
+    }
+
+    /// Update large body positions and velocities from GPU results
+    pub fn apply_nbody_results_to_large_bodies(
+        &self,
+        large_bodies: &mut [crate::scene::large_body::LargeBody],
+    ) {
+        // Apply positions and velocities from gravitational bodies to large bodies
+        for (large_body, grav_body) in large_bodies
+            .iter_mut()
+            .zip(self.gravitational_bodies.iter())
+        {
+            let position = Vec3::new(
+                grav_body.position[0],
+                grav_body.position[1],
+                grav_body.position[2],
+            );
+            let velocity = Vec3::new(
+                grav_body.velocity[0],
+                grav_body.velocity[1],
+                grav_body.velocity[2],
+            );
+
+            large_body.set_position(position);
+            large_body.set_velocity(velocity);
         }
     }
 }

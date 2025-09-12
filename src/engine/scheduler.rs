@@ -2,7 +2,8 @@ use crate::engine::entity::{EntityLookup, EntityManager, EntityType};
 use crate::graphics::{Primitive, Vec3};
 use crate::input::InputManager;
 use crate::scene::{
-    BulletManager, EnemyManager, GravityAffected, LargeBodyManager, PhysicsManager, PlayerManager,
+    BulletManager, EnemyManager, GravityAffected, LargeBodyManager, LargeBodyType, PhysicsManager,
+    PlayerManager,
 };
 
 pub struct Scheduler {
@@ -24,13 +25,32 @@ impl Scheduler {
         let mut enemies = EnemyManager::new();
         enemies.spawn_initial_enemies(&mut entity_manager);
 
+        let mut physics = PhysicsManager::new();
+        let mut large_bodies = LargeBodyManager::new();
+
+        large_bodies.spawn_body(
+            LargeBodyType::BlackHole,
+            Vec3::new(0.0, 0.0, 0.0),
+            &mut physics,
+            &mut entity_manager,
+        );
+        // Create a binary system for testing
+        // large_bodies.spawn_binary_pair(
+        //     crate::scene::large_body::LargeBodyType::BlackHole,
+        //     crate::scene::large_body::LargeBodyType::BlackHole,
+        //     crate::engine::Vec3::new(0.0, 0.0, 0.0),
+        //     20.0, // Separation distance
+        //     &mut physics,
+        //     &mut entity_manager,
+        // );
+
         Scheduler {
             entity_manager,
             player: PlayerManager::new(player_entity),
             enemies,
             bullets: BulletManager::new(),
-            physics: PhysicsManager::new(),
-            large_bodies: LargeBodyManager::new(),
+            physics,
+            large_bodies,
         }
     }
 
@@ -211,31 +231,6 @@ impl Scheduler {
     /// Initialize GPU physics resources (call after graphics context is available)
     pub fn initialize_physics_gpu(&mut self, device: &wgpu::Device) {
         self.physics.initialize_gpu(device);
-
-        // Example: Add some gravitational bodies to the scene
-        self.setup_example_gravitational_bodies();
-    }
-
-    /// Setup some example gravitational bodies for demonstration
-    fn setup_example_gravitational_bodies(&mut self) {
-        // Clear any existing bodies first
-        self.physics.clear_gravitational_bodies();
-
-        self.large_bodies.spawn_body(
-            crate::scene::LargeBodyType::GasGiant,
-            Vec3::new(0.0, 0.0, 0.0),
-            Vec3::new(0.0, 0.0, 0.0),
-            &mut self.physics,
-            &mut self.entity_manager,
-        );
-
-        self.large_bodies.spawn_body(
-            crate::scene::LargeBodyType::GasGiant,
-            Vec3::new(100.0, 100.0, 100.0),
-            Vec3::new(0.0, 0.0, 0.0),
-            &mut self.physics,
-            &mut self.entity_manager,
-        );
     }
 
     /// Update physics forces for all gravity-affected objects in one efficient GPU call

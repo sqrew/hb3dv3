@@ -73,11 +73,6 @@ impl Player {
         // Reset applied force for next frame
         self.applied_force = Vec3::zeros();
 
-        // Clamp to reasonable bounds (simple boundary)
-        self.pos.x = self.pos.x.clamp(-250.0, 250.0);
-        self.pos.y = self.pos.y.clamp(-250.0, 250.0);
-        self.pos.z = self.pos.z.clamp(-250.0, 250.0);
-
         // Handle shooting input
         let fire_pressed = input.get_action_value(Action::Fire) > 0.0;
 

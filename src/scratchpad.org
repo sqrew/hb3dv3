@@ -7,10 +7,7 @@ with full collisions/gravity, events, particles, etc
 
 
 
-
-
-
-physics.rs max effected entities const is 1024, needs to be leagues higher
+arena and bounding
 
 
 

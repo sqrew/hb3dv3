@@ -47,10 +47,6 @@ impl Enemy {
             self.vel.z = -self.vel.z;
         }
 
-        // Keep enemies within reasonable bounds (but allow gravity to pull them)
-        self.pos.x = self.pos.x.clamp(-50.0, 50.0);
-        self.pos.z = self.pos.z.clamp(-50.0, 50.0);
-
         // Reset applied force for next frame
         self.applied_force = Vec3::zeros();
     }
