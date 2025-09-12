@@ -98,7 +98,7 @@ impl EnemyManager {
         entity_manager: &mut crate::engine::entity::EntityManager,
     ) {
         // Spawn a few enemies in interesting positions
-        for i in 0..500 {
+        for i in 0..50000 {
             let angle = (i as f32 / 50.0) * std::f32::consts::TAU;
             let radius = 8.0;
             let pos = Vec3::new(

@@ -5,7 +5,7 @@ use wgpu::util::DeviceExt;
 const MAX_PARTICLES: u32 = 8192;
 
 /// Maximum spawn requests per frame
-const MAX_SPAWN_REQUESTS: u32 = 64;
+const MAX_SPAWN_REQUESTS: u32 = 32768;
 
 /// Particles per collision effect
 const PARTICLES_PER_COLLISION: u32 = 32;
@@ -349,13 +349,30 @@ impl ParticleSystem {
 
     /// Update particle system on GPU
     pub fn update(&mut self, device: &wgpu::Device, queue: &wgpu::Queue, delta_time: f32) {
+        // Aggressively cap spawn queue at start of update
+        if self.spawn_queue.len() > MAX_SPAWN_REQUESTS as usize {
+            self.spawn_queue.truncate(MAX_SPAWN_REQUESTS as usize);
+        }
+        
         // Upload spawn requests if any
         if !self.spawn_queue.is_empty() {
-            queue.write_buffer(
-                &self.spawn_queue_buffer,
-                0,
-                bytemuck::cast_slice(&self.spawn_queue),
-            );
+            // Hard cap to prevent any overflow - be very conservative
+            let max_safe_requests = 2097152 / std::mem::size_of::<SpawnRequest>();
+            if self.spawn_queue.len() > max_safe_requests {
+                self.spawn_queue.truncate(max_safe_requests);
+            }
+            
+            let data_bytes = bytemuck::cast_slice::<SpawnRequest, u8>(&self.spawn_queue);
+            if data_bytes.len() > 2097152 {
+                // Emergency fallback - clear the queue entirely if still too big
+                self.spawn_queue.clear();
+            } else {
+                queue.write_buffer(
+                    &self.spawn_queue_buffer,
+                    0,
+                    data_bytes,
+                );
+            }
             queue.write_buffer(
                 &self.spawn_count_buffer,
                 0,

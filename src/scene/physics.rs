@@ -395,8 +395,9 @@ impl PhysicsManager {
 
         // Prepare affected objects data for GPU
         self.affected_objects_cache.clear();
+        let objects_to_process = affected_objects.iter().take(MAX_AFFECTED_OBJECTS as usize);
         self.affected_objects_cache
-            .extend(affected_objects.iter().map(|obj| {
+            .extend(objects_to_process.map(|obj| {
                 let pos = obj.position();
                 GpuAffectedObject {
                     position: [pos.x, pos.y, pos.z],
@@ -413,11 +414,14 @@ impl PhysicsManager {
             bytemuck::cast_slice(&self.gravitational_bodies),
         );
 
-        queue.write_buffer(
-            &gpu.affected_objects_buffer,
-            0,
-            bytemuck::cast_slice(&self.affected_objects_cache),
-        );
+        // Ensure we don't exceed buffer capacity
+        if self.affected_objects_cache.len() <= MAX_AFFECTED_OBJECTS as usize {
+            queue.write_buffer(
+                &gpu.affected_objects_buffer,
+                0,
+                bytemuck::cast_slice(&self.affected_objects_cache),
+            );
+        }
 
         queue.write_buffer(
             &gpu.body_count_buffer,
@@ -428,7 +432,7 @@ impl PhysicsManager {
         queue.write_buffer(
             &gpu.affected_count_buffer,
             0,
-            bytemuck::cast_slice(&[affected_objects.len() as u32]),
+            bytemuck::cast_slice(&[self.affected_objects_cache.len() as u32]),
         );
 
         queue.write_buffer(
@@ -462,17 +466,18 @@ impl PhysicsManager {
             });
             compute_pass.set_pipeline(&gpu.gravity_compute_pipeline);
             compute_pass.set_bind_group(0, &gpu.gravity_compute_bind_group, &[]);
-            let workgroups = (affected_objects.len() as u32 + 63) / 64;
+            let workgroups = (self.affected_objects_cache.len() as u32 + 63) / 64;
             compute_pass.dispatch_workgroups(workgroups, 1, 1);
         }
 
         // Copy computed forces from GPU to staging buffer for readback
+        let copy_size = (self.affected_objects_cache.len() * std::mem::size_of::<GpuAffectedObject>()) as u64;
         encoder.copy_buffer_to_buffer(
             &gpu.affected_objects_buffer,
             0,
             &gpu.staging_buffer,
             0,
-            (affected_objects.len() * std::mem::size_of::<GpuAffectedObject>()) as u64,
+            copy_size,
         );
 
         queue.submit(Some(encoder.finish()));
@@ -529,8 +534,9 @@ impl PhysicsManager {
 
         // Prepare affected objects data for GPU
         self.affected_objects_cache.clear();
+        let objects_to_process = affected_objects.iter().take(MAX_AFFECTED_OBJECTS as usize);
         self.affected_objects_cache
-            .extend(affected_objects.iter().map(|obj| {
+            .extend(objects_to_process.map(|obj| {
                 let pos = obj.position();
                 GpuAffectedObject {
                     position: [pos.x, pos.y, pos.z],
@@ -547,11 +553,14 @@ impl PhysicsManager {
             bytemuck::cast_slice(&self.gravitational_bodies),
         );
 
-        queue.write_buffer(
-            &gpu.affected_objects_buffer,
-            0,
-            bytemuck::cast_slice(&self.affected_objects_cache),
-        );
+        // Ensure we don't exceed buffer capacity
+        if self.affected_objects_cache.len() <= MAX_AFFECTED_OBJECTS as usize {
+            queue.write_buffer(
+                &gpu.affected_objects_buffer,
+                0,
+                bytemuck::cast_slice(&self.affected_objects_cache),
+            );
+        }
 
         queue.write_buffer(
             &gpu.body_count_buffer,
@@ -562,7 +571,7 @@ impl PhysicsManager {
         queue.write_buffer(
             &gpu.affected_count_buffer,
             0,
-            bytemuck::cast_slice(&[affected_objects.len() as u32]),
+            bytemuck::cast_slice(&[self.affected_objects_cache.len() as u32]),
         );
 
         queue.write_buffer(
@@ -596,17 +605,18 @@ impl PhysicsManager {
             });
             compute_pass.set_pipeline(&gpu.gravity_compute_pipeline);
             compute_pass.set_bind_group(0, &gpu.gravity_compute_bind_group, &[]);
-            let workgroups = (affected_objects.len() as u32 + 63) / 64;
+            let workgroups = (self.affected_objects_cache.len() as u32 + 63) / 64;
             compute_pass.dispatch_workgroups(workgroups, 1, 1);
         }
 
         // Copy computed forces from GPU to staging buffer for readback
+        let copy_size = (self.affected_objects_cache.len() * std::mem::size_of::<GpuAffectedObject>()) as u64;
         encoder.copy_buffer_to_buffer(
             &gpu.affected_objects_buffer,
             0,
             &gpu.staging_buffer,
             0,
-            (affected_objects.len() * std::mem::size_of::<GpuAffectedObject>()) as u64,
+            copy_size,
         );
 
         queue.submit(Some(encoder.finish()));

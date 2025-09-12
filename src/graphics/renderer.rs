@@ -3,9 +3,9 @@ use wgpu::util::DeviceExt;
 use winit::{dpi::PhysicalSize, window::Window};
 
 use crate::graphics::{
-    BloomRenderer, CameraUniform, CollisionCompute, Frustum, InstancedLineRenderer, Primitive,
-    PrimitiveType, Projection, ThirdPersonCamera, Vertex, constants::*, is_visible_sphere,
-    line_batch::ReusableLineBatch, primitive_cache::PrimitiveCache, ParticleSystem,
+    BloomRenderer, CameraUniform, CollisionCompute, Frustum, InstancedLineRenderer, ParticleSystem,
+    Primitive, PrimitiveType, Projection, ThirdPersonCamera, Vertex, constants::*,
+    is_visible_sphere, line_batch::ReusableLineBatch, primitive_cache::PrimitiveCache,
 };
 
 pub struct GraphicsEngine {
@@ -243,7 +243,7 @@ impl GraphicsEngine {
 
         // Create collision compute system
         let collision_compute = CollisionCompute::new(&device);
-        
+
         // Create particle system
         let particles = ParticleSystem::new(&device, &camera_bind_group_layout);
 
@@ -367,14 +367,18 @@ impl GraphicsEngine {
     pub fn collision_compute(&mut self) -> &mut CollisionCompute {
         &mut self.collision_compute
     }
-    
+
     /// Dispatch collision detection and return results
-    pub fn dispatch_and_read_collisions(&mut self) -> Result<Vec<crate::graphics::CollisionPair>, Box<dyn std::error::Error>> {
+    pub fn dispatch_and_read_collisions(
+        &mut self,
+    ) -> Result<Vec<crate::graphics::CollisionPair>, Box<dyn std::error::Error>> {
         // Dispatch collision detection
-        self.collision_compute.dispatch_collision_detection(&self.device, &self.queue)?;
-        
-        // Read results synchronously  
-        self.collision_compute.read_collision_results_sync(&self.device, &self.queue)
+        self.collision_compute
+            .dispatch_collision_detection(&self.device, &self.queue)?;
+
+        // Read results synchronously
+        self.collision_compute
+            .read_collision_results_sync(&self.device, &self.queue)
     }
 
     pub fn render(&mut self, primitives: &[Primitive]) -> Result<(), wgpu::SurfaceError> {
@@ -425,9 +429,10 @@ impl GraphicsEngine {
 
             // Render wireframes using instanced line renderer
             self.render_wireframes_instanced(&mut render_pass, primitives);
-            
+
             // Render particles
-            self.particles.render(&mut render_pass, &self.camera_bind_group);
+            self.particles
+                .render(&mut render_pass, &self.camera_bind_group);
         }
 
         // Step 2: Bloom post-processing disabled - rendering directly to final surface
@@ -544,17 +549,25 @@ impl GraphicsEngine {
         self.line_renderer
             .render_lines(render_pass, &self.camera_bind_group, &lines);
     }
-    
+
     /// Spawn particles with full collision event data
-    pub fn spawn_particles(&mut self, position: crate::graphics::Vec3, velocity: crate::graphics::Vec3, count: u32, lifetime: f32, color: crate::graphics::Color) {
-        self.particles.spawn_particles(position, velocity, count, lifetime, color);
+    pub fn spawn_particles(
+        &mut self,
+        position: crate::graphics::Vec3,
+        velocity: crate::graphics::Vec3,
+        count: u32,
+        lifetime: f32,
+        color: crate::graphics::Color,
+    ) {
+        self.particles
+            .spawn_particles(position, velocity, count, lifetime, color);
     }
-    
+
     /// Spawn particles at the given position with default values (backwards compatibility)
     pub fn spawn_particles_simple(&mut self, position: crate::graphics::Vec3) {
         self.particles.spawn_particles_simple(position);
     }
-    
+
     /// Update particle system (call before render)
     pub fn update_particles(&mut self, delta_time: f32) {
         self.particles.update(&self.device, &self.queue, delta_time);

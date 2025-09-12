@@ -221,9 +221,8 @@ impl Scheduler {
         // Clear any existing bodies first
         self.physics.clear_gravitational_bodies();
 
-        // Place a single star in the center of the battlefield for testing
         self.large_bodies.spawn_body(
-            crate::scene::LargeBodyType::WhiteHole,
+            crate::scene::LargeBodyType::GasGiant,
             Vec3::new(0.0, 0.0, 0.0),
             Vec3::new(0.0, 0.0, 0.0),
             &mut self.physics,
@@ -231,8 +230,8 @@ impl Scheduler {
         );
 
         self.large_bodies.spawn_body(
-            crate::scene::LargeBodyType::BlackHole,
-            Vec3::new(10.0, 10.0, 10.0),
+            crate::scene::LargeBodyType::GasGiant,
+            Vec3::new(100.0, 100.0, 100.0),
             Vec3::new(0.0, 0.0, 0.0),
             &mut self.physics,
             &mut self.entity_manager,

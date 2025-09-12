@@ -27,7 +27,7 @@ impl WeaponStats {
             bullet_speed: 100.0,
             bullet_lifetime: 30.0,
             projectile_count: 1,
-            spread_angle: 1.0,
+            spread_angle: 0.0,
         }
     }
 

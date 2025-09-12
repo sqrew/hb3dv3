@@ -6,9 +6,9 @@ use winit::{
     window::{Window, WindowId},
 };
 
-use crate::graphics::GraphicsEngine;
-use crate::input::{InputManager, Action};
 use crate::engine::{Engine, Vec3};
+use crate::graphics::GraphicsEngine;
+use crate::input::{Action, InputManager};
 
 pub struct WindowManager {
     window: Option<Arc<Window>>,
@@ -28,13 +28,13 @@ impl WindowManager {
             last_frame: std::time::Instant::now(),
         }
     }
-    
+
     pub fn run(mut self) -> Result<(), Box<dyn std::error::Error>> {
         let event_loop = EventLoop::new()?;
         event_loop.set_control_flow(ControlFlow::Poll);
-        
+
         println!("Starting HB3D Game Engine...");
-        
+
         event_loop.run_app(&mut self)?;
         Ok(())
     }
@@ -48,13 +48,12 @@ impl ApplicationHandler for WindowManager {
 
         let window = Arc::new(event_loop.create_window(window_attributes).unwrap());
 
-        let graphics_engine = pollster::block_on(async {
-            GraphicsEngine::new(Arc::clone(&window)).await.unwrap()
-        });
+        let graphics_engine =
+            pollster::block_on(async { GraphicsEngine::new(Arc::clone(&window)).await.unwrap() });
 
         self.window = Some(window);
         self.graphics_engine = Some(graphics_engine);
-        
+
         // Initialize physics GPU system now that graphics context is available
         if let Some(graphics_engine) = &self.graphics_engine {
             self.engine.initialize_physics_gpu(graphics_engine.device());
@@ -87,61 +86,94 @@ impl ApplicationHandler for WindowManager {
                 self.input_manager.update();
 
                 // Get camera vectors for movement (including Y axis)
-                let (camera_forward, camera_right, camera_up) = if let Some(graphics_engine) = &self.graphics_engine {
-                    let camera = graphics_engine.camera();
-                    let forward = camera.forward();
-                    let right = camera.right();
-                    let up = camera.up();
-                    (
-                        Vec3::new(forward.x, forward.y, forward.z), // Keep full 3D direction
-                        Vec3::new(right.x, right.y, right.z),
-                        Vec3::new(up.x, up.y, up.z)
-                    )
-                } else {
-                    // Fallback vectors if no graphics engine
-                    (Vec3::new(0.0, 0.0, -1.0), Vec3::new(1.0, 0.0, 0.0), Vec3::new(0.0, 1.0, 0.0))
-                };
-                
+                let (camera_forward, camera_right, camera_up) =
+                    if let Some(graphics_engine) = &self.graphics_engine {
+                        let camera = graphics_engine.camera();
+                        let forward = camera.forward();
+                        let right = camera.right();
+                        let up = camera.up();
+                        (
+                            Vec3::new(forward.x, forward.y, forward.z), // Keep full 3D direction
+                            Vec3::new(right.x, right.y, right.z),
+                            Vec3::new(up.x, up.y, up.z),
+                        )
+                    } else {
+                        // Fallback vectors if no graphics engine
+                        (
+                            Vec3::new(0.0, 0.0, -1.0),
+                            Vec3::new(1.0, 0.0, 0.0),
+                            Vec3::new(0.0, 1.0, 0.0),
+                        )
+                    };
+
                 // Single engine update that handles everything with GPU physics
-                let (primitives, player_pos, graphics_events) = if let Some(graphics_engine) = &self.graphics_engine {
-                    // Pass GPU context for physics calculations
-                    self.engine.update_with_gpu(
-                        delta_time, 
-                        &self.input_manager, 
-                        camera_forward, 
-                        camera_right, 
-                        camera_up,
-                        Some(graphics_engine.device()),
-                        Some(graphics_engine.queue())
-                    )
-                } else {
-                    // Fallback without GPU context
-                    self.engine.update(delta_time, &self.input_manager, camera_forward, camera_right, camera_up)
-                };
-                
+                let (primitives, player_pos, graphics_events) =
+                    if let Some(graphics_engine) = &self.graphics_engine {
+                        // Pass GPU context for physics calculations
+                        self.engine.update_with_gpu(
+                            delta_time,
+                            &self.input_manager,
+                            camera_forward,
+                            camera_right,
+                            camera_up,
+                            Some(graphics_engine.device()),
+                            Some(graphics_engine.queue()),
+                        )
+                    } else {
+                        // Fallback without GPU context
+                        self.engine.update(
+                            delta_time,
+                            &self.input_manager,
+                            camera_forward,
+                            camera_right,
+                            camera_up,
+                        )
+                    };
+
                 // Process graphics events from dispatcher
                 if let Some(graphics_engine) = &mut self.graphics_engine {
                     for event in graphics_events {
                         match event {
-                            crate::engine::dispatcher::GraphicsEvent::SpawnParticles { position, velocity, count, lifetime, color } => {
-                                graphics_engine.spawn_particles(position, velocity, count, lifetime, color);
+                            crate::engine::dispatcher::GraphicsEvent::SpawnParticles {
+                                position,
+                                velocity,
+                                count,
+                                lifetime,
+                                color,
+                            } => {
+                                graphics_engine
+                                    .spawn_particles(position, velocity, count, lifetime, color);
                             }
-                            crate::engine::dispatcher::GraphicsEvent::DrawLine { start, end, color, duration } => {
+                            crate::engine::dispatcher::GraphicsEvent::DrawLine {
+                                start,
+                                end,
+                                color,
+                                duration,
+                            } => {
                                 // Debug line drawing - could be implemented with line renderer
-                                println!("📐 Debug line: {:?} -> {:?} (color: {:?}, duration: {})", start, end, color, duration);
+                                println!(
+                                    "📐 Debug line: {:?} -> {:?} (color: {:?}, duration: {})",
+                                    start, end, color, duration
+                                );
                             }
-                            crate::engine::dispatcher::GraphicsEvent::ScreenShake { intensity, duration } => {
+                            crate::engine::dispatcher::GraphicsEvent::ScreenShake {
+                                intensity,
+                                duration,
+                            } => {
                                 // Screen shake - could be implemented by modifying camera offset
-                                println!("📳 Screen shake: intensity {}, duration {}", intensity, duration);
+                                println!(
+                                    "📳 Screen shake: intensity {}, duration {}",
+                                    intensity, duration
+                                );
                             }
                         }
                     }
                 }
-                
+
                 // GPU collision detection
                 // Always use GPU collision detection
                 let use_gpu_collisions = true;
-                
+
                 if use_gpu_collisions {
                     if let Some(graphics_engine) = &mut self.graphics_engine {
                         // Update collision compute system with current entity states
@@ -150,11 +182,15 @@ impl ApplicationHandler for WindowManager {
                         let bullets = self.engine.scheduler.bullets().bullets();
                         let metabullets = self.engine.scheduler.bullets().metabullets();
                         let large_bodies = self.engine.scheduler.large_bodies().bodies();
-                        
+
                         graphics_engine.collision_compute().update_entities(
-                            player, enemies, bullets, metabullets, large_bodies
+                            player,
+                            enemies,
+                            bullets,
+                            metabullets,
+                            large_bodies,
                         );
-                        
+
                         // Dispatch and read GPU collision results
                         match graphics_engine.dispatch_and_read_collisions() {
                             Ok(collision_pairs) => {
@@ -164,9 +200,10 @@ impl ApplicationHandler for WindowManager {
                                         .iter()
                                         .map(|p| (p.entity_a, p.entity_b))
                                         .collect();
-                                    
-                                    println!("GPU collision pairs: {:?}", pairs);
-                                    
+
+                                    // Print a copy of every single collision pair
+                                    // println!("GPU collision pairs: {:?}", pairs);
+
                                     // Process collisions using CollisionManager to generate events
                                     self.engine.process_collisions(&pairs);
                                 }
@@ -181,37 +218,51 @@ impl ApplicationHandler for WindowManager {
                     // CPU collision detection fallback
                     self.engine.scheduler.check_collisions_cpu();
                 }
-                
+
                 if let Some(graphics_engine) = &mut self.graphics_engine {
                     // Handle camera movement from right thumbstick and mouse
-                    let camera_look_h = self.input_manager.get_action_value(Action::CameraLookHorizontal);
-                    let camera_look_v = self.input_manager.get_action_value(Action::CameraLookVertical);
-                    
+                    let camera_look_h = self
+                        .input_manager
+                        .get_action_value(Action::CameraLookHorizontal);
+                    let camera_look_v = self
+                        .input_manager
+                        .get_action_value(Action::CameraLookVertical);
+
                     // Get mouse movement for camera control
                     let (mouse_dx, mouse_dy) = self.input_manager.mouse.delta();
-                    let mouse_look = self.input_manager.mouse.is_button_pressed(winit::event::MouseButton::Right);
-                    
+                    let mouse_look = self
+                        .input_manager
+                        .mouse
+                        .is_button_pressed(winit::event::MouseButton::Right);
+
                     // Apply camera rotation
                     let camera = graphics_engine.camera_mut();
-                    
+
                     // Right thumbstick camera controls
                     if camera_look_h != 0.0 || camera_look_v != 0.0 {
                         camera.angle_horizontal -= camera_look_h * delta_time * 2.0; // Negated to fix left/right
-                        camera.angle_vertical = (camera.angle_vertical - camera_look_v * delta_time * 1.5).clamp(-1.4, 1.4);
+                        camera.angle_vertical = (camera.angle_vertical
+                            - camera_look_v * delta_time * 1.5)
+                            .clamp(-1.4, 1.4);
                     }
-                    
+
                     // Mouse look (when right mouse button is held)
                     if mouse_look && (mouse_dx != 0.0 || mouse_dy != 0.0) {
                         camera.angle_horizontal -= (mouse_dx * 0.005) as f32; // Negated to fix left/right
-                        camera.angle_vertical = (camera.angle_vertical - (mouse_dy * 0.005) as f32).clamp(-1.4, 1.4);
+                        camera.angle_vertical =
+                            (camera.angle_vertical - (mouse_dy * 0.005) as f32).clamp(-1.4, 1.4);
                     }
-                    
+
                     // Update camera to follow player
-                    graphics_engine.update_camera(nalgebra::Point3::new(player_pos.x, player_pos.y, player_pos.z));
-                    
+                    graphics_engine.update_camera(nalgebra::Point3::new(
+                        player_pos.x,
+                        player_pos.y,
+                        player_pos.z,
+                    ));
+
                     // Update particle system
                     graphics_engine.update_particles(delta_time);
-                    
+
                     // Render the primitives
                     if let Err(e) = graphics_engine.render(&primitives) {
                         eprintln!("Render error: {}", e);
