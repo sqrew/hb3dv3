@@ -496,6 +496,7 @@ impl PhysicsManager {
         device: &wgpu::Device,
         queue: &wgpu::Queue,
         affected_objects: &mut [&mut dyn GravityAffected],
+        explosions: &[crate::scene::explosion::Explosion],
         delta_time: f32,
     ) {
         if self.gravitational_bodies.is_empty() || affected_objects.is_empty() {

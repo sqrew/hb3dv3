@@ -280,8 +280,13 @@ impl Scheduler {
 
         // Single GPU call for all objects - much more efficient!
         if !all_objects.is_empty() {
-            self.physics
-                .update_gravity_batch(device, queue, &mut all_objects, delta_time);
+            self.physics.update_gravity_batch(
+                device,
+                queue,
+                &mut all_objects,
+                self.explosions.explosions(),
+                delta_time,
+            );
         }
     }
 

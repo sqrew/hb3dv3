@@ -17,7 +17,26 @@ impl Dispatcher {
         }
     }
 
-    /// Collect events from all managers at end of frame
+    /// Collect events directly from all managers - cleaner architecture
+    pub fn collect_from_managers(
+        &mut self,
+        scheduler: &mut crate::engine::scheduler::Scheduler,
+        collision_manager: &mut crate::engine::collision::CollisionManager,
+    ) {
+        // Collect events from each manager directly
+        let player_events = scheduler.player_mut().drain_events();
+        let enemy_events = scheduler.enemies_mut().drain_events();
+        let bullet_events = scheduler.bullets_mut().drain_events();
+        let collision_events = collision_manager.drain_events();
+        
+        // Add all events to pending queue
+        self.pending_events.extend(player_events);
+        self.pending_events.extend(enemy_events);
+        self.pending_events.extend(bullet_events);
+        self.pending_events.extend(collision_events);
+    }
+
+    /// Legacy method - collect events from pre-drained vectors (for backward compatibility)
     pub fn collect_events(
         &mut self,
         player_events: Vec<EventType>,
@@ -74,7 +93,10 @@ impl Dispatcher {
 
         // Process batches - order matters for dependencies
         // 1. Process collision events first (they generate other events)
-        Self::handle_collision_events_batch(collision_events, scheduler, graphics_events);
+        // Process each collision event individually
+        for event in collision_events {
+            Self::handle_collision_event(event, scheduler, graphics_events);
+        }
 
         // 2. Process player events (could affect weapon state)
         for event in player_events {
@@ -252,98 +274,6 @@ impl Dispatcher {
         }
     }
 
-    fn handle_collision_events_batch(
-        events: Vec<CollisionEvent>,
-        scheduler: &mut crate::engine::scheduler::Scheduler,
-        graphics_events: &mut Vec<GraphicsEvent>,
-    ) {
-        if events.is_empty() {
-            return;
-        }
-
-        // Group collision events by type for more efficient processing
-        let mut bullet_hits: Vec<CollisionEvent> = Vec::new();
-        let mut enemy_hits: Vec<CollisionEvent> = Vec::new();
-        let mut large_body_hits: Vec<CollisionEvent> = Vec::new();
-
-        for event in events {
-            match event {
-                CollisionEvent::BulletHitEnemy { .. } => bullet_hits.push(event),
-                CollisionEvent::EnemyHitPlayer { .. } => enemy_hits.push(event),
-                CollisionEvent::EnemyHitLargeBody { .. } => large_body_hits.push(event),
-                CollisionEvent::BulletHitLargeBody { .. } => large_body_hits.push(event),
-                CollisionEvent::BulletHitBullet { .. } => large_body_hits.push(event),
-                CollisionEvent::LargeBodyHitLargeBody { .. } => large_body_hits.push(event),
-            }
-        }
-
-        // Batch process bullet hits - optimize bullet removal and particle spawning
-        let mut bullets_to_remove = Vec::new();
-
-        for event in bullet_hits {
-            match event {
-                CollisionEvent::BulletHitEnemy {
-                    bullet_id,
-                    enemy_id,
-                    damage,
-                    impact_point,
-                } => {
-                    // Apply damage directly
-                    scheduler
-                        .enemies_mut()
-                        .damage_enemy_direct(enemy_id, damage, bullet_id);
-
-                    // Collect bullet for batch removal
-                    bullets_to_remove.push(bullet_id);
-
-                    // Queue particle effect
-                    use crate::graphics::Color;
-                    graphics_events.push(GraphicsEvent::SpawnParticles {
-                        position: impact_point,
-                        velocity: Vec3::new(0.0, 1.0, 0.0),
-                        count: 50,
-                        lifetime: 1.2, // Reduced for faster slot recycling
-                        color: Color::new(1.0, 0.6, 0.2, 1.0),
-                    });
-                }
-                CollisionEvent::EnemyHitPlayer { .. } => {
-                    // This should not happen in bullet_hits batch, but handle gracefully
-                    unreachable!("EnemyHitPlayer event should not be in bullet_hits batch");
-                }
-                CollisionEvent::EnemyHitLargeBody { .. } => {
-                    // This should not happen in bullet_hits batch, but handle gracefully
-                    unreachable!("EnemyHitLargeBody event should not be in bullet_hits batch");
-                }
-                CollisionEvent::BulletHitLargeBody { .. } => {
-                    // This should not happen in bullet_hits batch, but handle gracefully
-                    unreachable!("BulletHitLargeBody event should not be in bullet_hits batch");
-                }
-                CollisionEvent::BulletHitBullet { .. } => {
-                    // This should not happen in bullet_hits batch, but handle gracefully
-                    unreachable!("BulletHitBullet event should not be in bullet_hits batch");
-                }
-                CollisionEvent::LargeBodyHitLargeBody { .. } => {
-                    // This should not happen in bullet_hits batch, but handle gracefully
-                    unreachable!("LargeBodyHitLargeBody event should not be in bullet_hits batch");
-                }
-            }
-        }
-
-        // Batch remove all bullets at once (more efficient than individual removals)
-        for bullet_id in bullets_to_remove {
-            scheduler.bullets_mut().mark_bullet_for_removal(bullet_id);
-        }
-
-        // Batch process enemy hits (could group damage, screen effects, etc.)
-        for event in enemy_hits {
-            Self::handle_collision_event(event, scheduler, graphics_events);
-        }
-
-        // Batch process large body hits (enemy-large body collisions)
-        for event in large_body_hits {
-            Self::handle_collision_event(event, scheduler, graphics_events);
-        }
-    }
 
     fn handle_audio_events_batch(events: Vec<AudioEvent>) {
         if events.is_empty() {

@@ -63,14 +63,8 @@ impl Engine {
         // Post-update
         self.scheduler.postupdate();
         
-        // Collect events from managers
-        let player_events = self.scheduler.player_mut().drain_events(); // Collect player and weapon events
-        let enemy_events = self.scheduler.enemies_mut().drain_events(); // Collect events from EnemyManager
-        let bullet_events = self.scheduler.bullets_mut().drain_events(); // Collect events from BulletManager
-        let collision_events = self.collision_manager.drain_events(); // Collect events from CollisionManager
-        
-        // Collect all events for next frame
-        self.dispatcher.collect_events(player_events, enemy_events, bullet_events, collision_events);
+        // Let dispatcher collect events directly from managers
+        self.dispatcher.collect_from_managers(&mut self.scheduler, &mut self.collision_manager);
         
         // Prepare events for next frame
         self.dispatcher.prepare_next_frame();

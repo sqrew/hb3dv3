@@ -1,5 +1,5 @@
-use crate::graphics::{Primitive, Vec3};
 use crate::engine::EntityId;
+use crate::graphics::{Primitive, Vec3};
 
 /// How the explosion force falls off with distance
 #[derive(Debug, Clone, Copy)]
@@ -57,7 +57,7 @@ impl Explosion {
     /// Update explosion state
     pub fn update(&mut self, delta_time: f32) {
         self.elapsed_time += delta_time;
-        
+
         // Explosion radius grows linearly over time
         let progress = (self.elapsed_time / self.duration).min(1.0);
         self.current_radius = self.max_radius * progress;
@@ -76,7 +76,7 @@ impl Explosion {
 
         // Time-based falloff (explosion weakens over time)
         let time_falloff = 1.0 - (self.elapsed_time / self.duration);
-        
+
         // Distance-based falloff
         let distance_factor = match self.falloff_type {
             FalloffType::Linear => 1.0 - (distance / self.current_radius),
@@ -114,7 +114,8 @@ impl ExplosionManager {
         duration: f32,
         falloff_type: FalloffType,
     ) {
-        let explosion = Explosion::new(position, max_radius, force_strength, duration, falloff_type);
+        let explosion =
+            Explosion::new(position, max_radius, force_strength, duration, falloff_type);
         self.explosions.push(explosion);
     }
 
@@ -122,9 +123,9 @@ impl ExplosionManager {
     pub fn spawn_shockwave(&mut self, position: Vec3) {
         self.spawn_explosion(
             position,
-            100.0,        // Large radius
-            50000.0,      // Strong force
-            2.0,          // 2 second duration
+            50.0,    // Large radius
+            50000.0, // Strong force
+            1.0,     // 2 second duration
             FalloffType::Quadratic,
         );
     }
@@ -133,9 +134,9 @@ impl ExplosionManager {
     pub fn spawn_solar_wind(&mut self, position: Vec3) {
         self.spawn_explosion(
             position,
-            200.0,        // Very large radius
-            1000.0,       // Moderate force
-            0.5,          // Short duration
+            200.0,  // Very large radius
+            1000.0, // Moderate force
+            0.5,    // Short duration
             FalloffType::Linear,
         );
     }
@@ -158,27 +159,23 @@ impl ExplosionManager {
 
     /// Get render data for visual effects
     pub fn get_render_data(&self) -> Vec<Primitive> {
-        use crate::graphics::{PrimitiveType, Color};
-        
+        use crate::graphics::{Color, PrimitiveType};
+
         let mut primitives = Vec::new();
-        
+
         for explosion in &self.explosions {
             if explosion.current_radius > 0.1 {
                 // Create expanding sphere primitive
                 let alpha = 1.0 - (explosion.elapsed_time / explosion.duration); // Fade out over time
                 let color = Color::new(1.0, 0.6, 0.2, alpha * 0.3); // Orange with transparency
-                
-                let primitive = Primitive::new(
-                    PrimitiveType::Sphere,
-                    explosion.position,
-                    color,
-                )
-                .with_uniform_scale(explosion.current_radius);
-                
+
+                let primitive = Primitive::new(PrimitiveType::Sphere, explosion.position, color)
+                    .with_uniform_scale(explosion.current_radius);
+
                 primitives.push(primitive);
             }
         }
-        
+
         primitives
     }
 
