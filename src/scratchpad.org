@@ -80,3 +80,25 @@ arena and bounding
   30. Exotic Matter Physics
 
   31. Strange Matter: High-density objects with unique collision properties
+
+
+
+shockwaves/explosion (use as solar wind) that affect velocity
+
+
+    Visually Spectacular:
+  - Gravitational Lensing - Projectiles and light bend around massive objects, creating curved bullet trajectories near black holes
+  - Accretion Disks - Swirling matter spirals into black holes/neutron stars with realistic orbital decay
+  - Tidal Forces - Large objects get visibly stretched/deformed when approaching massive bodies
+  - Shock Waves - Expanding spherical force fields from explosions that push entities outward
+
+  Gameplay-Enhancing:
+  - Magnetic Fields - Charged projectiles follow curved helical paths around magnetized bodies
+  - Solar Wind - Constant outward force from stars that affects small objects and creates "gravity wells" you can surf
+  - Roche Limit Effects - Large asteroids break apart into debris fields when they get too close to planets
+  - Lagrange Points - Gravitational equilibrium zones where you can park safely between massive bodies
+
+  Emergent Complexity:
+  - Gravitational Waves - Massive accelerating objects create expanding ripples that temporarily alter gravity fields
+  - Dark Matter Halos - Invisible mass clouds that only affect gravity, creating mysterious force regions
+  - Frame Dragging - Rotating black holes drag spacetime, creating spiral gravity effects

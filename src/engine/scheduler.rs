@@ -28,18 +28,18 @@ impl Scheduler {
         let mut physics = PhysicsManager::new();
         let mut large_bodies = LargeBodyManager::new();
 
-        large_bodies.spawn_body(
-            LargeBodyType::BlackHole,
-            Vec3::new(300.0, 300.0, 300.0),
-            &mut physics,
-            &mut entity_manager,
-        );
+        // large_bodies.spawn_body(
+        //     LargeBodyType::BlackHole,
+        //     Vec3::new(300.0, 300.0, 300.0),
+        //     &mut physics,
+        //     &mut entity_manager,
+        // );
 
         large_bodies.spawn_binary_pair(
-            crate::scene::large_body::LargeBodyType::GasGiant,
-            crate::scene::large_body::LargeBodyType::NeutronStar,
+            crate::scene::large_body::LargeBodyType::Planet,
+            crate::scene::large_body::LargeBodyType::Planet,
             crate::engine::Vec3::new(0.0, 0.0, 0.0),
-            20.0, // Separation distance
+            5.0, // Separation distance - REDUCED FOR TESTING COLLISION PARTICLES
             &mut physics,
             &mut entity_manager,
         );

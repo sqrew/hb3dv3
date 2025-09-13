@@ -196,6 +196,20 @@ impl Dispatcher {
                     color: Color::new(0.9, 0.9, 1.0, 1.0), // Bright white sparks
                 });
             }
+            CollisionEvent::LargeBodyHitLargeBody {
+                large_body_a_id: _,
+                large_body_b_id: _,
+                impact_point,
+            } => {
+                // Spawn dramatic explosion particles for large body collisions
+                graphics_events.push(GraphicsEvent::SpawnParticles {
+                    position: impact_point,
+                    velocity: Vec3::new(0.0, 0.0, 0.0), // Explosion spreads in all directions
+                    count: 200,                         // Massive particle count for dramatic effect
+                    lifetime: 2.0,                      // Longer lifetime for visibility
+                    color: Color::new(1.0, 0.4, 0.0, 1.0), // Orange explosion color
+                });
+            }
         }
     }
 
@@ -256,6 +270,7 @@ impl Dispatcher {
                 CollisionEvent::EnemyHitLargeBody { .. } => large_body_hits.push(event),
                 CollisionEvent::BulletHitLargeBody { .. } => large_body_hits.push(event),
                 CollisionEvent::BulletHitBullet { .. } => large_body_hits.push(event),
+                CollisionEvent::LargeBodyHitLargeBody { .. } => large_body_hits.push(event),
             }
         }
 
@@ -303,6 +318,10 @@ impl Dispatcher {
                 CollisionEvent::BulletHitBullet { .. } => {
                     // This should not happen in bullet_hits batch, but handle gracefully
                     unreachable!("BulletHitBullet event should not be in bullet_hits batch");
+                }
+                CollisionEvent::LargeBodyHitLargeBody { .. } => {
+                    // This should not happen in bullet_hits batch, but handle gracefully
+                    unreachable!("LargeBodyHitLargeBody event should not be in bullet_hits batch");
                 }
             }
         }
@@ -419,6 +438,11 @@ pub enum CollisionEvent {
     BulletHitBullet {
         bullet_a_id: EntityId,
         bullet_b_id: EntityId,
+        impact_point: Vec3,
+    },
+    LargeBodyHitLargeBody {
+        large_body_a_id: EntityId,
+        large_body_b_id: EntityId,
         impact_point: Vec3,
     },
 }

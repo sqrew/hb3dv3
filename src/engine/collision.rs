@@ -430,6 +430,55 @@ impl CollisionManager {
         }
     }
 
+    /// Process large body vs large body collisions (CPU-based collision detection)
+    pub fn process_large_body_collisions(
+        &mut self,
+        large_body_manager: &crate::scene::LargeBodyManager,
+    ) {
+        let large_bodies = large_body_manager.bodies();
+
+        // Check collisions between all pairs of large bodies
+        for i in 0..large_bodies.len() {
+            for j in (i + 1)..large_bodies.len() {
+                let body_a = &large_bodies[i];
+                let body_b = &large_bodies[j];
+
+                // Calculate distance between bodies
+                let distance_vec = body_a.position() - body_b.position();
+                let distance = distance_vec.magnitude();
+
+                // Check if they're colliding (using collision radii + buffer to trigger before physics bounce)
+                let collision_distance = body_a.collision_radius() + body_b.collision_radius();
+                let detection_distance = collision_distance * 1.4; // 40% buffer to trigger before bounce
+
+                if distance < detection_distance && distance > 0.001 {
+                    // Calculate impact point (surface contact point)
+                    let direction = distance_vec.normalize();
+                    let impact_point = body_b.position() + direction * body_b.collision_radius();
+
+                    // Create collision event
+                    self.event_queue
+                        .push(crate::engine::dispatcher::EventType::Collision(
+                            crate::engine::dispatcher::CollisionEvent::LargeBodyHitLargeBody {
+                                large_body_a_id: body_a.entity_id(),
+                                large_body_b_id: body_b.entity_id(),
+                                impact_point,
+                            },
+                        ));
+
+                    println!(
+                        "Large body collision detected! {} <-> {} at distance {:.2} (detection threshold: {:.2}, collision threshold: {:.2})",
+                        body_a.entity_id().0,
+                        body_b.entity_id().0,
+                        distance,
+                        detection_distance,
+                        collision_distance
+                    );
+                }
+            }
+        }
+    }
+
     /// Get and clear all collision events
     pub fn drain_events(&mut self) -> Vec<crate::engine::dispatcher::EventType> {
         self.event_queue.drain(..).collect()

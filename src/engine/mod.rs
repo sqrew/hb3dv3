@@ -107,6 +107,11 @@ impl Engine {
             &self.scheduler.entity_manager(),
         );
         
+        // Process large body vs large body collisions (CPU-based)
+        self.collision_manager.process_large_body_collisions(
+            &self.scheduler.large_bodies(),
+        );
+        
         // Handle bullet removals from large body collisions
         let bullets_to_remove = self.collision_manager.drain_bullets_to_remove();
         for bullet_id in bullets_to_remove {

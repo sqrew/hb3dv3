@@ -72,6 +72,18 @@ impl LargeBodyType {
         }
     }
 
+    /// Get default angular velocity for this body type (radians per second)
+    pub fn default_angular_velocity(self) -> f32 {
+        match self {
+            LargeBodyType::BlackHole => 2.0,     // Fast spinning black hole for frame-dragging
+            LargeBodyType::WhiteHole => -1.5,    // Counter-rotating white hole
+            LargeBodyType::NeutronStar => 10.0,  // Extremely fast pulsar rotation
+            LargeBodyType::Star => 0.5,          // Moderate stellar rotation
+            LargeBodyType::GasGiant => 1.0,      // Fast rotation like Jupiter
+            LargeBodyType::Planet => 0.3,        // Earth-like rotation (slower)
+        }
+    }
+
     /// Get the primitive type for rendering
     pub fn primitive_type(self) -> PrimitiveType {
         match self {
@@ -96,6 +108,7 @@ pub struct LargeBody {
     radius: f32,           // Visual radius for rendering
     collision_radius: f32, // Collision radius for gameplay mechanics
     collision_mask: CollisionMask,
+    angular_velocity: f32, // Radians per second (positive = counterclockwise)
 
     // Physics integration
     physics_index: Option<usize>, // Index in PhysicsManager's gravitational_bodies array
@@ -114,6 +127,7 @@ impl LargeBody {
             radius,
             collision_radius: radius * body_type.default_collision_radius_ratio(),
             collision_mask: CollisionMask::from(EntityType::LargeBody),
+            angular_velocity: body_type.default_angular_velocity(),
             physics_index: None,
         }
     }
@@ -127,6 +141,7 @@ impl LargeBody {
         mass: f32,
         radius: f32,
         collision_radius: f32,
+        angular_velocity: f32,
     ) -> Self {
         Self {
             entity_id,
@@ -137,6 +152,7 @@ impl LargeBody {
             radius,
             collision_radius,
             collision_mask: CollisionMask::from(EntityType::LargeBody),
+            angular_velocity,
             physics_index: None,
         }
     }
@@ -166,7 +182,7 @@ impl LargeBody {
     /// Register this body with the physics system
     pub fn register_with_physics(&mut self, physics: &mut PhysicsManager) -> usize {
         let index =
-            physics.add_gravitational_body(self.position, self.mass, self.velocity, self.radius);
+            physics.add_gravitational_body(self.position, self.mass, self.velocity, self.collision_radius);
         self.physics_index = Some(index);
         index
     }
@@ -220,6 +236,9 @@ impl LargeBody {
     pub fn physics_index(&self) -> Option<usize> {
         self.physics_index
     }
+    pub fn angular_velocity(&self) -> f32 {
+        self.angular_velocity
+    }
 
     // Setters
     pub fn set_position(&mut self, position: Vec3) {
@@ -237,6 +256,10 @@ impl LargeBody {
 
     pub fn set_collision_radius(&mut self, collision_radius: f32) {
         self.collision_radius = collision_radius;
+    }
+
+    pub fn set_angular_velocity(&mut self, angular_velocity: f32) {
+        self.angular_velocity = angular_velocity;
     }
 
     // Collision methods
@@ -300,6 +323,7 @@ impl LargeBodyManager {
             mass,
             radius,
             collision_radius,
+            body_type.default_angular_velocity(),
         );
         body.register_with_physics(physics);
 
