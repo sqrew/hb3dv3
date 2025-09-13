@@ -204,8 +204,8 @@ impl ApplicationHandler for WindowManager {
                                     // Print a copy of every single collision pair
                                     // println!("GPU collision pairs: {:?}", pairs);
 
-                                    // Process collisions using CollisionManager to generate events
-                                    self.engine.process_collisions(&pairs);
+                                    // Process GPU collision pairs
+                                    self.engine.process_gpu_collisions(&pairs);
                                 }
                             }
                             Err(e) => {
@@ -213,6 +213,12 @@ impl ApplicationHandler for WindowManager {
                                 self.engine.scheduler.check_collisions_cpu();
                             }
                         }
+                        
+                        // Process large body collisions every frame (independent of GPU collisions)
+                        self.engine.process_large_body_collisions();
+                        
+                        // Handle collision cleanup and event dispatch every frame
+                        self.engine.process_collision_cleanup();
                     }
                 } else {
                     // CPU collision detection fallback

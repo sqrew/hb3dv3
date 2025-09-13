@@ -98,27 +98,32 @@ impl Engine {
         &self.scheduler
     }
     
-    /// Process collision pairs using the collision manager
-    pub fn process_collisions(&mut self, collision_pairs: &[(u32, u32)]) {
+    /// Process GPU collision pairs
+    pub fn process_gpu_collisions(&mut self, collision_pairs: &[(u32, u32)]) {
         self.collision_manager.process_collision_pairs(
             collision_pairs,
             &self.scheduler.bullets(),
             &self.scheduler.enemies(),
             &self.scheduler.entity_manager(),
         );
-        
-        // Process large body vs large body collisions (CPU-based)
+    }
+    
+    /// Process large body vs large body collisions (runs every frame)
+    pub fn process_large_body_collisions(&mut self) {
         self.collision_manager.process_large_body_collisions(
             &self.scheduler.large_bodies(),
         );
-        
-        // Handle bullet removals from large body collisions
+    }
+    
+    /// Handle collision cleanup and event dispatch (runs every frame)
+    pub fn process_collision_cleanup(&mut self) {
+        // Handle bullet removals from collisions
         let bullets_to_remove = self.collision_manager.drain_bullets_to_remove();
         for bullet_id in bullets_to_remove {
             self.scheduler.bullets_mut().mark_bullet_for_removal(bullet_id);
         }
         
-        // Handle enemy removals from large body collisions
+        // Handle enemy removals from collisions
         let enemies_to_remove = self.collision_manager.drain_enemies_to_remove();
         for enemy_id in enemies_to_remove {
             self.scheduler.enemies_mut().mark_enemy_for_removal(enemy_id);
@@ -129,6 +134,15 @@ impl Engine {
         for (bullet_id, new_velocity) in velocity_changes {
             self.scheduler.bullets_mut().set_bullet_velocity(bullet_id, new_velocity);
         }
+        
+        // Events will be drained and processed by the main update loop
+    }
+    
+    /// Legacy method - process all collisions (for backward compatibility)
+    pub fn process_collisions(&mut self, collision_pairs: &[(u32, u32)]) {
+        self.process_gpu_collisions(collision_pairs);
+        self.process_large_body_collisions();
+        self.process_collision_cleanup();
     }
     
     /// Initialize physics GPU system
