@@ -98,18 +98,26 @@ The engine supports advanced rendering features including bloom effects, frustum
 - **Bullet-Bullet Deflection**: Elastic collision physics between projectiles for emergent gameplay
 
 ### Large Body System
-- **8 Celestial Body Types**: BlackHole, Star, Planet, NeutronStar, GasGiant, Asteroid, SpaceStation, Moon
+- **9 Celestial Body Types**: BlackHole, WhiteHole, Star, Planet, NeutronStar, GasGiant, Asteroid, SpaceStation, Moon
 - **Individual Properties**: Each type has distinct mass, radius, color, and collision characteristics  
+- **Exotic Matter Physics**: WhiteHoles have negative mass, creating repulsive gravitational effects
 - **Ratio-Based Collision**: Visual radius vs collision radius separation for gameplay tuning (e.g., 0.75 ratio for BlackHoles)
-- **Physics Integration**: Large bodies participate in N-body gravitational simulation
+- **Physics Integration**: Large bodies participate in N-body gravitational simulation with proper negative mass handling
 
 ### Particle Effects
 - **Collision-Triggered Particles**: Different particle effects for each collision type
   - Enemy destruction: 100 cyan particles, 1.0s lifetime
   - Bullet vs Large Body: 10 yellow particles, 0.8s lifetime  
   - Bullet vs Bullet: 5 white particles, 0.6s lifetime
+  - Large Body vs Large Body: 200 orange particles, 2.0s lifetime
 - **GPU Particle System**: Efficient particle rendering with configurable count, lifetime, and colors
 - **Impact Point Calculation**: Particles spawn at precise collision locations
+
+### Advanced Physics Effects
+- **Angular Momentum**: Large bodies have rotation and angular velocity with visual spinning effects
+- **Frame-Dragging (Ergosphere)**: Spinning black holes and neutron stars create tangential forces within ergosphere radius
+- **Collision Physics**: Elastic collisions between large bodies with angular momentum conservation
+- **Arena Containment**: Soft binding forces keep all bodies within playable area using absolute mass to handle negative mass correctly
 
 ### Performance Characteristics
 - **Scalable Architecture**: Maintains 75+ FPS even with hundreds of entities and complex physics

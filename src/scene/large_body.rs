@@ -84,6 +84,31 @@ impl LargeBodyType {
         }
     }
 
+    /// Get default ergosphere radius ratio (multiplied by visual radius)
+    pub fn default_ergosphere_radius_ratio(self) -> f32 {
+        match self {
+            LargeBodyType::BlackHole => 2.0,     // Large ergosphere for dramatic frame-dragging
+            LargeBodyType::NeutronStar => 1.8,   // Smaller but intense ergosphere  
+            LargeBodyType::WhiteHole => 1.5,     // Modest ergosphere effect
+            LargeBodyType::Star => 0.0,          // No ergosphere effect
+            LargeBodyType::GasGiant => 0.0,      // No ergosphere effect
+            LargeBodyType::Planet => 0.0,        // No ergosphere effect
+        }
+    }
+
+    /// Get default frame-dragging strength (based on mass and angular velocity)
+    pub fn default_frame_dragging_strength(self) -> f32 {
+        let mass = self.default_mass();
+        let angular_vel = self.default_angular_velocity().abs(); // Use absolute value
+        let strength_factor = match self {
+            LargeBodyType::BlackHole => 0.1,     // Strong frame-dragging
+            LargeBodyType::NeutronStar => 0.15,  // Very strong (dense + fast spinning)
+            LargeBodyType::WhiteHole => 0.05,    // Moderate frame-dragging
+            _ => 0.0,                             // No frame-dragging for other types
+        };
+        mass * angular_vel * strength_factor
+    }
+
     /// Get the primitive type for rendering
     pub fn primitive_type(self) -> PrimitiveType {
         match self {
@@ -110,6 +135,8 @@ pub struct LargeBody {
     collision_mask: CollisionMask,
     angular_velocity: f32, // Radians per second (positive = counterclockwise)
     rotation: f32,         // Current rotation angle in radians
+    ergosphere_radius: f32, // Radius of frame-dragging effect (0.0 = no ergosphere)
+    frame_dragging_strength: f32, // Strength of frame-dragging effect
 
     // Physics integration
     physics_index: Option<usize>, // Index in PhysicsManager's gravitational_bodies array
@@ -130,6 +157,8 @@ impl LargeBody {
             collision_mask: CollisionMask::from(EntityType::LargeBody),
             angular_velocity: body_type.default_angular_velocity(),
             rotation: 0.0, // Start with no rotation
+            ergosphere_radius: radius * body_type.default_ergosphere_radius_ratio(),
+            frame_dragging_strength: body_type.default_frame_dragging_strength(),
             physics_index: None,
         }
     }
@@ -144,6 +173,8 @@ impl LargeBody {
         radius: f32,
         collision_radius: f32,
         angular_velocity: f32,
+        ergosphere_radius: f32,
+        frame_dragging_strength: f32,
     ) -> Self {
         Self {
             entity_id,
@@ -156,6 +187,8 @@ impl LargeBody {
             collision_mask: CollisionMask::from(EntityType::LargeBody),
             angular_velocity,
             rotation: 0.0, // Start with no rotation
+            ergosphere_radius,
+            frame_dragging_strength,
             physics_index: None,
         }
     }
@@ -190,8 +223,15 @@ impl LargeBody {
 
     /// Register this body with the physics system
     pub fn register_with_physics(&mut self, physics: &mut PhysicsManager) -> usize {
-        let index =
-            physics.add_gravitational_body(self.position, self.mass, self.velocity, self.collision_radius, self.angular_velocity);
+        let index = physics.add_gravitational_body(
+            self.position, 
+            self.mass, 
+            self.velocity, 
+            self.collision_radius, 
+            self.angular_velocity,
+            self.ergosphere_radius,
+            self.frame_dragging_strength,
+        );
         self.physics_index = Some(index);
         index
     }
@@ -252,6 +292,12 @@ impl LargeBody {
     }
     pub fn rotation(&self) -> f32 {
         self.rotation
+    }
+    pub fn ergosphere_radius(&self) -> f32 {
+        self.ergosphere_radius
+    }
+    pub fn frame_dragging_strength(&self) -> f32 {
+        self.frame_dragging_strength
     }
 
     // Setters
@@ -338,6 +384,8 @@ impl LargeBodyManager {
             radius,
             collision_radius,
             body_type.default_angular_velocity(),
+            radius * body_type.default_ergosphere_radius_ratio(),
+            body_type.default_frame_dragging_strength(),
         );
         body.register_with_physics(physics);
 

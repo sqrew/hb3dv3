@@ -3,13 +3,17 @@
 // Gravitational body structure
 struct GravitationalBody {
     position: vec3<f32>,
-    _pad1: f32,            // Explicit padding after vec3
+    _pad1: f32,                    // Explicit padding after vec3
     velocity: vec3<f32>,
-    _pad2: f32,            // Explicit padding after vec3
+    _pad2: f32,                    // Explicit padding after vec3
     radius: f32,
     mass: f32,
     angular_velocity: f32,
-    _pad3: f32,            // Final padding to 16-byte boundary
+    ergosphere_radius: f32,        // Radius of frame-dragging effect
+    frame_dragging_strength: f32,  // Strength of frame-dragging effect
+    _pad3: f32,                    // Padding
+    _pad4: f32,                    // Padding to 64-byte boundary
+    _pad5: f32,                    // Final padding to 64-byte boundary
 }
 
 // Gravity-affected object structure
@@ -18,6 +22,16 @@ struct AffectedObject {
     mass: f32,
     force: vec3<f32>,      // Output: computed gravitational force
     padding: f32,
+}
+
+// Explosion structure
+struct Explosion {
+    position: vec3<f32>,
+    current_radius: f32,
+    force_strength: f32,
+    falloff_type: u32,  // 0=Linear, 1=Quadratic, 2=Constant
+    _pad1: f32,
+    _pad2: f32,
 }
 
 // Constants
@@ -31,6 +45,8 @@ const BINDING_DISTANCE_THRESHOLD: f32 = 1.0; // Start binding beyond this distan
 @group(0) @binding(1) var<storage, read_write> affected_objects: array<AffectedObject>;
 @group(0) @binding(2) var<uniform> body_count: u32;
 @group(0) @binding(3) var<uniform> affected_count: u32;
+@group(0) @binding(4) var<storage, read> explosions: array<Explosion>;
+@group(0) @binding(5) var<uniform> explosion_count: u32;
 
 // N-body simulation bindings  
 @group(0) @binding(0) var<storage, read_write> nbody_bodies: array<GravitationalBody>;
@@ -63,6 +79,55 @@ fn compute_gravity_forces(@builtin(global_invocation_id) global_id: vec3<u32>) {
         let force_direction = displacement / distance;
         
         total_force += force_direction * force_magnitude;
+        
+        // Apply frame-dragging (ergosphere) effect for spinning bodies
+        if (body.angular_velocity != 0.0 && distance <= body.ergosphere_radius) {
+            // Calculate frame-dragging force - tangential to the gravitational field
+            let spin_axis = vec3<f32>(0.0, 0.0, 1.0); // Assume spinning around Z-axis
+            let radial_vector = displacement / distance;
+            
+            // Calculate tangential direction (perpendicular to both spin axis and radial direction)
+            let tangential_direction = cross(spin_axis, radial_vector);
+            
+            // Frame-dragging strength falls off with distance within ergosphere
+            let ergosphere_factor = 1.0 - (distance / body.ergosphere_radius);
+            let frame_drag_magnitude = body.frame_dragging_strength * ergosphere_factor * abs(body.angular_velocity);
+            
+            // Apply the frame-dragging force
+            let frame_drag_force = tangential_direction * frame_drag_magnitude;
+            total_force += frame_drag_force;
+        }
+    }
+    
+    // Apply explosion forces
+    for (var explosion_idx = 0u; explosion_idx < explosion_count; explosion_idx++) {
+        let explosion = explosions[explosion_idx];
+        let explosion_displacement = obj_pos - explosion.position;
+        let explosion_distance = length(explosion_displacement);
+        
+        // Check if object is within explosion radius
+        if (explosion_distance <= explosion.current_radius && explosion_distance > 0.001) {
+            // Calculate explosion force direction (radial outward from explosion center)
+            let explosion_direction = explosion_displacement / explosion_distance;
+            
+            // Calculate force magnitude based on falloff type
+            var force_magnitude = 0.0;
+            if (explosion.falloff_type == 0u) {
+                // Linear falloff
+                force_magnitude = explosion.force_strength * (1.0 - (explosion_distance / explosion.current_radius));
+            } else if (explosion.falloff_type == 1u) {
+                // Quadratic falloff
+                let normalized_distance = explosion_distance / explosion.current_radius;
+                force_magnitude = explosion.force_strength * (1.0 - normalized_distance * normalized_distance);
+            } else if (explosion.falloff_type == 2u) {
+                // Constant falloff
+                force_magnitude = explosion.force_strength;
+            }
+            
+            // Apply explosion force (outward from explosion center)
+            let explosion_force = explosion_direction * force_magnitude;
+            total_force += explosion_force;
+        }
     }
     
     // Store computed force
@@ -169,7 +234,8 @@ fn update_gravitational_bodies(@builtin(global_invocation_id) global_id: vec3<u3
     }
 
     // Apply force to update velocity (F = ma, so a = F/m)
-    let acceleration = total_force / current_body.mass;
+    // Use absolute mass for binding force to prevent negative mass bodies from escaping
+    let acceleration = total_force / abs(current_body.mass);
     nbody_bodies[body_index].velocity += acceleration * delta_time;
     
     // Update position using velocity

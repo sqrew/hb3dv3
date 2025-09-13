@@ -22,13 +22,17 @@ pub trait GravityAffected {
 #[derive(Debug, Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct GravitationalBody {
     pub position: [f32; 3],
-    pub _pad1: f32,        // Explicit padding after vec3
+    pub _pad1: f32,                    // Explicit padding after vec3
     pub velocity: [f32; 3], 
-    pub _pad2: f32,        // Explicit padding after vec3
+    pub _pad2: f32,                    // Explicit padding after vec3
     pub radius: f32,
     pub mass: f32,
     pub angular_velocity: f32,
-    pub _pad3: f32,        // Final padding to 16-byte boundary
+    pub ergosphere_radius: f32,        // Radius of frame-dragging effect
+    pub frame_dragging_strength: f32,  // Strength of frame-dragging effect
+    pub _pad3: f32,                    // Padding
+    pub _pad4: f32,                    // Padding to 64-byte boundary  
+    pub _pad5: f32,                    // Final padding to 64-byte boundary
 }
 
 impl Default for GravitationalBody {
@@ -41,7 +45,11 @@ impl Default for GravitationalBody {
             radius: 0.0,
             mass: 0.0,
             angular_velocity: 0.0,
+            ergosphere_radius: 0.0,
+            frame_dragging_strength: 0.0,
             _pad3: 0.0,
+            _pad4: 0.0,
+            _pad5: 0.0,
         }
     }
 }
@@ -68,6 +76,31 @@ impl Default for GpuAffectedObject {
     }
 }
 
+/// GPU data for explosions
+#[repr(C)]
+#[derive(Debug, Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
+struct GpuExplosion {
+    position: [f32; 3],
+    current_radius: f32,
+    force_strength: f32,
+    falloff_type: u32, // 0=Linear, 1=Quadratic, 2=Constant
+    _pad1: f32,
+    _pad2: f32,
+}
+
+impl Default for GpuExplosion {
+    fn default() -> Self {
+        Self {
+            position: [0.0; 3],
+            current_radius: 0.0,
+            force_strength: 0.0,
+            falloff_type: 0,
+            _pad1: 0.0,
+            _pad2: 0.0,
+        }
+    }
+}
+
 /// Physics system managing gravitational interactions
 pub struct PhysicsManager {
     // Large gravitational bodies (planets, asteroids, etc.)
@@ -78,6 +111,9 @@ pub struct PhysicsManager {
 
     // CPU-side affected objects cache
     affected_objects_cache: Vec<GpuAffectedObject>,
+    
+    // CPU-side explosions cache
+    explosions_cache: Vec<GpuExplosion>,
 }
 
 struct PhysicsGpuResources {
@@ -90,6 +126,8 @@ struct PhysicsGpuResources {
     affected_objects_buffer: wgpu::Buffer,
     body_count_buffer: wgpu::Buffer,
     affected_count_buffer: wgpu::Buffer,
+    explosions_buffer: wgpu::Buffer,
+    explosion_count_buffer: wgpu::Buffer,
     delta_time_buffer: wgpu::Buffer,
 
     // Staging buffer for GPU readback
@@ -108,6 +146,7 @@ impl PhysicsManager {
             gravitational_bodies: Vec::new(),
             gpu_resources: None,
             affected_objects_cache: Vec::new(),
+            explosions_cache: Vec::new(),
         }
     }
 
@@ -159,6 +198,20 @@ impl PhysicsManager {
         let delta_time_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Physics Delta Time Buffer"),
             contents: bytemuck::cast_slice(&[0.016f32]),
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+        });
+
+        // Create explosion buffers
+        let explosions_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("Explosions Buffer"),
+            size: (1000 * std::mem::size_of::<GpuExplosion>()) as u64, // Max 1000 explosions
+            usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+
+        let explosion_count_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Explosion Count Buffer"),
+            contents: bytemuck::cast_slice(&[0u32]),
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
         });
 
@@ -220,6 +273,28 @@ impl PhysicsManager {
                     // Affected count
                     wgpu::BindGroupLayoutEntry {
                         binding: 3,
+                        visibility: wgpu::ShaderStages::COMPUTE,
+                        ty: wgpu::BindingType::Buffer {
+                            ty: wgpu::BufferBindingType::Uniform,
+                            has_dynamic_offset: false,
+                            min_binding_size: None,
+                        },
+                        count: None,
+                    },
+                    // Explosions (read-only)
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 4,
+                        visibility: wgpu::ShaderStages::COMPUTE,
+                        ty: wgpu::BindingType::Buffer {
+                            ty: wgpu::BufferBindingType::Storage { read_only: true },
+                            has_dynamic_offset: false,
+                            min_binding_size: None,
+                        },
+                        count: None,
+                    },
+                    // Explosion count
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 5,
                         visibility: wgpu::ShaderStages::COMPUTE,
                         ty: wgpu::BindingType::Buffer {
                             ty: wgpu::BufferBindingType::Uniform,
@@ -292,6 +367,14 @@ impl PhysicsManager {
                     binding: 3,
                     resource: affected_count_buffer.as_entire_binding(),
                 },
+                wgpu::BindGroupEntry {
+                    binding: 4,
+                    resource: explosions_buffer.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 5,
+                    resource: explosion_count_buffer.as_entire_binding(),
+                },
             ],
         });
 
@@ -356,6 +439,8 @@ impl PhysicsManager {
             affected_objects_buffer,
             body_count_buffer,
             affected_count_buffer,
+            explosions_buffer,
+            explosion_count_buffer,
             delta_time_buffer,
             staging_buffer,
             nbody_staging_buffer,
@@ -372,6 +457,8 @@ impl PhysicsManager {
         velocity: Vec3,
         radius: f32,
         angular_velocity: f32,
+        ergosphere_radius: f32,
+        frame_dragging_strength: f32,
     ) -> usize {
         if self.gravitational_bodies.len() < MAX_GRAVITATIONAL_BODIES as usize {
             let body = GravitationalBody {
@@ -382,7 +469,11 @@ impl PhysicsManager {
                 radius,
                 mass,
                 angular_velocity,
+                ergosphere_radius,
+                frame_dragging_strength,
                 _pad3: 0.0,
+                _pad4: 0.0,
+                _pad5: 0.0,
             };
             self.gravitational_bodies.push(body);
             self.gravitational_bodies.len() - 1

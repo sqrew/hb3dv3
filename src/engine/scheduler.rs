@@ -2,8 +2,8 @@ use crate::engine::entity::{EntityLookup, EntityManager, EntityType};
 use crate::graphics::{Primitive, Vec3};
 use crate::input::InputManager;
 use crate::scene::{
-    BulletManager, EnemyManager, GravityAffected, LargeBodyManager, LargeBodyType, PhysicsManager,
-    PlayerManager,
+    BulletManager, EnemyManager, ExplosionManager, GravityAffected, LargeBodyManager,
+    LargeBodyType, PhysicsManager, PlayerManager,
 };
 
 pub struct Scheduler {
@@ -13,6 +13,7 @@ pub struct Scheduler {
     bullets: BulletManager,
     physics: PhysicsManager,
     large_bodies: LargeBodyManager,
+    explosions: ExplosionManager,
 }
 
 impl Scheduler {
@@ -29,23 +30,23 @@ impl Scheduler {
         let mut large_bodies = LargeBodyManager::new();
 
         // large_bodies.spawn_body(
-        //     LargeBodyType::BlackHole,
+        //     LargeBodyType::WhiteHole,
         //     Vec3::new(300.0, 300.0, 300.0),
         //     &mut physics,
         //     &mut entity_manager,
         // );
 
-        large_bodies.spawn_binary_pair(
-            crate::scene::large_body::LargeBodyType::BlackHole,
-            crate::scene::large_body::LargeBodyType::NeutronStar,
-            crate::engine::Vec3::new(0.0, 0.0, 0.0),
-            5.0, // Separation distance - REDUCED FOR TESTING COLLISION PARTICLES
-            &mut physics,
-            &mut entity_manager,
-        );
+        // large_bodies.spawn_binary_pair(
+        //     crate::scene::large_body::LargeBodyType::BlackHole,
+        //     crate::scene::large_body::LargeBodyType::NeutronStar,
+        //     crate::engine::Vec3::new(0.0, 0.0, 0.0),
+        //     5.0, // Separation distance - REDUCED FOR TESTING COLLISION PARTICLES
+        //     &mut physics,
+        //     &mut entity_manager,
+        // );
         large_bodies.spawn_binary_pair(
             crate::scene::large_body::LargeBodyType::Star,
-            crate::scene::large_body::LargeBodyType::GasGiant,
+            crate::scene::large_body::LargeBodyType::Planet,
             crate::engine::Vec3::new(0.0, 0.0, 0.0),
             100.0, // Separation distance
             &mut physics,
@@ -59,6 +60,7 @@ impl Scheduler {
             bullets: BulletManager::new(),
             physics,
             large_bodies,
+            explosions: ExplosionManager::new(),
         }
     }
 
@@ -119,6 +121,7 @@ impl Scheduler {
 
         self.enemies.update(delta_time);
         self.bullets.update(delta_time);
+        self.explosions.update(delta_time);
 
         // Update large bodies (these get their physics from the PhysicsManager N-body simulation)
         self.large_bodies.update(delta_time, &self.physics);
@@ -158,6 +161,7 @@ impl Scheduler {
         primitives.extend(self.enemies.get_render_data());
         primitives.extend(self.bullets.get_render_data());
         primitives.extend(self.large_bodies.get_render_data());
+        primitives.extend(self.explosions.get_render_data());
 
         primitives
     }
@@ -234,6 +238,16 @@ impl Scheduler {
     /// Get mutable access to the large body manager
     pub fn large_bodies_mut(&mut self) -> &mut LargeBodyManager {
         &mut self.large_bodies
+    }
+
+    /// Get access to the explosion manager
+    pub fn explosions(&self) -> &ExplosionManager {
+        &self.explosions
+    }
+
+    /// Get mutable access to the explosion manager
+    pub fn explosions_mut(&mut self) -> &mut ExplosionManager {
+        &mut self.explosions
     }
 
     /// Initialize GPU physics resources (call after graphics context is available)

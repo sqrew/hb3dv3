@@ -35,51 +35,46 @@ arena and bounding
 
 
 
-  1. Gravitational Lensing & Light Bending
+  Gravitational Lensing & Light Bending
 
-  2. Visual Effect: Light rays from stars/bullets curve around massive objects like black holes
-  3. Implementation: Add light ray tracing compute shader that simulates photon paths affected by gravity
-  4. Gameplay Impact: Creates strategic positioning around large bodies, visual distortion effects
+  Visual Effect: Light rays from stars/bullets curve around massive objects like black holes
+  Implementation: Add light ray tracing compute shader that simulates photon paths affected by gravity
+  Gameplay Impact: Creates strategic positioning around large bodies, visual distortion effects
 
-  5. Orbital Mechanics Weaponry
+  Orbital Mechanics Weaponry
 
-  6. Slingshot Bullets: Bullets that gain speed when passing close to large bodies
-  7. Orbital Mines: Weapons that enter stable orbit around planets/stars
-  8. Gravity Wells: Deployable devices that create temporary gravitational fields
-  9. Implementation: Extend bullet physics with orbital velocity calculations
+  Slingshot Bullets: Bullets that gain speed when passing close to large bodies
+  Orbital Mines: Weapons that enter stable orbit around planets/stars
+  Gravity Wells: Deployable devices that create temporary gravitational fields
+  Implementation: Extend bullet physics with orbital velocity calculations
 
-  10. Tidal Forces & Destruction
-  11. Roche Limit: Objects get torn apart when too close to massive bodies
-  12. Tidal Heating: Objects glow and take damage near massive bodies
-  13. Implementation: Add tidal force calculation to compute shaders, progressive destruction particles
 
-  14. Lagrange Point Dynamics
+  Tidal Forces & Destruction
+  Roche Limit: Objects get torn apart when too close to massive bodies
+  Tidal Heating: Objects glow and take damage near massive bodies
+  Implementation: Add tidal force calculation to compute shaders, progressive destruction particles
 
-  15. Stable Points: Special positions where objects remain stationary relative to two large bodies
-  16. Strategic Gameplay: Hide bases, create chokepoints, or set ambushes at L4/L5 points
-  17. Implementation: Calculate and visualize Lagrange points between any two massive bodies
 
-  18. Frame Dragging & Rotation Effects
+  Lagrange Point Dynamics
+  Stable Points: Special positions where objects remain stationary relative to two large bodies
+  Strategic Gameplay: Hide bases, create chokepoints, or set ambushes at L4/L5 points
+  Implementation: Calculate and visualize Lagrange points between any two massive bodies
 
-  19. Spinning Bodies: Rotating black holes/neutron stars drag spacetime around them
-  20. Ergosphere: Region where everything must rotate with the body
-  21. Implementation: Add angular momentum to large bodies, apply rotational forces to nearby objects
 
-  22. Multi-Body Resonances
 
-  23. Orbital Resonances: Objects in specific orbital ratios create stable patterns
-  24. Chain Reactions: Disturbing one resonant system affects others
-  25. Implementation: Detect resonant frequencies, create feedback loops between orbiting entities
+  Multi-Body Resonances
 
-  26. Gravitational Wave Generation
+  Orbital Resonances: Objects in specific orbital ratios create stable patterns
+  Chain Reactions: Disturbing one resonant system affects others
+  Implementation: Detect resonant frequencies, create feedback loops between orbiting entities
 
-  27. Binary Systems: Two massive bodies orbiting create ripple effects
-  28. Wave Propagation: Distortions spread outward affecting other objects
-  29. Implementation: Generate periodic force waves from accelerating masses
+  Gravitational Wave Generation
 
-  30. Exotic Matter Physics
+  Binary Systems: Two massive bodies orbiting create ripple effects
+  Wave Propagation: Distortions spread outward affecting other objects
+  Implementation: Generate periodic force waves from accelerating masses
 
-  31. Strange Matter: High-density objects with unique collision properties
+  Strange Matter: High-density objects with unique collision properties
 
 
 

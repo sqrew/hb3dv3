@@ -209,6 +209,9 @@ impl Dispatcher {
                     lifetime: 2.0,                      // Longer lifetime for visibility
                     color: Color::new(1.0, 0.4, 0.0, 1.0), // Orange explosion color
                 });
+
+                // Spawn a massive shockwave explosion for physics effects
+                scheduler.explosions_mut().spawn_shockwave(impact_point);
             }
         }
     }
