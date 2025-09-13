@@ -22,18 +22,26 @@ pub trait GravityAffected {
 #[derive(Debug, Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct GravitationalBody {
     pub position: [f32; 3],
+    pub _pad1: f32,        // Explicit padding after vec3
+    pub velocity: [f32; 3], 
+    pub _pad2: f32,        // Explicit padding after vec3
+    pub radius: f32,
     pub mass: f32,
-    pub velocity: [f32; 3],
-    pub radius: f32, // For collision detection
+    pub angular_velocity: f32,
+    pub _pad3: f32,        // Final padding to 16-byte boundary
 }
 
 impl Default for GravitationalBody {
     fn default() -> Self {
         Self {
             position: [0.0; 3],
-            mass: 0.0,
+            _pad1: 0.0,
             velocity: [0.0; 3],
+            _pad2: 0.0,
             radius: 0.0,
+            mass: 0.0,
+            angular_velocity: 0.0,
+            _pad3: 0.0,
         }
     }
 }
@@ -363,13 +371,18 @@ impl PhysicsManager {
         mass: f32,
         velocity: Vec3,
         radius: f32,
+        angular_velocity: f32,
     ) -> usize {
         if self.gravitational_bodies.len() < MAX_GRAVITATIONAL_BODIES as usize {
             let body = GravitationalBody {
                 position: [position.x, position.y, position.z],
-                mass,
+                _pad1: 0.0,
                 velocity: [velocity.x, velocity.y, velocity.z],
+                _pad2: 0.0,
                 radius,
+                mass,
+                angular_velocity,
+                _pad3: 0.0,
             };
             self.gravitational_bodies.push(body);
             self.gravitational_bodies.len() - 1

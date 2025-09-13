@@ -3,9 +3,13 @@
 // Gravitational body structure
 struct GravitationalBody {
     position: vec3<f32>,
-    mass: f32,
+    _pad1: f32,            // Explicit padding after vec3
     velocity: vec3<f32>,
+    _pad2: f32,            // Explicit padding after vec3
     radius: f32,
+    mass: f32,
+    angular_velocity: f32,
+    _pad3: f32,            // Final padding to 16-byte boundary
 }
 
 // Gravity-affected object structure
@@ -114,6 +118,24 @@ fn update_gravitational_bodies(@builtin(global_invocation_id) global_id: vec3<u3
             // Apply impulse to both bodies (Newton's third law)
             nbody_bodies[body_index].velocity -= impulse * other_body.mass;
             nbody_bodies[other_idx].velocity += impulse * current_body.mass;
+            
+            // Apply angular momentum effects from collision
+            let spin_difference = current_body.angular_velocity - other_body.angular_velocity;
+            let angular_impulse_factor = collision_strength * 0.1; // Scale factor for angular effects
+            
+            // Conservation of angular momentum - transfer spin based on mass ratios
+            let current_moment_of_inertia = current_body.mass * current_body.radius * current_body.radius;
+            let other_moment_of_inertia = other_body.mass * other_body.radius * other_body.radius;
+            let total_moment = current_moment_of_inertia + other_moment_of_inertia;
+            
+            // Calculate angular momentum transfer
+            let angular_transfer = spin_difference * angular_impulse_factor;
+            let current_angular_change = -angular_transfer * (other_moment_of_inertia / total_moment);
+            let other_angular_change = angular_transfer * (current_moment_of_inertia / total_moment);
+            
+            // Apply angular velocity changes
+            nbody_bodies[body_index].angular_velocity += current_angular_change;
+            nbody_bodies[other_idx].angular_velocity += other_angular_change;
             
             // Also apply position correction to prevent overlap
             let overlap = collision_distance - distance;

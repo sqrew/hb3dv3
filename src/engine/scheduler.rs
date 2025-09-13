@@ -36,10 +36,18 @@ impl Scheduler {
         // );
 
         large_bodies.spawn_binary_pair(
-            crate::scene::large_body::LargeBodyType::Planet,
-            crate::scene::large_body::LargeBodyType::Planet,
+            crate::scene::large_body::LargeBodyType::BlackHole,
+            crate::scene::large_body::LargeBodyType::NeutronStar,
             crate::engine::Vec3::new(0.0, 0.0, 0.0),
             5.0, // Separation distance - REDUCED FOR TESTING COLLISION PARTICLES
+            &mut physics,
+            &mut entity_manager,
+        );
+        large_bodies.spawn_binary_pair(
+            crate::scene::large_body::LargeBodyType::Star,
+            crate::scene::large_body::LargeBodyType::GasGiant,
+            crate::engine::Vec3::new(0.0, 0.0, 0.0),
+            100.0, // Separation distance
             &mut physics,
             &mut entity_manager,
         );

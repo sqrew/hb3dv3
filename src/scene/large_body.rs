@@ -109,6 +109,7 @@ pub struct LargeBody {
     collision_radius: f32, // Collision radius for gameplay mechanics
     collision_mask: CollisionMask,
     angular_velocity: f32, // Radians per second (positive = counterclockwise)
+    rotation: f32,         // Current rotation angle in radians
 
     // Physics integration
     physics_index: Option<usize>, // Index in PhysicsManager's gravitational_bodies array
@@ -128,6 +129,7 @@ impl LargeBody {
             collision_radius: radius * body_type.default_collision_radius_ratio(),
             collision_mask: CollisionMask::from(EntityType::LargeBody),
             angular_velocity: body_type.default_angular_velocity(),
+            rotation: 0.0, // Start with no rotation
             physics_index: None,
         }
     }
@@ -153,16 +155,23 @@ impl LargeBody {
             collision_radius,
             collision_mask: CollisionMask::from(EntityType::LargeBody),
             angular_velocity,
+            rotation: 0.0, // Start with no rotation
             physics_index: None,
         }
     }
 
-    /// Update the large body (currently just updates position from velocity)
+    /// Update the large body (updates rotation and could add special effects)
     pub fn update(&mut self, delta_time: f32) {
         // Position will be updated by the PhysicsManager's N-body simulation
-        // This is mainly for any game-specific logic we might add later
+        // But we handle rotation here since it's visual-only
+        
+        // Update rotation based on angular velocity
+        self.rotation += self.angular_velocity * delta_time;
+        
+        // Keep rotation in [0, 2π] range for consistency
+        self.rotation = self.rotation % (2.0 * std::f32::consts::PI);
 
-        // For now, we could add some basic bounds checking or special effects
+        // Add body-specific behaviors/effects
         match self.body_type {
             LargeBodyType::BlackHole => {
                 // Black holes could have special visual effects here
@@ -182,7 +191,7 @@ impl LargeBody {
     /// Register this body with the physics system
     pub fn register_with_physics(&mut self, physics: &mut PhysicsManager) -> usize {
         let index =
-            physics.add_gravitational_body(self.position, self.mass, self.velocity, self.collision_radius);
+            physics.add_gravitational_body(self.position, self.mass, self.velocity, self.collision_radius, self.angular_velocity);
         self.physics_index = Some(index);
         index
     }
@@ -200,6 +209,7 @@ impl LargeBody {
             if let Some(body) = physics.gravitational_bodies().get(index) {
                 self.position = Vec3::new(body.position[0], body.position[1], body.position[2]);
                 self.velocity = Vec3::new(body.velocity[0], body.velocity[1], body.velocity[2]);
+                self.angular_velocity = body.angular_velocity; // Update spin from physics!
             }
         }
     }
@@ -212,6 +222,7 @@ impl LargeBody {
             self.body_type.color(),
         )
         .with_uniform_scale(self.radius)
+        .with_rotation(Vec3::new(0.0, self.rotation, 0.0)) // Rotate around Y-axis
     }
 
     // Getters
@@ -238,6 +249,9 @@ impl LargeBody {
     }
     pub fn angular_velocity(&self) -> f32 {
         self.angular_velocity
+    }
+    pub fn rotation(&self) -> f32 {
+        self.rotation
     }
 
     // Setters
