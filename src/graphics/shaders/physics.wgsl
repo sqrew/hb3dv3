@@ -89,20 +89,29 @@ fn compute_gravity_forces(@builtin(global_invocation_id) global_id: vec3<u32>) {
         
         // Apply frame-dragging (ergosphere) effect for spinning bodies
         if (body.angular_velocity != 0.0 && distance <= body.ergosphere_radius) {
-            // Calculate frame-dragging force - tangential to the gravitational field
-            let spin_axis = vec3<f32>(0.0, 0.0, 1.0); // Assume spinning around Z-axis
+            // Frame-dragging twists spacetime - objects get carried along with rotation
+            let spin_axis = vec3<f32>(0.0, 1.0, 0.0); // Spin around Y-axis for better visibility
             let radial_vector = displacement / distance;
             
             // Calculate tangential direction (perpendicular to both spin axis and radial direction)
-            let tangential_direction = cross(spin_axis, radial_vector);
+            let tangential_direction = normalize(cross(spin_axis, radial_vector));
             
-            // Frame-dragging strength falls off with distance within ergosphere
+            // Frame-dragging strength falls off with distance (realistic physics)
             let ergosphere_factor = 1.0 - (distance / body.ergosphere_radius);
-            let frame_drag_magnitude = body.frame_dragging_strength * ergosphere_factor * abs(body.angular_velocity);
+            let ergosphere_factor_squared = ergosphere_factor * ergosphere_factor;
             
-            // Apply the frame-dragging force
-            let frame_drag_force = tangential_direction * frame_drag_magnitude;
+            // Realistic frame-dragging - gentle acceleration that builds up over time
+            // This should encourage orbital motion without violent ejection
+            let orbital_acceleration = body.angular_velocity * body.frame_dragging_strength * ergosphere_factor_squared;
+            
+            // Apply gentle tangential force that creates gradual spiraling motion
+            let frame_drag_force = tangential_direction * orbital_acceleration;
             total_force += frame_drag_force;
+            
+            // Very subtle inward component - frame-dragging should mostly be tangential
+            let spiral_factor = 0.02 * ergosphere_factor_squared;
+            let inward_spiral_force = -radial_vector * orbital_acceleration * spiral_factor;
+            total_force += inward_spiral_force;
         }
     }
     

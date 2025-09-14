@@ -8,6 +8,7 @@ pub enum WeaponType {
     RapidFire,
     Shotgun,
     AntiGravityCannon,
+    FractalCannon,
 }
 
 #[derive(Debug, Clone)]
@@ -66,7 +67,7 @@ impl WeaponStats {
             bullet_lifetime: 300.0, // Lives longer to show crazy physics
             projectile_count: 1,
             spread_angle: 0.0,
-            bullet_mass: -5.0,      // Negative mass for anti-gravity effects!
+            bullet_mass: -5.0, // Negative mass for anti-gravity effects!
         }
     }
 }
@@ -197,7 +198,7 @@ impl WeaponManager {
         ];
 
         Self {
-            current_weapon: Weapon::new(WeaponType::AntiGravityCannon),
+            current_weapon: Weapon::new(WeaponType::BasicBlaster),
             available_weapons,
             current_weapon_index: 0,
             event_queue: Vec::new(),

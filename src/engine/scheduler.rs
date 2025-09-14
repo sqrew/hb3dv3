@@ -115,11 +115,8 @@ impl Scheduler {
                     mass: request.mass,
                 };
 
-                self.bullets.spawn_projectile(
-                    bullet_entity,
-                    request.position,
-                    projectile_type,
-                );
+                self.bullets
+                    .spawn_projectile(bullet_entity, request.position, projectile_type);
             }
         }
 
