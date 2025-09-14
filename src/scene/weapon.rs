@@ -7,6 +7,7 @@ pub enum WeaponType {
     BasicBlaster,
     RapidFire,
     Shotgun,
+    AntiGravityCannon,
 }
 
 #[derive(Debug, Clone)]
@@ -17,6 +18,7 @@ pub struct WeaponStats {
     pub bullet_lifetime: f32,
     pub projectile_count: u8, // For shotguns/spread weapons
     pub spread_angle: f32,    // Degrees of spread
+    pub bullet_mass: f32,     // Mass of bullets fired by this weapon
 }
 
 impl WeaponStats {
@@ -25,9 +27,10 @@ impl WeaponStats {
             damage: 25.0,
             fire_rate: 100.0,
             bullet_speed: 100.0,
-            bullet_lifetime: 30.0,
+            bullet_lifetime: 300.0,
             projectile_count: 1,
-            spread_angle: 1.0,
+            spread_angle: 0.0,
+            bullet_mass: 0.5, // Standard positive mass
         }
     }
 
@@ -39,6 +42,7 @@ impl WeaponStats {
             bullet_lifetime: 2.5,
             projectile_count: 1,
             spread_angle: 0.0,
+            bullet_mass: 0.3, // Lighter bullets for rapid fire
         }
     }
 
@@ -50,6 +54,19 @@ impl WeaponStats {
             bullet_lifetime: 2.0,
             projectile_count: 5,
             spread_angle: 15.0,
+            bullet_mass: 0.6, // Heavier pellets for shotgun
+        }
+    }
+
+    pub fn anti_gravity_cannon() -> Self {
+        Self {
+            damage: 25.0,
+            fire_rate: 100.0,       // Slower rate for powerful exotic rounds
+            bullet_speed: 25.0,     // Starts slow but accelerates away from gravity
+            bullet_lifetime: 300.0, // Lives longer to show crazy physics
+            projectile_count: 1,
+            spread_angle: 0.0,
+            bullet_mass: -5.0,      // Negative mass for anti-gravity effects!
         }
     }
 }
@@ -67,6 +84,7 @@ impl Weapon {
             WeaponType::BasicBlaster => WeaponStats::basic_blaster(),
             WeaponType::RapidFire => WeaponStats::rapid_fire(),
             WeaponType::Shotgun => WeaponStats::shotgun(),
+            WeaponType::AntiGravityCannon => WeaponStats::anti_gravity_cannon(),
         };
 
         Self {
@@ -103,6 +121,7 @@ impl Weapon {
                 speed: self.stats.bullet_speed,
                 lifetime: self.stats.bullet_lifetime,
                 damage: self.stats.damage,
+                mass: self.stats.bullet_mass,
             });
         } else {
             // Multiple projectiles (shotgun-style)
@@ -134,6 +153,7 @@ impl Weapon {
                     speed: self.stats.bullet_speed,
                     lifetime: self.stats.bullet_lifetime,
                     damage: self.stats.damage,
+                    mass: self.stats.bullet_mass,
                 });
             }
         }
@@ -157,6 +177,7 @@ pub struct BulletSpawnRequest {
     pub speed: f32,
     pub lifetime: f32,
     pub damage: f32,
+    pub mass: f32, // Allow custom mass for exotic bullets
 }
 
 pub struct WeaponManager {
@@ -172,10 +193,11 @@ impl WeaponManager {
             WeaponType::BasicBlaster,
             WeaponType::RapidFire,
             WeaponType::Shotgun,
+            WeaponType::AntiGravityCannon,
         ];
 
         Self {
-            current_weapon: Weapon::new(WeaponType::BasicBlaster),
+            current_weapon: Weapon::new(WeaponType::AntiGravityCannon),
             available_weapons,
             current_weapon_index: 0,
             event_queue: Vec::new(),

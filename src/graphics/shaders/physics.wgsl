@@ -78,7 +78,14 @@ fn compute_gravity_forces(@builtin(global_invocation_id) global_id: vec3<u32>) {
         let force_magnitude = (GRAVITATIONAL_CONSTANT * body.mass * obj_mass) / distance_squared;
         let force_direction = displacement / distance;
         
-        total_force += force_direction * force_magnitude;
+        // For negative mass objects, force should be repulsive (away from gravitational body)
+        // Since force_magnitude is already negative for negative mass, we need to flip direction
+        let actual_force = force_direction * force_magnitude;
+        if (obj_mass < 0.0) {
+            total_force += -actual_force; // Flip direction for negative mass
+        } else {
+            total_force += actual_force;  // Normal direction for positive mass
+        }
         
         // Apply frame-dragging (ergosphere) effect for spinning bodies
         if (body.angular_velocity != 0.0 && distance <= body.ergosphere_radius) {
@@ -223,19 +230,23 @@ fn update_gravitational_bodies(@builtin(global_invocation_id) global_id: vec3<u3
         }
     }
     
-    // Add soft binding force to keep bodies near origin
+    // Add soft binding force to keep bodies near origin (including negative mass bodies)
     let distance_from_origin = length(current_body.position);
+    var gravitational_acceleration = total_force / current_body.mass; // Normal physics for gravity
+    
     if (distance_from_origin > BINDING_DISTANCE_THRESHOLD) {
         let binding_direction = -normalize(current_body.position); // Toward origin
         let excess_distance = distance_from_origin - BINDING_DISTANCE_THRESHOLD;
         let binding_force_magnitude = BINDING_FORCE_STRENGTH * excess_distance;
         let binding_force = binding_direction * binding_force_magnitude;
-        total_force += binding_force;
+        
+        // Use absolute mass for binding force only to prevent negative mass bodies from escaping
+        let binding_acceleration = binding_force / abs(current_body.mass);
+        gravitational_acceleration += binding_acceleration;
     }
 
-    // Apply force to update velocity (F = ma, so a = F/m)
-    // Use absolute mass for binding force to prevent negative mass bodies from escaping
-    let acceleration = total_force / abs(current_body.mass);
+    // Apply combined acceleration
+    let acceleration = gravitational_acceleration;
     nbody_bodies[body_index].velocity += acceleration * delta_time;
     
     // Update position using velocity

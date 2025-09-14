@@ -27,12 +27,14 @@ impl Dispatcher {
         let player_events = scheduler.player_mut().drain_events();
         let enemy_events = scheduler.enemies_mut().drain_events();
         let bullet_events = scheduler.bullets_mut().drain_events();
+        let large_body_events = scheduler.large_bodies_mut().drain_events();
         let collision_events = collision_manager.drain_events();
-        
+
         // Add all events to pending queue
         self.pending_events.extend(player_events);
         self.pending_events.extend(enemy_events);
         self.pending_events.extend(bullet_events);
+        self.pending_events.extend(large_body_events);
         self.pending_events.extend(collision_events);
     }
 
@@ -74,6 +76,7 @@ impl Dispatcher {
         let mut enemy_events = Vec::new();
         let mut collision_events = Vec::new();
         let mut weapon_events = Vec::new();
+        let mut explosion_events = Vec::new();
         let mut graphics_events_batch = Vec::new();
         let mut audio_events = Vec::new();
         let mut debug_events = Vec::new();
@@ -85,6 +88,7 @@ impl Dispatcher {
                 EventType::Enemy(e) => enemy_events.push(e),
                 EventType::Collision(e) => collision_events.push(e),
                 EventType::Weapon(e) => weapon_events.push(e),
+                EventType::Explosion(e) => explosion_events.push(e),
                 EventType::Graphics(e) => graphics_events_batch.push(e),
                 EventType::Audio(e) => audio_events.push(e),
                 EventType::Debug(e) => debug_events.push(e),
@@ -94,9 +98,18 @@ impl Dispatcher {
         // Process batches - order matters for dependencies
         // 1. Process collision events first (they generate other events)
         // Process each collision event individually
+        let mut collision_explosion_events = Vec::new();
         for event in collision_events {
-            Self::handle_collision_event(event, scheduler, graphics_events);
+            Self::handle_collision_event(
+                event,
+                scheduler,
+                graphics_events,
+                &mut collision_explosion_events,
+            );
         }
+
+        // Add collision-generated explosion events to the main batch
+        explosion_events.extend(collision_explosion_events);
 
         // 2. Process player events (could affect weapon state)
         for event in player_events {
@@ -113,7 +126,12 @@ impl Dispatcher {
             Self::handle_weapon_event(event, scheduler);
         }
 
-        // 5. Process graphics events (visual effects)
+        // 5. Process explosion events
+        for event in explosion_events {
+            Self::handle_explosion_event(event, scheduler);
+        }
+
+        // 6. Process graphics events (visual effects)
         graphics_events.extend(graphics_events_batch);
 
         // 6. Process audio events (sound effects)
@@ -129,11 +147,12 @@ impl Dispatcher {
             match event {
                 EventType::Collision(_) => 0, // Process collisions first
                 EventType::Weapon(_) => 1,
-                EventType::Enemy(_) => 2,
-                EventType::Player(_) => 3,
-                EventType::Graphics(_) => 4, // Graphics last
-                EventType::Audio(_) => 5,
-                EventType::Debug(_) => 6,
+                EventType::Explosion(_) => 2, // Process explosions after weapons
+                EventType::Enemy(_) => 3,
+                EventType::Player(_) => 4,
+                EventType::Graphics(_) => 5, // Graphics last
+                EventType::Audio(_) => 6,
+                EventType::Debug(_) => 7,
             }
         });
     }
@@ -142,6 +161,7 @@ impl Dispatcher {
         event: CollisionEvent,
         scheduler: &mut crate::engine::scheduler::Scheduler,
         graphics_events: &mut Vec<GraphicsEvent>,
+        explosion_events: &mut Vec<ExplosionEvent>,
     ) {
         // Handle cross-system collision effects
         match event {
@@ -227,13 +247,15 @@ impl Dispatcher {
                 graphics_events.push(GraphicsEvent::SpawnParticles {
                     position: impact_point,
                     velocity: Vec3::new(0.0, 0.0, 0.0), // Explosion spreads in all directions
-                    count: 200,                         // Massive particle count for dramatic effect
-                    lifetime: 2.0,                      // Longer lifetime for visibility
+                    count: 200,    // Massive particle count for dramatic effect
+                    lifetime: 2.0, // Longer lifetime for visibility
                     color: Color::new(1.0, 0.4, 0.0, 1.0), // Orange explosion color
                 });
 
-                // Spawn a massive shockwave explosion for physics effects
-                scheduler.explosions_mut().spawn_shockwave(impact_point);
+                // Queue a massive shockwave explosion event for physics effects
+                explosion_events.push(ExplosionEvent::Shockwave {
+                    position: impact_point,
+                });
             }
         }
     }
@@ -250,6 +272,38 @@ impl Dispatcher {
                 projectile_count: _,
             } => {
                 // Could spawn muzzle flash, play sound, etc.
+            }
+        }
+    }
+
+    fn handle_explosion_event(
+        event: ExplosionEvent,
+        scheduler: &mut crate::engine::scheduler::Scheduler,
+    ) {
+        match event {
+            ExplosionEvent::SolarWind { position } => {
+                scheduler.explosions_mut().spawn_solar_wind(position);
+            }
+            ExplosionEvent::AntiWind { position } => {
+                scheduler.explosions_mut().spawn_anti_wind(position);
+            }
+            ExplosionEvent::Shockwave { position } => {
+                scheduler.explosions_mut().spawn_shockwave(position);
+            }
+            ExplosionEvent::Custom {
+                position,
+                max_radius,
+                force_strength,
+                duration,
+                falloff_type,
+            } => {
+                scheduler.explosions_mut().spawn_explosion(
+                    position,
+                    max_radius,
+                    force_strength,
+                    duration,
+                    falloff_type,
+                );
             }
         }
     }
@@ -273,7 +327,6 @@ impl Dispatcher {
             }
         }
     }
-
 
     fn handle_audio_events_batch(events: Vec<AudioEvent>) {
         if events.is_empty() {
@@ -313,6 +366,7 @@ pub enum EventType {
     Enemy(EnemyEvent),
     Collision(CollisionEvent),
     Weapon(WeaponEvent),
+    Explosion(ExplosionEvent),
     Graphics(GraphicsEvent),
     Audio(AudioEvent),
     Debug(DebugEvent),
@@ -388,6 +442,27 @@ pub enum WeaponEvent {
         position: Vec3,
         direction: Vec3,
         projectile_count: u32,
+    },
+}
+
+/// Explosion events
+#[derive(Clone, Debug)]
+pub enum ExplosionEvent {
+    SolarWind {
+        position: Vec3,
+    },
+    AntiWind {
+        position: Vec3,
+    },
+    Shockwave {
+        position: Vec3,
+    },
+    Custom {
+        position: Vec3,
+        max_radius: f32,
+        force_strength: f32,
+        duration: f32,
+        falloff_type: crate::scene::explosion::FalloffType,
     },
 }
 

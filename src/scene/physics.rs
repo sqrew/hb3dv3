@@ -512,6 +512,26 @@ impl PhysicsManager {
             }
         };
 
+        // Prepare explosion data for GPU
+        self.explosions_cache.clear();
+        for explosion in explosions {
+            // Convert falloff type to u32
+            let falloff_type = match explosion.falloff_type {
+                crate::scene::explosion::FalloffType::Linear => 0u32,
+                crate::scene::explosion::FalloffType::Quadratic => 1u32,
+                crate::scene::explosion::FalloffType::Constant => 2u32,
+            };
+
+            self.explosions_cache.push(GpuExplosion {
+                position: [explosion.position.x, explosion.position.y, explosion.position.z],
+                current_radius: explosion.current_radius,
+                force_strength: explosion.force_at_distance(0.0), // Use current max force
+                falloff_type,
+                _pad1: 0.0,
+                _pad2: 0.0,
+            });
+        }
+
         // Prepare affected objects data for GPU
         self.affected_objects_cache.clear();
         let objects_to_process = affected_objects.iter().take(MAX_AFFECTED_OBJECTS as usize);
@@ -558,6 +578,21 @@ impl PhysicsManager {
             &gpu.delta_time_buffer,
             0,
             bytemuck::cast_slice(&[delta_time]),
+        );
+
+        // Upload explosion data to GPU
+        if !self.explosions_cache.is_empty() && self.explosions_cache.len() <= 1000 {
+            queue.write_buffer(
+                &gpu.explosions_buffer,
+                0,
+                bytemuck::cast_slice(&self.explosions_cache),
+            );
+        }
+
+        queue.write_buffer(
+            &gpu.explosion_count_buffer,
+            0,
+            bytemuck::cast_slice(&[self.explosions_cache.len() as u32]),
         );
 
         // Execute compute shader
@@ -634,6 +669,8 @@ impl PhysicsManager {
             // Apply the GPU-computed forces to our objects
             for (obj, gpu_obj) in affected_objects.iter_mut().zip(gpu_objects.iter()) {
                 let force = Vec3::new(gpu_obj.force[0], gpu_obj.force[1], gpu_obj.force[2]);
+                
+                
                 obj.apply_force(force);
             }
         }
@@ -825,6 +862,8 @@ impl PhysicsManager {
             // Apply the GPU-computed forces to our objects
             for (obj, gpu_obj) in affected_objects.iter_mut().zip(gpu_objects.iter()) {
                 let force = Vec3::new(gpu_obj.force[0], gpu_obj.force[1], gpu_obj.force[2]);
+                
+                
                 obj.apply_force(force);
             }
         }

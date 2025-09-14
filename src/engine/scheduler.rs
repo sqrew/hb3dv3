@@ -29,29 +29,29 @@ impl Scheduler {
         let mut physics = PhysicsManager::new();
         let mut large_bodies = LargeBodyManager::new();
 
-        // large_bodies.spawn_body(
-        //     LargeBodyType::WhiteHole,
-        //     Vec3::new(300.0, 300.0, 300.0),
-        //     &mut physics,
-        //     &mut entity_manager,
-        // );
-
-        // large_bodies.spawn_binary_pair(
-        //     crate::scene::large_body::LargeBodyType::BlackHole,
-        //     crate::scene::large_body::LargeBodyType::NeutronStar,
-        //     crate::engine::Vec3::new(0.0, 0.0, 0.0),
-        //     5.0, // Separation distance - REDUCED FOR TESTING COLLISION PARTICLES
-        //     &mut physics,
-        //     &mut entity_manager,
-        // );
-        large_bodies.spawn_binary_pair(
-            crate::scene::large_body::LargeBodyType::Star,
-            crate::scene::large_body::LargeBodyType::Planet,
-            crate::engine::Vec3::new(0.0, 0.0, 0.0),
-            100.0, // Separation distance
+        large_bodies.spawn_body(
+            LargeBodyType::BlackHole,
+            Vec3::new(50.0, 10.0, 50.0),
             &mut physics,
             &mut entity_manager,
         );
+
+        // large_bodies.spawn_binary_pair(
+        //     crate::scene::large_body::LargeBodyType::BlackHole,
+        //     crate::scene::large_body::LargeBodyType::WhiteHole,
+        //     crate::engine::Vec3::new(0.0, 0.0, 0.0),
+        //     100.0, // Separation distance
+        //     &mut physics,
+        //     &mut entity_manager,
+        // );
+        // large_bodies.spawn_binary_pair(
+        //     crate::scene::large_body::LargeBodyType::ExoticMatter,
+        //     crate::scene::large_body::LargeBodyType::BlackHole,
+        //     crate::engine::Vec3::new(0.0, 0.0, 0.0),
+        //     100.0, // Separation distance
+        //     &mut physics,
+        //     &mut entity_manager,
+        // );
 
         Scheduler {
             entity_manager,
@@ -112,14 +112,22 @@ impl Scheduler {
                     damage: request.damage,
                     velocity,
                     lifetime: request.lifetime,
+                    mass: request.mass,
                 };
 
-                self.bullets
-                    .spawn_projectile(bullet_entity, request.position, projectile_type);
+                self.bullets.spawn_projectile(
+                    bullet_entity,
+                    request.position,
+                    projectile_type,
+                );
             }
         }
 
-        self.enemies.update(delta_time);
+        self.enemies.update(
+            delta_time,
+            self.player.player().position(),
+            &mut self.entity_manager,
+        );
         self.bullets.update(delta_time);
         self.explosions.update(delta_time);
 

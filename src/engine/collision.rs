@@ -449,7 +449,7 @@ impl CollisionManager {
 
                 // Check if they're colliding (using collision radii + buffer to trigger before physics bounce)
                 let collision_distance = body_a.collision_radius() + body_b.collision_radius();
-                let detection_distance = collision_distance * 1.4; // 40% buffer to trigger before bounce
+                let detection_distance = collision_distance * 1.5; // No buffer - exact collision radius
 
                 if distance < detection_distance && distance > 0.001 {
                     // Calculate impact point (surface contact point)

@@ -123,9 +123,9 @@ impl ExplosionManager {
     pub fn spawn_shockwave(&mut self, position: Vec3) {
         self.spawn_explosion(
             position,
-            50.0,    // Large radius
-            50000.0, // Strong force
-            1.0,     // 2 second duration
+            50.0,   // Large radius
+            5000.0, // Strong force
+            0.3,    // Duration in seconds
             FalloffType::Quadratic,
         );
     }
@@ -134,9 +134,19 @@ impl ExplosionManager {
     pub fn spawn_solar_wind(&mut self, position: Vec3) {
         self.spawn_explosion(
             position,
-            200.0,  // Very large radius
-            1000.0, // Moderate force
-            0.5,    // Short duration
+            600.0,  // Very large radius
+            3000.0, // Moderate force
+            3.0,    // Short duration
+            FalloffType::Linear,
+        );
+    }
+
+    pub fn spawn_anti_wind(&mut self, position: Vec3) {
+        self.spawn_explosion(
+            position,
+            600.0,   // Very large radius
+            -3000.0, // Moderate force
+            3.0,     // Short duration
             FalloffType::Linear,
         );
     }
@@ -167,7 +177,15 @@ impl ExplosionManager {
             if explosion.current_radius > 0.1 {
                 // Create expanding sphere primitive
                 let alpha = 1.0 - (explosion.elapsed_time / explosion.duration); // Fade out over time
-                let color = Color::new(1.0, 0.6, 0.2, alpha * 0.3); // Orange with transparency
+                
+                // Different colors for different force types
+                let color = if explosion.force_strength < 0.0 {
+                    // Negative force = attractive/implosive = green
+                    Color::new(0.2, 1.0, 0.2, alpha * 0.3) // Green with transparency
+                } else {
+                    // Positive force = repulsive/explosive = orange
+                    Color::new(1.0, 0.6, 0.2, alpha * 0.3) // Orange with transparency
+                };
 
                 let primitive = Primitive::new(PrimitiveType::Sphere, explosion.position, color)
                     .with_uniform_scale(explosion.current_radius);
