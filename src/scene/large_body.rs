@@ -100,7 +100,7 @@ impl LargeBodyType {
             LargeBodyType::Star => 0.0,       // No ergosphere effect
             LargeBodyType::GasGiant => 0.0,   // No ergosphere effect
             LargeBodyType::Planet => 0.0,     // No ergosphere effect
-            LargeBodyType::ExoticMatter => 0.0, // No ergosphere (oscillating gravity is the main effect)
+            LargeBodyType::ExoticMatter => 20.0, // No ergosphere (oscillating gravity is the main effect)
         }
     }
 
@@ -112,7 +112,7 @@ impl LargeBodyType {
             LargeBodyType::BlackHole => 0.2,    // Strong frame-dragging
             LargeBodyType::NeutronStar => 0.15, // Very strong (dense + fast spinning)
             LargeBodyType::WhiteHole => 0.05,   // Moderate frame-dragging
-            LargeBodyType::ExoticMatter => 0.0, // No frame-dragging (oscillation is main effect)
+            LargeBodyType::ExoticMatter => 0.5, // No frame-dragging (oscillation is main effect)
             _ => 0.0,                           // No frame-dragging for other types
         };
         mass * angular_vel * strength_factor

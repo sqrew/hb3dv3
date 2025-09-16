@@ -184,7 +184,7 @@ impl Dispatcher {
                     position: impact_point,
                     velocity: Vec3::new(0.0, 1.0, 0.0), // Default upward
                     count: 25,
-                    lifetime: 1.2, // Reduced for faster slot recycling
+                    lifetime: 2.0, // Reduced for faster slot recycling
                     color: Color::YELLOW,
                 });
             }
@@ -202,32 +202,33 @@ impl Dispatcher {
                 impact_point,
             } => {
                 // Calculate tangential velocity for orbital motion around the large body
-                let tangential_velocity = if let Some(large_body) = scheduler.large_bodies().get_body(large_body_id) {
-                    let displacement = large_body.position() - impact_point;
-                    let distance = displacement.magnitude();
+                let tangential_velocity =
+                    if let Some(large_body) = scheduler.large_bodies().get_body(large_body_id) {
+                        let displacement = large_body.position() - impact_point;
+                        let distance = displacement.magnitude();
 
-                    if distance > 0.1 {
-                        // Create tangential direction (perpendicular to radial)
-                        let radial_dir = displacement.normalize();
-                        let up_vector = Vec3::new(0.0, 1.0, 0.0);
-                        let mut tangent_dir = radial_dir.cross(&up_vector);
+                        if distance > 0.1 {
+                            // Create tangential direction (perpendicular to radial)
+                            let radial_dir = displacement.normalize();
+                            let up_vector = Vec3::new(0.0, 1.0, 0.0);
+                            let mut tangent_dir = radial_dir.cross(&up_vector);
 
-                        // Handle edge case where radial is parallel to up vector
-                        if tangent_dir.magnitude() < 0.1 {
-                            let alternate_ref = Vec3::new(1.0, 0.0, 0.0);
-                            tangent_dir = radial_dir.cross(&alternate_ref);
+                            // Handle edge case where radial is parallel to up vector
+                            if tangent_dir.magnitude() < 0.1 {
+                                let alternate_ref = Vec3::new(1.0, 0.0, 0.0);
+                                tangent_dir = radial_dir.cross(&alternate_ref);
+                            }
+                            let tangent_dir = tangent_dir.normalize();
+
+                            // Scale tangential velocity based on large body's angular velocity and distance
+                            let tangential_speed = large_body.angular_velocity() * distance * 0.3;
+                            tangent_dir * tangential_speed
+                        } else {
+                            Vec3::new(0.0, 0.0, 0.0)
                         }
-                        let tangent_dir = tangent_dir.normalize();
-
-                        // Scale tangential velocity based on large body's angular velocity and distance
-                        let tangential_speed = large_body.angular_velocity() * distance * 0.3;
-                        tangent_dir * tangential_speed
                     } else {
                         Vec3::new(0.0, 0.0, 0.0)
-                    }
-                } else {
-                    Vec3::new(0.0, 0.0, 0.0)
-                };
+                    };
 
                 // Spawn explosion particles with tangential velocity for orbital motion
                 graphics_events.push(GraphicsEvent::SpawnParticles {
@@ -248,7 +249,7 @@ impl Dispatcher {
                     position: impact_point,
                     velocity: Vec3::new(0.0, 0.0, 0.0), // Impact sparks spread outward
                     count: 10,                          // Fewer particles for bullets
-                    lifetime: 0.8,                      // Shorter lifetime for quick effect
+                    lifetime: 120.0,                    // Shorter lifetime for quick effect
                     color: Color::YELLOW,
                 });
             }
@@ -262,7 +263,7 @@ impl Dispatcher {
                     position: impact_point,
                     velocity: Vec3::new(0.0, 0.0, 0.0), // Sparks spread in all directions
                     count: 5,                           // Small spark effect
-                    lifetime: 0.6,                      // Quick flash effect
+                    lifetime: 30.0,                     // Quick flash effect
                     color: Color::new(0.9, 0.9, 1.0, 1.0), // Bright white sparks
                 });
             }
@@ -275,7 +276,7 @@ impl Dispatcher {
                 graphics_events.push(GraphicsEvent::SpawnParticles {
                     position: impact_point,
                     velocity: Vec3::new(0.0, 0.0, 0.0), // Explosion spreads in all directions
-                    count: 200,    // Massive particle count for dramatic effect
+                    count: 300,    // Massive particle count for dramatic effect
                     lifetime: 2.0, // Longer lifetime for visibility
                     color: Color::new(1.0, 0.4, 0.0, 1.0), // Orange explosion color
                 });
