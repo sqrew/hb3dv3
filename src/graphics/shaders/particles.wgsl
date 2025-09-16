@@ -82,6 +82,35 @@ fn update_particles(@builtin(global_invocation_id) global_id: vec3<u32>) {
                 // Avoid singularities and very close interactions
                 if (distance_squared > 0.1) {
                     let distance = sqrt(distance_squared);
+
+                    // Apply frame-dragging (ergosphere) effect for spinning bodies - EXACT COPY FROM PHYSICS.WGSL
+                    if (body.angular_velocity != 0.0 && distance <= body.ergosphere_radius) {
+                        // Frame-dragging twists spacetime - objects get carried along with rotation
+                        let spin_axis = vec3<f32>(0.0, 1.0, 0.0); // Spin around Y-axis for better visibility
+                        let radial_vector = displacement / distance;
+
+                        // Calculate tangential direction (perpendicular to both spin axis and radial direction)
+                        let tangential_direction = normalize(cross(spin_axis, radial_vector));
+
+                        // Frame-dragging strength falls off with distance (realistic physics)
+                        let ergosphere_factor = 1.0 - (distance / body.ergosphere_radius);
+                        let ergosphere_factor_squared = ergosphere_factor * ergosphere_factor;
+
+                        // Realistic frame-dragging - gentle acceleration that builds up over time
+                        // Scale down the enormous frame-dragging values for gentle orbital effects
+                        let scaled_frame_dragging = body.frame_dragging_strength * 0.00001; // Scale down by 100,000x
+                        let orbital_acceleration = body.angular_velocity * scaled_frame_dragging * ergosphere_factor_squared;
+
+                        // Apply gentle tangential force that creates gradual spiraling motion
+                        let frame_drag_force = tangential_direction * orbital_acceleration;
+                        gravitational_force += frame_drag_force;
+
+                        // Very subtle inward component - frame-dragging should mostly be tangential
+                        let spiral_factor = 0.02 * ergosphere_factor_squared;
+                        let inward_spiral_force = -radial_vector * orbital_acceleration * spiral_factor;
+                        gravitational_force += inward_spiral_force;
+                    }
+
                     let force_magnitude = (GRAVITATIONAL_CONSTANT * body.mass * particle_mass) / distance_squared;
                     let force_direction = displacement / distance;
 

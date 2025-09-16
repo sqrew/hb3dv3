@@ -198,15 +198,43 @@ impl Dispatcher {
             }
             CollisionEvent::EnemyHitLargeBody {
                 enemy_id: _,
-                large_body_id: _,
+                large_body_id,
                 impact_point,
             } => {
-                // Spawn explosion particles at impact point
+                // Calculate tangential velocity for orbital motion around the large body
+                let tangential_velocity = if let Some(large_body) = scheduler.large_bodies().get_body(large_body_id) {
+                    let displacement = large_body.position() - impact_point;
+                    let distance = displacement.magnitude();
+
+                    if distance > 0.1 {
+                        // Create tangential direction (perpendicular to radial)
+                        let radial_dir = displacement.normalize();
+                        let up_vector = Vec3::new(0.0, 1.0, 0.0);
+                        let mut tangent_dir = radial_dir.cross(&up_vector);
+
+                        // Handle edge case where radial is parallel to up vector
+                        if tangent_dir.magnitude() < 0.1 {
+                            let alternate_ref = Vec3::new(1.0, 0.0, 0.0);
+                            tangent_dir = radial_dir.cross(&alternate_ref);
+                        }
+                        let tangent_dir = tangent_dir.normalize();
+
+                        // Scale tangential velocity based on large body's angular velocity and distance
+                        let tangential_speed = large_body.angular_velocity() * distance * 0.3;
+                        tangent_dir * tangential_speed
+                    } else {
+                        Vec3::new(0.0, 0.0, 0.0)
+                    }
+                } else {
+                    Vec3::new(0.0, 0.0, 0.0)
+                };
+
+                // Spawn explosion particles with tangential velocity for orbital motion
                 graphics_events.push(GraphicsEvent::SpawnParticles {
                     position: impact_point,
-                    velocity: Vec3::new(0.0, 0.0, 0.0), // Explosion spreads in all directions
-                    count: 100,                         // More particles for dramatic effect
-                    lifetime: 1.0,                      // Longer lifetime for visibility
+                    velocity: tangential_velocity, // Particles inherit tangential motion
+                    count: 100,                    // More particles for dramatic effect
+                    lifetime: 120.0,               // Longer lifetime for visibility
                     color: Color::CYAN,
                 });
             }

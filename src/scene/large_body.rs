@@ -94,12 +94,12 @@ impl LargeBodyType {
     /// Get default ergosphere radius ratio (multiplied by visual radius)
     pub fn default_ergosphere_radius_ratio(self) -> f32 {
         match self {
-            LargeBodyType::BlackHole => 2.0, // Much larger ergosphere for visible frame-dragging
-            LargeBodyType::NeutronStar => 1.5, // Large intense ergosphere
-            LargeBodyType::WhiteHole => 1.0, // Significant ergosphere effect
-            LargeBodyType::Star => 0.0,      // No ergosphere effect
-            LargeBodyType::GasGiant => 0.0,  // No ergosphere effect
-            LargeBodyType::Planet => 0.0,    // No ergosphere effect
+            LargeBodyType::BlackHole => 20.0, // Much larger ergosphere for visible frame-dragging
+            LargeBodyType::NeutronStar => 15.0, // Large intense ergosphere
+            LargeBodyType::WhiteHole => 10.0, // Significant ergosphere effect
+            LargeBodyType::Star => 0.0,       // No ergosphere effect
+            LargeBodyType::GasGiant => 0.0,   // No ergosphere effect
+            LargeBodyType::Planet => 0.0,     // No ergosphere effect
             LargeBodyType::ExoticMatter => 0.0, // No ergosphere (oscillating gravity is the main effect)
         }
     }
