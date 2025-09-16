@@ -244,8 +244,8 @@ impl GraphicsEngine {
         // Create collision compute system
         let collision_compute = CollisionCompute::new(&device);
 
-        // Create particle system
-        let particles = ParticleSystem::new(&device, &camera_bind_group_layout);
+        // Create particle system (without physics buffers for now - they'll be set later)
+        let particles = ParticleSystem::new(&device, &camera_bind_group_layout, None, None);
 
         println!("Graphics engine initialized:");
         println!("- Surface format: {:?}", surface_format);
@@ -566,6 +566,19 @@ impl GraphicsEngine {
     /// Spawn particles at the given position with default values (backwards compatibility)
     pub fn spawn_particles_simple(&mut self, position: crate::graphics::Vec3) {
         self.particles.spawn_particles_simple(position);
+    }
+
+    /// Set physics buffers for gravitational particle effects
+    pub fn set_physics_buffers(
+        &mut self,
+        gravitational_bodies_buffer: Option<&wgpu::Buffer>,
+        body_count_buffer: Option<&wgpu::Buffer>,
+    ) {
+        self.particles.set_physics_buffers(
+            &self.device,
+            gravitational_bodies_buffer,
+            body_count_buffer,
+        );
     }
 
     /// Update particle system (call before render)

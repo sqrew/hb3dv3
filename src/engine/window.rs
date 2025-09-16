@@ -55,8 +55,14 @@ impl ApplicationHandler for WindowManager {
         self.graphics_engine = Some(graphics_engine);
 
         // Initialize physics GPU system now that graphics context is available
-        if let Some(graphics_engine) = &self.graphics_engine {
+        if let Some(graphics_engine) = &mut self.graphics_engine {
             self.engine.initialize_physics_gpu(graphics_engine.device());
+
+            // Set up gravitational particle effects by connecting physics buffers to particle system
+            let physics = self.engine.scheduler.physics();
+            let grav_buffer = physics.get_gravitational_bodies_buffer();
+            let count_buffer = physics.get_body_count_buffer();
+            graphics_engine.set_physics_buffers(grav_buffer, count_buffer);
         }
     }
 

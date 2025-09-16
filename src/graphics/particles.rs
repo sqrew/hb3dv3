@@ -1,4 +1,5 @@
 use crate::graphics::Vec3;
+use crate::scene::physics::GravitationalBody;
 use wgpu::util::DeviceExt;
 
 /// Maximum number of particles in the system
@@ -74,7 +75,12 @@ pub struct ParticleSystem {
 }
 
 impl ParticleSystem {
-    pub fn new(device: &wgpu::Device, camera_bind_group_layout: &wgpu::BindGroupLayout) -> Self {
+    pub fn new(
+        device: &wgpu::Device,
+        camera_bind_group_layout: &wgpu::BindGroupLayout,
+        gravitational_bodies_buffer: Option<&wgpu::Buffer>,
+        body_count_buffer: Option<&wgpu::Buffer>,
+    ) -> Self {
         // Load shaders
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("Particle Shader"),
@@ -169,8 +175,53 @@ impl ParticleSystem {
                         },
                         count: None,
                     },
+                    // Gravitational bodies buffer (binding 5)
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 5,
+                        visibility: wgpu::ShaderStages::COMPUTE,
+                        ty: wgpu::BindingType::Buffer {
+                            ty: wgpu::BufferBindingType::Storage { read_only: true },
+                            has_dynamic_offset: false,
+                            min_binding_size: None,
+                        },
+                        count: None,
+                    },
+                    // Body count buffer (binding 6)
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 6,
+                        visibility: wgpu::ShaderStages::COMPUTE,
+                        ty: wgpu::BindingType::Buffer {
+                            ty: wgpu::BufferBindingType::Storage { read_only: true },
+                            has_dynamic_offset: false,
+                            min_binding_size: None,
+                        },
+                        count: None,
+                    },
                 ],
             });
+
+        // Create dummy buffers if physics buffers not provided
+        let dummy_gravitational_bodies_buffer;
+        let dummy_body_count_buffer;
+
+        let (grav_buffer, count_buffer) = if let (Some(grav_buf), Some(count_buf)) =
+            (gravitational_bodies_buffer, body_count_buffer) {
+            (grav_buf, count_buf)
+        } else {
+            // Create dummy buffers
+            dummy_gravitational_bodies_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+                label: Some("Dummy Gravitational Bodies Buffer"),
+                size: std::mem::size_of::<GravitationalBody>() as u64,
+                usage: wgpu::BufferUsages::STORAGE,
+                mapped_at_creation: false,
+            });
+            dummy_body_count_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("Dummy Body Count Buffer"),
+                contents: bytemuck::cast_slice(&[0u32]),
+                usage: wgpu::BufferUsages::STORAGE,
+            });
+            (&dummy_gravitational_bodies_buffer, &dummy_body_count_buffer)
+        };
 
         // Create compute bind group
         let compute_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
@@ -196,6 +247,14 @@ impl ParticleSystem {
                 wgpu::BindGroupEntry {
                     binding: 4,
                     resource: delta_time_buffer.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 5,
+                    resource: grav_buffer.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 6,
+                    resource: count_buffer.as_entire_binding(),
                 },
             ],
         });
@@ -345,6 +404,156 @@ impl ParticleSystem {
             0.8,
             crate::graphics::Color::new(1.0, 0.6, 0.2, 1.0), // Orange sparks
         );
+    }
+
+    /// Set physics buffers for gravitational effects (recreates bind group)
+    pub fn set_physics_buffers(
+        &mut self,
+        device: &wgpu::Device,
+        gravitational_bodies_buffer: Option<&wgpu::Buffer>,
+        body_count_buffer: Option<&wgpu::Buffer>,
+    ) {
+        // We need to recreate the compute bind group with the new physics buffers
+        // For now, this is a simple solution that works but could be optimized
+
+        // Create dummy buffers if physics buffers not provided
+        let dummy_gravitational_bodies_buffer;
+        let dummy_body_count_buffer;
+
+        let (grav_buffer, count_buffer) = if let (Some(grav_buf), Some(count_buf)) =
+            (gravitational_bodies_buffer, body_count_buffer) {
+            (grav_buf, count_buf)
+        } else {
+            // Create dummy buffers
+            dummy_gravitational_bodies_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+                label: Some("Dummy Gravitational Bodies Buffer"),
+                size: std::mem::size_of::<GravitationalBody>() as u64,
+                usage: wgpu::BufferUsages::STORAGE,
+                mapped_at_creation: false,
+            });
+            dummy_body_count_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("Dummy Body Count Buffer"),
+                contents: bytemuck::cast_slice(&[0u32]),
+                usage: wgpu::BufferUsages::STORAGE,
+            });
+            (&dummy_gravitational_bodies_buffer, &dummy_body_count_buffer)
+        };
+
+        // Create the bind group layout (we need this again)
+        let compute_bind_group_layout =
+            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                label: Some("Particle Compute Bind Group Layout"),
+                entries: &[
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 0,
+                        visibility: wgpu::ShaderStages::COMPUTE,
+                        ty: wgpu::BindingType::Buffer {
+                            ty: wgpu::BufferBindingType::Storage { read_only: false },
+                            has_dynamic_offset: false,
+                            min_binding_size: None,
+                        },
+                        count: None,
+                    },
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 1,
+                        visibility: wgpu::ShaderStages::COMPUTE,
+                        ty: wgpu::BindingType::Buffer {
+                            ty: wgpu::BufferBindingType::Storage { read_only: false },
+                            has_dynamic_offset: false,
+                            min_binding_size: None,
+                        },
+                        count: None,
+                    },
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 2,
+                        visibility: wgpu::ShaderStages::COMPUTE,
+                        ty: wgpu::BindingType::Buffer {
+                            ty: wgpu::BufferBindingType::Storage { read_only: true },
+                            has_dynamic_offset: false,
+                            min_binding_size: None,
+                        },
+                        count: None,
+                    },
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 3,
+                        visibility: wgpu::ShaderStages::COMPUTE,
+                        ty: wgpu::BindingType::Buffer {
+                            ty: wgpu::BufferBindingType::Storage { read_only: true },
+                            has_dynamic_offset: false,
+                            min_binding_size: None,
+                        },
+                        count: None,
+                    },
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 4,
+                        visibility: wgpu::ShaderStages::COMPUTE,
+                        ty: wgpu::BindingType::Buffer {
+                            ty: wgpu::BufferBindingType::Uniform,
+                            has_dynamic_offset: false,
+                            min_binding_size: None,
+                        },
+                        count: None,
+                    },
+                    // Gravitational bodies buffer (binding 5)
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 5,
+                        visibility: wgpu::ShaderStages::COMPUTE,
+                        ty: wgpu::BindingType::Buffer {
+                            ty: wgpu::BufferBindingType::Storage { read_only: true },
+                            has_dynamic_offset: false,
+                            min_binding_size: None,
+                        },
+                        count: None,
+                    },
+                    // Body count buffer (binding 6)
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 6,
+                        visibility: wgpu::ShaderStages::COMPUTE,
+                        ty: wgpu::BindingType::Buffer {
+                            ty: wgpu::BufferBindingType::Storage { read_only: true },
+                            has_dynamic_offset: false,
+                            min_binding_size: None,
+                        },
+                        count: None,
+                    },
+                ],
+            });
+
+        // Recreate the compute bind group with physics buffers
+        self.compute_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("Particle Compute Bind Group"),
+            layout: &compute_bind_group_layout,
+            entries: &[
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: self.particle_buffer.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: self.alive_count_buffer.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 2,
+                    resource: self.spawn_queue_buffer.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 3,
+                    resource: self.spawn_count_buffer.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 4,
+                    resource: self.delta_time_buffer.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 5,
+                    resource: grav_buffer.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 6,
+                    resource: count_buffer.as_entire_binding(),
+                },
+            ],
+        });
     }
 
     /// Update particle system on GPU

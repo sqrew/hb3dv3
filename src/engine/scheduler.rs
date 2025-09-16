@@ -29,12 +29,12 @@ impl Scheduler {
         let mut physics = PhysicsManager::new();
         let mut large_bodies = LargeBodyManager::new();
 
-        // large_bodies.spawn_body(
-        //     LargeBodyType::BlackHole,
-        //     Vec3::new(50.0, 10.0, 50.0),
-        //     &mut physics,
-        //     &mut entity_manager,
-        // );
+        large_bodies.spawn_body(
+            LargeBodyType::BlackHole,
+            Vec3::new(50.0, 10.0, 50.0),
+            &mut physics,
+            &mut entity_manager,
+        );
 
         // large_bodies.spawn_binary_pair(
         //     crate::scene::large_body::LargeBodyType::BlackHole,

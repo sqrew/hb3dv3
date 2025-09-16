@@ -186,7 +186,7 @@ impl PhysicsManager {
         let body_count_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Body Count Buffer"),
             contents: bytemuck::cast_slice(&[0u32]),
-            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::STORAGE,
         });
 
         let affected_count_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -1018,5 +1018,20 @@ impl PhysicsManager {
             large_body.set_position(position);
             large_body.set_velocity(velocity);
         }
+    }
+
+    /// Get the gravitational bodies buffer for use by other GPU systems (like particles)
+    pub fn get_gravitational_bodies_buffer(&self) -> Option<&wgpu::Buffer> {
+        self.gpu_resources.as_ref().map(|gpu| &gpu.gravitational_bodies_buffer)
+    }
+
+    /// Get the body count buffer for use by other GPU systems (like particles)
+    pub fn get_body_count_buffer(&self) -> Option<&wgpu::Buffer> {
+        self.gpu_resources.as_ref().map(|gpu| &gpu.body_count_buffer)
+    }
+
+    /// Get the number of gravitational bodies for GPU buffer access
+    pub fn get_gravitational_body_count(&self) -> u32 {
+        self.gravitational_bodies.len() as u32
     }
 }

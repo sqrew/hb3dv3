@@ -18,15 +18,33 @@ struct SpawnRequest {
     padding: vec4<f32>, // For alignment
 }
 
+struct GravitationalBody {
+    position: vec3<f32>,
+    _pad1: f32,
+    velocity: vec3<f32>,
+    _pad2: f32,
+    radius: f32,
+    mass: f32,
+    angular_velocity: f32,
+    ergosphere_radius: f32,
+    frame_dragging_strength: f32,
+    _pad3: f32,
+    _pad4: f32,
+    _pad5: f32,
+}
+
 // Particle buffers (for compute shaders)
 @group(0) @binding(0) var<storage, read_write> particles: array<Particle>;
 @group(0) @binding(1) var<storage, read_write> alive_count: atomic<u32>;
 @group(0) @binding(2) var<storage, read> spawn_queue: array<SpawnRequest>;
 @group(0) @binding(3) var<storage, read> spawn_count: u32;
 @group(0) @binding(4) var<uniform> delta_time: f32;
+@group(0) @binding(5) var<storage, read> gravitational_bodies: array<GravitationalBody>;
+@group(0) @binding(6) var<storage, read> gravity_body_count: u32;
 
 // Constants
 const MAX_PARTICLES: u32 = 8192u;
+const GRAVITATIONAL_CONSTANT: f32 = 6.674e-1; // Match physics system constant
 
 // Simple random function
 fn random(seed: u32) -> f32 {
@@ -52,10 +70,35 @@ fn update_particles(@builtin(global_invocation_id) global_id: vec3<u32>) {
             particles[index].life = 0.0;
             atomicSub(&alive_count, 1u);
         } else {
-            // Update physics
+            // Apply gravitational forces from all large bodies
+            var gravitational_force = vec3<f32>(0.0, 0.0, 0.0);
+            let particle_mass = 0.1; // Small mass for particles
+
+            for (var i = 0u; i < gravity_body_count; i++) {
+                let body = gravitational_bodies[i];
+                let displacement = body.position - particles[index].position;
+                let distance_squared = dot(displacement, displacement);
+
+                // Avoid singularities and very close interactions
+                if (distance_squared > 0.1) {
+                    let distance = sqrt(distance_squared);
+                    let force_magnitude = (GRAVITATIONAL_CONSTANT * body.mass * particle_mass) / distance_squared;
+                    let force_direction = displacement / distance;
+
+                    // Scale down gravitational effect for particles to prevent them from being sucked in too quickly
+                    gravitational_force += force_direction * force_magnitude * 0.1;
+                }
+            }
+
+            // Apply gravitational acceleration (F = ma, so a = F/m)
+            let gravitational_acceleration = gravitational_force / particle_mass;
+            particles[index].velocity += gravitational_acceleration * dt;
+
+            // Update position
             particles[index].position += particles[index].velocity * dt;
-            particles[index].velocity.y -= 9.8 * dt; // Gravity
-            particles[index].velocity *= 0.98; // Air resistance
+
+            // Apply light air resistance
+            particles[index].velocity *= 0.99;
         }
     }
 }
