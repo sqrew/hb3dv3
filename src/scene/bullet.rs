@@ -104,6 +104,9 @@ impl Bullet {
         // Update velocity with gravity effects (bullets are ballistic)
         self.vel += gravity_acceleration * dt;
 
+        // Apply subtle orbital decay to prevent infinite stable orbits
+        self.apply_orbital_decay(dt);
+
         // Update position
         self.pos += self.vel * dt;
         self.ttl -= dt;
@@ -147,6 +150,43 @@ impl Bullet {
 
     pub fn set_velocity(&mut self, velocity: Vec3) {
         self.vel = velocity;
+    }
+
+    /// Apply orbital decay to simulate energy dissipation effects
+    /// This prevents infinite stable orbits while preserving orbital mechanics
+    fn apply_orbital_decay(&mut self, dt: f32) {
+        let current_speed = self.vel.magnitude();
+        if current_speed < 0.1 {
+            return; // Skip decay for very slow objects
+        }
+
+        // More noticeable base orbital decay rate (simulates various dissipative effects)
+        let mut decay_factor = 0.9995_f32.powf(dt * 60.0); // 0.05% decay per frame (5x stronger)
+
+        // Additional decay for high-velocity objects (unstable orbits)
+        let velocity_decay_threshold = 600.0; // Lower threshold for more effect
+        if current_speed > velocity_decay_threshold {
+            let excess_velocity_factor = (current_speed / velocity_decay_threshold - 1.0).min(1.5);
+            let high_velocity_decay = 0.995_f32.powf(excess_velocity_factor * dt * 60.0);
+            decay_factor *= high_velocity_decay;
+        }
+
+        // Stronger gravitational wave-like effects for close orbits
+        let distance_from_origin = self.pos.magnitude();
+        if distance_from_origin < 15.0 { // Larger effect radius
+            let proximity_factor = (15.0 - distance_from_origin) / 15.0;
+            let proximity_decay = 0.999_f32.powf(proximity_factor * dt * 60.0);
+            decay_factor *= proximity_decay;
+        }
+
+        // Apply the calculated decay to velocity
+        self.vel *= decay_factor;
+
+        // If velocity becomes very small, consider the bullet "captured"
+        if current_speed > 8.0 && self.vel.magnitude() < 1.0 { // More aggressive capture
+            // Bullet has been significantly slowed down by orbital decay
+            self.ttl = self.ttl.min(2.0); // Give it 2 seconds to live
+        }
     }
 }
 
@@ -499,6 +539,9 @@ impl MetaBullet {
         // Update velocity with gravity effects
         self.vel += gravity_acceleration * dt;
 
+        // Apply subtle orbital decay to prevent infinite stable orbits
+        self.apply_orbital_decay(dt);
+
         // Update position
         self.pos += self.vel * dt;
         self.ttl -= dt;
@@ -542,6 +585,43 @@ impl MetaBullet {
 
     pub fn set_velocity(&mut self, velocity: Vec3) {
         self.vel = velocity;
+    }
+
+    /// Apply orbital decay to simulate energy dissipation effects
+    /// This prevents infinite stable orbits while preserving orbital mechanics
+    fn apply_orbital_decay(&mut self, dt: f32) {
+        let current_speed = self.vel.magnitude();
+        if current_speed < 0.1 {
+            return; // Skip decay for very slow objects
+        }
+
+        // More noticeable base orbital decay rate (simulates various dissipative effects)
+        let mut decay_factor = 0.9995_f32.powf(dt * 60.0); // 0.05% decay per frame (5x stronger)
+
+        // Additional decay for high-velocity objects (unstable orbits)
+        let velocity_decay_threshold = 600.0; // Lower threshold for more effect
+        if current_speed > velocity_decay_threshold {
+            let excess_velocity_factor = (current_speed / velocity_decay_threshold - 1.0).min(1.5);
+            let high_velocity_decay = 0.995_f32.powf(excess_velocity_factor * dt * 60.0);
+            decay_factor *= high_velocity_decay;
+        }
+
+        // Stronger gravitational wave-like effects for close orbits
+        let distance_from_origin = self.pos.magnitude();
+        if distance_from_origin < 15.0 { // Larger effect radius
+            let proximity_factor = (15.0 - distance_from_origin) / 15.0;
+            let proximity_decay = 0.999_f32.powf(proximity_factor * dt * 60.0);
+            decay_factor *= proximity_decay;
+        }
+
+        // Apply the calculated decay to velocity
+        self.vel *= decay_factor;
+
+        // If velocity becomes very small, consider the bullet "captured"
+        if current_speed > 8.0 && self.vel.magnitude() < 1.0 { // More aggressive capture
+            // Bullet has been significantly slowed down by orbital decay
+            self.ttl = self.ttl.min(2.0); // Give it 2 seconds to live
+        }
     }
 }
 

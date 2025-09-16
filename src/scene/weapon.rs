@@ -8,7 +8,6 @@ pub enum WeaponType {
     RapidFire,
     Shotgun,
     AntiGravityCannon,
-    FractalCannon,
 }
 
 #[derive(Debug, Clone)]

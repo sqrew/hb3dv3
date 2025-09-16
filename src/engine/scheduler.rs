@@ -29,12 +29,12 @@ impl Scheduler {
         let mut physics = PhysicsManager::new();
         let mut large_bodies = LargeBodyManager::new();
 
-        large_bodies.spawn_body(
-            LargeBodyType::BlackHole,
-            Vec3::new(50.0, 10.0, 50.0),
-            &mut physics,
-            &mut entity_manager,
-        );
+        // large_bodies.spawn_body(
+        //     LargeBodyType::BlackHole,
+        //     Vec3::new(50.0, 10.0, 50.0),
+        //     &mut physics,
+        //     &mut entity_manager,
+        // );
 
         // large_bodies.spawn_binary_pair(
         //     crate::scene::large_body::LargeBodyType::BlackHole,
@@ -53,6 +53,14 @@ impl Scheduler {
         //     &mut entity_manager,
         // );
 
+        // large_bodies.spawn_binary_pair(
+        //     crate::scene::large_body::LargeBodyType::Planet,
+        //     crate::scene::large_body::LargeBodyType::NeutronStar,
+        //     crate::engine::Vec3::new(0.0, 0.0, 0.0),
+        //     100.0, // Separation distance
+        //     &mut physics,
+        //     &mut entity_manager,
+        // );
         Scheduler {
             entity_manager,
             player: PlayerManager::new(player_entity),

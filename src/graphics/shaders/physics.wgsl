@@ -101,8 +101,9 @@ fn compute_gravity_forces(@builtin(global_invocation_id) global_id: vec3<u32>) {
             let ergosphere_factor_squared = ergosphere_factor * ergosphere_factor;
             
             // Realistic frame-dragging - gentle acceleration that builds up over time
-            // This should encourage orbital motion without violent ejection
-            let orbital_acceleration = body.angular_velocity * body.frame_dragging_strength * ergosphere_factor_squared;
+            // Scale down the enormous frame-dragging values for gentle orbital effects
+            let scaled_frame_dragging = body.frame_dragging_strength * 0.00001; // Scale down by 100,000x
+            let orbital_acceleration = body.angular_velocity * scaled_frame_dragging * ergosphere_factor_squared;
             
             // Apply gentle tangential force that creates gradual spiraling motion
             let frame_drag_force = tangential_direction * orbital_acceleration;
@@ -200,23 +201,43 @@ fn update_gravitational_bodies(@builtin(global_invocation_id) global_id: vec3<u3
             nbody_bodies[body_index].velocity -= impulse * other_body.mass;
             nbody_bodies[other_idx].velocity += impulse * current_body.mass;
             
-            // Apply angular momentum effects from collision
+            // === ENHANCED ANGULAR MOMENTUM CONSERVATION ===
+
+            // 1. Spin transfer (existing logic)
             let spin_difference = current_body.angular_velocity - other_body.angular_velocity;
-            let angular_impulse_factor = collision_strength * 0.1; // Scale factor for angular effects
-            
+            let angular_impulse_factor = collision_strength * 0.15; // Slightly stronger for more effect
+
             // Conservation of angular momentum - transfer spin based on mass ratios
             let current_moment_of_inertia = current_body.mass * current_body.radius * current_body.radius;
             let other_moment_of_inertia = other_body.mass * other_body.radius * other_body.radius;
             let total_moment = current_moment_of_inertia + other_moment_of_inertia;
-            
-            // Calculate angular momentum transfer
+
+            // Calculate angular momentum transfer for spin
             let angular_transfer = spin_difference * angular_impulse_factor;
             let current_angular_change = -angular_transfer * (other_moment_of_inertia / total_moment);
             let other_angular_change = angular_transfer * (current_moment_of_inertia / total_moment);
-            
-            // Apply angular velocity changes
+
+            // Apply spin changes
             nbody_bodies[body_index].angular_velocity += current_angular_change;
             nbody_bodies[other_idx].angular_velocity += other_angular_change;
+
+            // 2. Orbital angular momentum from impact parameter (NEW!)
+            // Calculate impact parameter (how "off-center" the collision is)
+            let collision_center = (current_body.position + other_body.position) * 0.5;
+            let impact_arm_current = current_body.position - collision_center;
+            let impact_arm_other = other_body.position - collision_center;
+
+            // Calculate tangential component of impact (creates orbital motion)
+            let tangent_direction = normalize(cross(collision_normal, vec3<f32>(0.0, 1.0, 0.0)));
+            let impact_strength = length(relative_velocity) * collision_strength * tangential_ratio * 0.2;
+
+            // Apply sideways kicks based on impact parameter and mass ratios
+            let tangential_kick_current = tangent_direction * impact_strength * (other_body.mass / total_mass);
+            let tangential_kick_other = -tangent_direction * impact_strength * (current_body.mass / total_mass);
+
+            // Add orbital angular momentum to velocities
+            nbody_bodies[body_index].velocity += tangential_kick_current;
+            nbody_bodies[other_idx].velocity += tangential_kick_other;
             
             // Also apply position correction to prevent overlap
             let overlap = collision_distance - distance;
