@@ -43,7 +43,7 @@ struct GravitationalBody {
 @group(0) @binding(6) var<storage, read> gravity_body_count: u32;
 
 // Constants
-const MAX_PARTICLES: u32 = 8192u;
+const MAX_PARTICLES: u32 = 65536u;
 const GRAVITATIONAL_CONSTANT: f32 = 6.674e-1; // Match physics system constant
 
 // Simple random function
@@ -212,9 +212,17 @@ fn vs_main(@builtin(instance_index) instance_index: u32) -> VertexOutput {
         let world_pos = vec4<f32>(particle.position, 1.0);
         output.position = view_proj * world_pos;
         
-        // Fade out over lifetime using collision event color
+        // Fade out over lifetime using collision event color with slower fade curve
         let life_ratio = particle.life / particle.max_life;
-        output.color = vec4<f32>(particle.color.rgb, particle.color.a * life_ratio);
+
+        // Use a power curve for slower fade - particles stay visible longer
+        // Square the life_ratio to create a curve that fades slowly at first, then quickly at the end
+        let fade_curve = life_ratio * life_ratio;
+
+        // Alternative: even slower fade using cubic curve
+        // let fade_curve = life_ratio * life_ratio * life_ratio;
+
+        output.color = vec4<f32>(particle.color.rgb, particle.color.a * fade_curve);
     } else {
         // Dead particle - render offscreen
         output.position = vec4<f32>(-10.0, -10.0, -10.0, 1.0);

@@ -163,7 +163,6 @@ impl Dispatcher {
         graphics_events: &mut Vec<GraphicsEvent>,
         explosion_events: &mut Vec<ExplosionEvent>,
     ) {
-        // Handle cross-system collision effects
         match event {
             CollisionEvent::BulletHitEnemy {
                 bullet_id,
@@ -177,14 +176,12 @@ impl Dispatcher {
                     .damage_enemy_direct(enemy_id, damage, bullet_id);
                 scheduler.bullets_mut().mark_bullet_for_removal(bullet_id);
 
-                // Spawn hit particles
-                // println!("Collision impact point: {:?}", impact_point);
                 use crate::graphics::Color;
                 graphics_events.push(GraphicsEvent::SpawnParticles {
                     position: impact_point,
-                    velocity: Vec3::new(0.0, 1.0, 0.0), // Default upward
-                    count: 25,
-                    lifetime: 2.0, // Reduced for faster slot recycling
+                    velocity: Vec3::new(0.0, 0.0, 0.0), // Default upward
+                    count: 200,
+                    lifetime: 10.0,
                     color: Color::YELLOW,
                 });
             }
@@ -195,6 +192,7 @@ impl Dispatcher {
             } => {
                 scheduler.player_mut().player_mut().take_damage(damage);
                 // Could queue screen shake event
+                // or literally anything else for a player taking damage
             }
             CollisionEvent::EnemyHitLargeBody {
                 enemy_id: _,
@@ -234,8 +232,8 @@ impl Dispatcher {
                 graphics_events.push(GraphicsEvent::SpawnParticles {
                     position: impact_point,
                     velocity: tangential_velocity, // Particles inherit tangential motion
-                    count: 100,                    // More particles for dramatic effect
-                    lifetime: 120.0,               // Longer lifetime for visibility
+                    count: 250,                    // Increased from 100 for dramatic effect
+                    lifetime: 60.0,                // Longer lifetime for visibility
                     color: Color::CYAN,
                 });
             }
@@ -248,8 +246,8 @@ impl Dispatcher {
                 graphics_events.push(GraphicsEvent::SpawnParticles {
                     position: impact_point,
                     velocity: Vec3::new(0.0, 0.0, 0.0), // Impact sparks spread outward
-                    count: 10,                          // Fewer particles for bullets
-                    lifetime: 120.0,                    // Shorter lifetime for quick effect
+                    count: 50,                          // Increased from 10 for better visibility
+                    lifetime: 60.0,                     // Shorter lifetime for quick effect
                     color: Color::YELLOW,
                 });
             }
@@ -262,9 +260,9 @@ impl Dispatcher {
                 graphics_events.push(GraphicsEvent::SpawnParticles {
                     position: impact_point,
                     velocity: Vec3::new(0.0, 0.0, 0.0), // Sparks spread in all directions
-                    count: 5,                           // Small spark effect
-                    lifetime: 30.0,                     // Quick flash effect
-                    color: Color::new(0.9, 0.9, 1.0, 1.0), // Bright white sparks
+                    count: 30,                          // Increased from 5 for better visibility
+                    lifetime: 10.0,                     // Quick flash effect
+                    color: Color::WHITE,
                 });
             }
             CollisionEvent::LargeBodyHitLargeBody {
@@ -276,9 +274,9 @@ impl Dispatcher {
                 graphics_events.push(GraphicsEvent::SpawnParticles {
                     position: impact_point,
                     velocity: Vec3::new(0.0, 0.0, 0.0), // Explosion spreads in all directions
-                    count: 300,    // Massive particle count for dramatic effect
-                    lifetime: 2.0, // Longer lifetime for visibility
-                    color: Color::new(1.0, 0.4, 0.0, 1.0), // Orange explosion color
+                    count: 1000,    // Increased from 300 for massive dramatic effect
+                    lifetime: 30.0, // Increased lifetime for longer visibility
+                    color: Color::RED,
                 });
 
                 // Queue a massive shockwave explosion event for physics effects

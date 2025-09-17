@@ -173,7 +173,6 @@ impl CollisionManager {
                                         impact_point: enemy_pos,
                                     },
                                 ));
-                            println!("PlayerBullet {} hit Enemy {}", entity_b.0, entity_a.0);
                         }
                     }
                 }
@@ -190,7 +189,6 @@ impl CollisionManager {
                                 damage: 10.0, // Default enemy contact damage
                             },
                         ));
-                    println!("Enemy {} hit Player {}", entity_a.0, entity_b.0);
                 }
                 // Player hits Enemy (reverse)
                 (
@@ -205,7 +203,6 @@ impl CollisionManager {
                                 damage: 10.0, // Default enemy contact damage
                             },
                         ));
-                    println!("Enemy {} hit Player {}", entity_b.0, entity_a.0);
                 }
                 // PlayerBullet hits LargeBody
                 (
@@ -230,11 +227,6 @@ impl CollisionManager {
                                 },
                             ));
                     }
-
-                    println!(
-                        "PlayerBullet {} hit LargeBody {} (bullet destroyed)",
-                        entity_a.0, entity_b.0
-                    );
                 }
                 // LargeBody hits PlayerBullet (reverse)
                 (
@@ -259,11 +251,6 @@ impl CollisionManager {
                                 },
                             ));
                     }
-
-                    println!(
-                        "PlayerBullet {} hit LargeBody {} (bullet destroyed)",
-                        entity_b.0, entity_a.0
-                    );
                 }
                 // Enemy hits LargeBody
                 (
@@ -284,8 +271,6 @@ impl CollisionManager {
                                 },
                             ));
                     }
-
-                    println!("Enemy {} destroyed by LargeBody {}", entity_a.0, entity_b.0);
                 }
                 // LargeBody hits Enemy (reverse)
                 (
@@ -306,8 +291,6 @@ impl CollisionManager {
                                 },
                             ));
                     }
-
-                    println!("Enemy {} destroyed by LargeBody {}", entity_b.0, entity_a.0);
                 }
                 // Player hits LargeBody
                 (
@@ -315,10 +298,6 @@ impl CollisionManager {
                     Some(crate::engine::entity::EntityType::LargeBody),
                 ) => {
                     // Player takes damage from hitting large body
-                    println!(
-                        "Player {} collided with LargeBody {} (impact damage)",
-                        entity_a.0, entity_b.0
-                    );
                     // Could add impact damage event here
                 }
                 // LargeBody hits Player (reverse)
@@ -327,10 +306,6 @@ impl CollisionManager {
                     Some(crate::engine::entity::EntityType::Player),
                 ) => {
                     // Player takes damage from hitting large body
-                    println!(
-                        "Player {} collided with LargeBody {} (impact damage)",
-                        entity_b.0, entity_a.0
-                    );
                     // Could add impact damage event here
                 }
                 // PlayerBullet hits PlayerBullet (bullet-bullet collision)
@@ -465,15 +440,6 @@ impl CollisionManager {
                                 impact_point,
                             },
                         ));
-
-                    println!(
-                        "Large body collision detected! {} <-> {} at distance {:.2} (detection threshold: {:.2}, collision threshold: {:.2})",
-                        body_a.entity_id().0,
-                        body_b.entity_id().0,
-                        distance,
-                        detection_distance,
-                        collision_distance
-                    );
                 }
             }
         }

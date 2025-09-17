@@ -3,13 +3,13 @@ use crate::scene::physics::GravitationalBody;
 use wgpu::util::DeviceExt;
 
 /// Maximum number of particles in the system
-const MAX_PARTICLES: u32 = 8192;
+const MAX_PARTICLES: u32 = 65536;
 
 /// Maximum spawn requests per frame
 const MAX_SPAWN_REQUESTS: u32 = 32768;
 
 /// Particles per collision effect
-const PARTICLES_PER_COLLISION: u32 = 32;
+const PARTICLES_PER_COLLISION: u32 = 256;
 
 /// GPU particle data structure
 #[repr(C)]
@@ -205,7 +205,8 @@ impl ParticleSystem {
         let dummy_body_count_buffer;
 
         let (grav_buffer, count_buffer) = if let (Some(grav_buf), Some(count_buf)) =
-            (gravitational_bodies_buffer, body_count_buffer) {
+            (gravitational_bodies_buffer, body_count_buffer)
+        {
             (grav_buf, count_buf)
         } else {
             // Create dummy buffers
@@ -215,11 +216,12 @@ impl ParticleSystem {
                 usage: wgpu::BufferUsages::STORAGE,
                 mapped_at_creation: false,
             });
-            dummy_body_count_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                label: Some("Dummy Body Count Buffer"),
-                contents: bytemuck::cast_slice(&[0u32]),
-                usage: wgpu::BufferUsages::STORAGE,
-            });
+            dummy_body_count_buffer =
+                device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                    label: Some("Dummy Body Count Buffer"),
+                    contents: bytemuck::cast_slice(&[0u32]),
+                    usage: wgpu::BufferUsages::STORAGE,
+                });
             (&dummy_gravitational_bodies_buffer, &dummy_body_count_buffer)
         };
 
@@ -401,7 +403,7 @@ impl ParticleSystem {
             position,
             Vec3::new(0.0, 1.0, 0.0), // Default upward velocity
             PARTICLES_PER_COLLISION,
-            0.8,
+            2.5, // Increased lifetime from 0.8 to 2.5 seconds
             crate::graphics::Color::new(1.0, 0.6, 0.2, 1.0), // Orange sparks
         );
     }
@@ -421,7 +423,8 @@ impl ParticleSystem {
         let dummy_body_count_buffer;
 
         let (grav_buffer, count_buffer) = if let (Some(grav_buf), Some(count_buf)) =
-            (gravitational_bodies_buffer, body_count_buffer) {
+            (gravitational_bodies_buffer, body_count_buffer)
+        {
             (grav_buf, count_buf)
         } else {
             // Create dummy buffers
@@ -431,11 +434,12 @@ impl ParticleSystem {
                 usage: wgpu::BufferUsages::STORAGE,
                 mapped_at_creation: false,
             });
-            dummy_body_count_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                label: Some("Dummy Body Count Buffer"),
-                contents: bytemuck::cast_slice(&[0u32]),
-                usage: wgpu::BufferUsages::STORAGE,
-            });
+            dummy_body_count_buffer =
+                device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                    label: Some("Dummy Body Count Buffer"),
+                    contents: bytemuck::cast_slice(&[0u32]),
+                    usage: wgpu::BufferUsages::STORAGE,
+                });
             (&dummy_gravitational_bodies_buffer, &dummy_body_count_buffer)
         };
 
@@ -562,7 +566,7 @@ impl ParticleSystem {
         if self.spawn_queue.len() > MAX_SPAWN_REQUESTS as usize {
             self.spawn_queue.truncate(MAX_SPAWN_REQUESTS as usize);
         }
-        
+
         // Upload spawn requests if any
         if !self.spawn_queue.is_empty() {
             // Hard cap to prevent any overflow - be very conservative
@@ -570,17 +574,13 @@ impl ParticleSystem {
             if self.spawn_queue.len() > max_safe_requests {
                 self.spawn_queue.truncate(max_safe_requests);
             }
-            
+
             let data_bytes = bytemuck::cast_slice::<SpawnRequest, u8>(&self.spawn_queue);
             if data_bytes.len() > 2097152 {
                 // Emergency fallback - clear the queue entirely if still too big
                 self.spawn_queue.clear();
             } else {
-                queue.write_buffer(
-                    &self.spawn_queue_buffer,
-                    0,
-                    data_bytes,
-                );
+                queue.write_buffer(&self.spawn_queue_buffer, 0, data_bytes);
             }
             queue.write_buffer(
                 &self.spawn_count_buffer,

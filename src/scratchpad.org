@@ -8,6 +8,7 @@ with full collisions/gravity, events, particles, etc
 visual on bodies vs collision bounce size is off
 gravity visuals on large bodies
 arena and bounding
+bullet bounds - lower to 10k?
 
 
 

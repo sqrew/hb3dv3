@@ -89,7 +89,7 @@ impl EnemyManager {
             enemies: Vec::new(),
             event_queue: Vec::new(),
             spawn_timer: 0.0,
-            spawn_interval: 10.0, // Spawn every 2 seconds
+            spawn_interval: 100.0, // Spawn every 2 seconds
         }
     }
 
@@ -206,18 +206,15 @@ impl EnemyManager {
         player_pos: Vec3,
         entity_manager: &mut crate::engine::entity::EntityManager,
     ) {
-        // Update existing enemies
         for enemy in self.enemies.iter_mut() {
             enemy.update(dt);
         }
 
-        // Remove dead enemies
         self.enemies.retain(|e| e.is_alive());
 
-        // Timer-based enemy spawning
         self.spawn_timer += dt;
         if self.spawn_timer >= self.spawn_interval {
-            self.spawn_timer = 0.0; // Reset timer
+            self.spawn_timer = 0.0;
             self.spawn_enemy_near_player(player_pos, entity_manager);
         }
     }
@@ -225,13 +222,7 @@ impl EnemyManager {
     pub fn get_render_data(&self) -> Vec<Primitive> {
         self.enemies
             .iter()
-            .map(|enemy| {
-                Primitive::new(
-                    PrimitiveType::Cube,
-                    enemy.pos,
-                    Color::new(0.8, 0.1, 0.1, 1.0), // Red enemies
-                )
-            })
+            .map(|enemy| Primitive::new(PrimitiveType::Cube, enemy.pos, Color::RED))
             .collect()
     }
 
@@ -300,10 +291,6 @@ impl EnemyManager {
                     self.event_queue.push(EventType::Enemy(EnemyEvent::Die {
                         enemy_id: entity_id,
                     }));
-                    println!(
-                        "💀 Enemy {} died from {} damage (source: {})!",
-                        entity_id.0, damage, source.0
-                    );
                 }
 
                 return true;
@@ -338,10 +325,6 @@ impl EnemyManager {
                     self.event_queue.push(EventType::Enemy(EnemyEvent::Die {
                         enemy_id: entity_id,
                     }));
-                    println!(
-                        "💀 Enemy {} died from {} damage (source: {})!",
-                        entity_id.0, damage, source.0
-                    );
                 }
 
                 return true;
@@ -355,7 +338,6 @@ impl EnemyManager {
         for enemy in &mut self.enemies {
             if enemy.entity_id() == entity_id {
                 enemy.health = 0.0; // Mark as dead for cleanup
-                println!("☠️ Enemy {} marked for removal", entity_id.0);
                 return true;
             }
         }
@@ -454,10 +436,6 @@ impl EnemyManager {
                 let enemy_entity = crate::engine::entity::EntityId(temp_id);
                 self.enemies
                     .push(Enemy::new(enemy_entity, position, Vec3::zeros(), 50.0));
-                println!(
-                    "🔴 Spawned enemy {} at {:?} (temp ID - needs EntityManager integration)",
-                    enemy_entity.0, position
-                );
             }
         }
     }

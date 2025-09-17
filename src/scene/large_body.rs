@@ -3,6 +3,7 @@ use crate::engine::Vec3;
 use crate::engine::entity::{EntityId, EntityType};
 use crate::graphics::{Color, Primitive, PrimitiveType};
 use crate::scene::PhysicsManager;
+use rand;
 
 /// Types of large gravitational bodies in the game
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -81,13 +82,13 @@ impl LargeBodyType {
     /// Get default angular velocity for this body type (radians per second)
     pub fn default_angular_velocity(self) -> f32 {
         match self {
-            LargeBodyType::BlackHole => 2.0, // Fast spinning black hole for frame-dragging
-            LargeBodyType::WhiteHole => -1.5, // Counter-rotating white hole
-            LargeBodyType::NeutronStar => 10.0, // Extremely fast pulsar rotation
+            LargeBodyType::BlackHole => 3.0, // Fast spinning black hole for frame-dragging
+            LargeBodyType::WhiteHole => -3.0, // Counter-rotating white hole
+            LargeBodyType::NeutronStar => 12.0, // Extremely fast pulsar rotation
             LargeBodyType::Star => 0.5,      // Moderate stellar rotation
             LargeBodyType::GasGiant => 1.0,  // Fast rotation like Jupiter
             LargeBodyType::Planet => 0.3,    // Earth-like rotation (slower)
-            LargeBodyType::ExoticMatter => 4.0, // Rapid oscillating rotation for visual effect
+            LargeBodyType::ExoticMatter => 6.0, // Rapid oscillating rotation for visual effect
         }
     }
 
@@ -95,8 +96,8 @@ impl LargeBodyType {
     pub fn default_ergosphere_radius_ratio(self) -> f32 {
         match self {
             LargeBodyType::BlackHole => 20.0, // Much larger ergosphere for visible frame-dragging
-            LargeBodyType::NeutronStar => 15.0, // Large intense ergosphere
-            LargeBodyType::WhiteHole => 10.0, // Significant ergosphere effect
+            LargeBodyType::NeutronStar => 20.0, // Large intense ergosphere
+            LargeBodyType::WhiteHole => 20.0, // Significant ergosphere effect
             LargeBodyType::Star => 0.0,       // No ergosphere effect
             LargeBodyType::GasGiant => 0.0,   // No ergosphere effect
             LargeBodyType::Planet => 0.0,     // No ergosphere effect
@@ -451,8 +452,6 @@ impl LargeBodyManager {
 
         // Handle special case: nearly equal and opposite masses (e.g., BlackHole + WhiteHole)
         let (pos1, pos2, orbital_speed) = if total_mass.abs() < 300_000.0 {
-            println!("⚠️  Detected equal and opposite masses - using special case handling");
-
             // Place bodies equidistant from center
             let separation_vector = Vec3::new(separation_distance * 0.5, 0.0, 0.0);
             let pos1 = center_position - separation_vector;
