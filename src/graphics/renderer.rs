@@ -4,7 +4,7 @@ use winit::{dpi::PhysicalSize, window::Window};
 
 use crate::graphics::{
     BloomRenderer, CameraUniform, CollisionCompute, Frustum, InstancedLineRenderer, ParticleSystem,
-    Primitive, PrimitiveType, Projection, ThirdPersonCamera, Vertex, constants::*,
+    Primitive, PrimitiveType, Projection, ThirdPersonCamera, TextRenderer, Vertex, constants::*,
     is_visible_sphere, line_batch::ReusableLineBatch, primitive_cache::PrimitiveCache,
 };
 
@@ -16,6 +16,7 @@ pub struct GraphicsEngine {
     size: PhysicalSize<u32>,
     render_pipeline: wgpu::RenderPipeline,
     line_renderer: InstancedLineRenderer,
+    text_renderer: TextRenderer,
     bloom_renderer: BloomRenderer,
     collision_compute: CollisionCompute,
     camera: ThirdPersonCamera,
@@ -232,6 +233,9 @@ impl GraphicsEngine {
             surface_format,
         );
 
+        // Create text renderer
+        let text_renderer = TextRenderer::new(&device, &queue, &config);
+
         // Create bloom post-processing renderer
         let bloom_renderer = BloomRenderer::new(
             device.clone(),
@@ -270,6 +274,7 @@ impl GraphicsEngine {
             size,
             render_pipeline,
             line_renderer,
+            text_renderer,
             bloom_renderer,
             collision_compute,
             camera,
@@ -433,6 +438,10 @@ impl GraphicsEngine {
             // Render particles
             self.particles
                 .render(&mut render_pass, &self.camera_bind_group);
+
+            // Update text buffers and render text UI
+            self.text_renderer.update_buffers(&self.queue);
+            self.text_renderer.render(&mut render_pass);
         }
 
         // Step 2: Bloom post-processing disabled - rendering directly to final surface
@@ -566,6 +575,15 @@ impl GraphicsEngine {
     /// Spawn particles at the given position with default values (backwards compatibility)
     pub fn spawn_particles_simple(&mut self, position: crate::graphics::Vec3) {
         self.particles.spawn_particles_simple(position);
+    }
+
+    // Text rendering methods
+    pub fn add_text(&mut self, text: &str, position: [f32; 2], font_size: u32, color: crate::graphics::Color) {
+        self.text_renderer.add_text(&self.device, &self.queue, text, position, font_size, color);
+    }
+
+    pub fn clear_text(&mut self) {
+        self.text_renderer.clear();
     }
 
     /// Set physics buffers for gravitational particle effects

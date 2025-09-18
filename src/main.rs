@@ -2,6 +2,7 @@ mod engine;
 mod graphics;
 mod input;
 mod scene;
+mod ui;
 
 use engine::WindowManager;
 

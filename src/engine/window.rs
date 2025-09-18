@@ -16,16 +16,21 @@ pub struct WindowManager {
     engine: Engine,
     input_manager: InputManager,
     last_frame: std::time::Instant,
+    last_fps_update: std::time::Instant,
+    displayed_fps: f32,
 }
 
 impl WindowManager {
     pub fn new() -> Self {
+        let now = std::time::Instant::now();
         Self {
             window: None,
             graphics_engine: None,
             engine: Engine::new(),
             input_manager: InputManager::new(),
-            last_frame: std::time::Instant::now(),
+            last_frame: now,
+            last_fps_update: now,
+            displayed_fps: 0.0,
         }
     }
 
@@ -274,6 +279,24 @@ impl ApplicationHandler for WindowManager {
 
                     // Update particle system
                     graphics_engine.update_particles(delta_time);
+
+                    // Add FPS counter UI (update only 10 times per second)
+                    let current_fps = 1.0 / delta_time;
+                    let now = std::time::Instant::now();
+
+                    // Update displayed FPS every 100ms (10 times per second)
+                    if now.duration_since(self.last_fps_update).as_millis() >= 100 {
+                        self.displayed_fps = current_fps;
+                        self.last_fps_update = now;
+                    }
+
+                    graphics_engine.clear_text();
+                    graphics_engine.add_text(
+                        &format!("FPS: {:.1}", self.displayed_fps), // Readable FPS display!
+                        [10.0, 10.0], // Top-left corner
+                        32, // Good readable size
+                        crate::graphics::Color::YELLOW // Classic FPS counter color
+                    );
 
                     // Render the primitives
                     if let Err(e) = graphics_engine.render(&primitives) {
