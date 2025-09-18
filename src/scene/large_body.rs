@@ -110,10 +110,10 @@ impl LargeBodyType {
         let mass = self.default_mass();
         let angular_vel = self.default_angular_velocity().abs(); // Use absolute value
         let strength_factor = match self {
-            LargeBodyType::BlackHole => 0.2,    // Strong frame-dragging
-            LargeBodyType::NeutronStar => 0.15, // Very strong (dense + fast spinning)
-            LargeBodyType::WhiteHole => 0.05,   // Moderate frame-dragging
-            LargeBodyType::ExoticMatter => 0.5, // No frame-dragging (oscillation is main effect)
+            LargeBodyType::BlackHole => 0.5,    // Strong frame-dragging
+            LargeBodyType::NeutronStar => 0.25, // Very strong (dense + fast spinning)
+            LargeBodyType::WhiteHole => 0.15,   // Moderate frame-dragging
+            LargeBodyType::ExoticMatter => 0.8, // No frame-dragging (oscillation is main effect)
             _ => 0.0,                           // No frame-dragging for other types
         };
         mass * angular_vel * strength_factor

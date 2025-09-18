@@ -220,7 +220,7 @@ impl Dispatcher {
 
                             // Scale tangential velocity based on large body's angular velocity and distance
                             let tangential_speed = large_body.angular_velocity() * distance * 0.3;
-                            tangent_dir * tangential_speed
+                            tangent_dir * tangential_speed * 0.1
                         } else {
                             Vec3::new(0.0, 0.0, 0.0)
                         }

@@ -127,7 +127,7 @@ fn update_particles(@builtin(global_invocation_id) global_id: vec3<u32>) {
             particles[index].position += particles[index].velocity * dt;
 
             // Apply light air resistance
-            particles[index].velocity *= 0.99;
+            particles[index].velocity *= 0.999;
         }
     }
 }
@@ -149,7 +149,7 @@ fn spawn_particles(@builtin(global_invocation_id) global_id: vec3<u32>) {
         // Search for free slot with fallback (try up to 8 slots)
         var particle_index = primary_index;
         var found_slot = false;
-        for (var search = 0u; search < 8u; search++) {
+        for (var search = 0u; search < 64u; search++) {
             if (particles[particle_index].life <= 0.0) {
                 found_slot = true;
                 break;
@@ -166,7 +166,7 @@ fn spawn_particles(@builtin(global_invocation_id) global_id: vec3<u32>) {
             let rand4 = random(particle_seed + 4u);
             
             // Generate random velocity with much higher speeds for proper delta time
-            let speed = 30.0 + rand4 * 60.0; // Random speed between 30-90 (4x+ increase for dramatic effect)
+            let speed = 1.0 + rand4 * 9.0; // Random speed between 30-90 (4x+ increase for dramatic effect)
             
             // Create a more dramatic burst with wider spread
             let random_direction = normalize(vec3<f32>(
