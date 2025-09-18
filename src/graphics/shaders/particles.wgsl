@@ -126,7 +126,7 @@ fn update_particles(@builtin(global_invocation_id) global_id: vec3<u32>) {
             // Update position
             particles[index].position += particles[index].velocity * dt;
 
-            // Apply light air resistance
+            // Apply air resistance
             particles[index].velocity *= 0.999;
         }
     }
@@ -217,10 +217,9 @@ fn vs_main(@builtin(instance_index) instance_index: u32) -> VertexOutput {
 
         // Use a power curve for slower fade - particles stay visible longer
         // Square the life_ratio to create a curve that fades slowly at first, then quickly at the end
-        let fade_curve = life_ratio * life_ratio;
-
+        // let fade_curve = life_ratio * life_ratio;
         // Alternative: even slower fade using cubic curve
-        // let fade_curve = life_ratio * life_ratio * life_ratio;
+        let fade_curve = life_ratio * life_ratio * life_ratio;
 
         output.color = vec4<f32>(particle.color.rgb, particle.color.a * fade_curve);
     } else {

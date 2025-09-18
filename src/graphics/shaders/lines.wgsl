@@ -110,14 +110,9 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
 }
 
 // Alternative fragment shader for pure emissive wireframes (Geometry Wars style)
-@fragment  
+@fragment
 fn fs_emissive(in: VertexOutput) -> @location(0) vec4<f32> {
-    // Pure emissive glow, no lighting - balanced for neon effect
-    let emission = in.color.rgb * (2.2 + in.glow_factor * 4.0);
-    
-    // Edge glow effect - brighter at cylinder edges for neon tube effect
-    let edge_factor = 1.0 - abs(in.normal.z);  // Assuming cylinder aligned with Z
-    let edge_glow = edge_factor * 0.8;  // Balanced edge glow
-    
-    return vec4<f32>(emission * (1.0 + edge_glow), in.color.a);
+    // Pure linear color passthrough - no color multiplication
+    // Use alpha for intensity control instead
+    return vec4<f32>(in.color.rgb, in.color.a);
 }

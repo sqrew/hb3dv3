@@ -222,7 +222,7 @@ impl EnemyManager {
     pub fn get_render_data(&self) -> Vec<Primitive> {
         self.enemies
             .iter()
-            .map(|enemy| Primitive::new(PrimitiveType::Cube, enemy.pos, Color::RED))
+            .map(|enemy| Primitive::new(PrimitiveType::Cube, enemy.pos, Color::PINK))
             .collect()
     }
 

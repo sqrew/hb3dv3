@@ -174,7 +174,7 @@ impl PlayerManager {
         vec![Primitive::new(
             PrimitiveType::Cube,
             self.player.pos,
-            Color::new(0.0, 0.8, 0.2, 1.0), // Green player
+            Color::CYAN,
         )]
     }
 

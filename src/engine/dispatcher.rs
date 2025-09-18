@@ -181,8 +181,8 @@ impl Dispatcher {
                     position: impact_point,
                     velocity: Vec3::new(0.0, 0.0, 0.0), // Default upward
                     count: 200,
-                    lifetime: 10.0,
-                    color: Color::YELLOW,
+                    lifetime: 30.0,
+                    color: Color::GREEN,
                 });
             }
             CollisionEvent::EnemyHitPlayer {

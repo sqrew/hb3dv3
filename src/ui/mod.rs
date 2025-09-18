@@ -1,4 +1,7 @@
+pub mod text_renderer;
+
 use crate::graphics::Color;
+pub use text_renderer::*;
 
 #[derive(Debug, Clone, Copy)]
 pub enum HorizontalAlign {
@@ -30,21 +33,30 @@ impl Position {
     }
 
     pub fn top_right(screen_width: f32) -> Self {
-        Self { x: screen_width - 10.0, y: 10.0 }
+        Self {
+            x: screen_width - 10.0,
+            y: 10.0,
+        }
     }
 
     pub fn bottom_left(screen_height: f32) -> Self {
-        Self { x: 10.0, y: screen_height - 30.0 }
+        Self {
+            x: 10.0,
+            y: screen_height - 30.0,
+        }
     }
 
     pub fn bottom_right(screen_width: f32, screen_height: f32) -> Self {
-        Self { x: screen_width - 10.0, y: screen_height - 30.0 }
+        Self {
+            x: screen_width - 10.0,
+            y: screen_height - 30.0,
+        }
     }
 
     pub fn center(screen_width: f32, screen_height: f32) -> Self {
         Self {
             x: screen_width / 2.0,
-            y: screen_height / 2.0
+            y: screen_height / 2.0,
         }
     }
 }
@@ -104,10 +116,8 @@ impl UIElement {
         Self {
             text: format!("FPS: {:.1}", fps),
             position: Position::top_right(screen_width),
-            style: TextStyle::new(18, Color::YELLOW).with_alignment(
-                HorizontalAlign::Right,
-                VerticalAlign::Top
-            ),
+            style: TextStyle::new(18, Color::YELLOW)
+                .with_alignment(HorizontalAlign::Right, VerticalAlign::Top),
         }
     }
 

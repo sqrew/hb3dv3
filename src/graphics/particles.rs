@@ -80,6 +80,7 @@ impl ParticleSystem {
         camera_bind_group_layout: &wgpu::BindGroupLayout,
         gravitational_bodies_buffer: Option<&wgpu::Buffer>,
         body_count_buffer: Option<&wgpu::Buffer>,
+        surface_format: wgpu::TextureFormat,
     ) -> Self {
         // Load shaders
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
@@ -334,7 +335,7 @@ impl ParticleSystem {
                 module: &shader,
                 entry_point: Some("fs_main"),
                 targets: &[Some(wgpu::ColorTargetState {
-                    format: wgpu::TextureFormat::Bgra8UnormSrgb,
+                    format: surface_format,
                     blend: Some(wgpu::BlendState::ALPHA_BLENDING),
                     write_mask: wgpu::ColorWrites::ALL,
                 })],

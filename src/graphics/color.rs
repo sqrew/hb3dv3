@@ -82,6 +82,12 @@ impl Color {
         b: 1.0,
         a: 1.0,
     };
+    pub const PINK: Color = Color {
+        r: 1.0,
+        g: 0.4,
+        b: 0.7,
+        a: 1.0,
+    };
 }
 
 impl From<[f32; 3]> for Color {

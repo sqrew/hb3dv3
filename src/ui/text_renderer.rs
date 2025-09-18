@@ -1,6 +1,6 @@
-use std::collections::HashMap;
 use bytemuck::{Pod, Zeroable};
 use fontdue::{Font, FontSettings};
+use std::collections::HashMap;
 use wgpu::util::DeviceExt;
 
 use crate::graphics::Color;
@@ -9,8 +9,8 @@ use crate::graphics::Color;
 #[repr(C)]
 #[derive(Copy, Clone, Debug, Pod, Zeroable)]
 pub struct TextVertex {
-    pub position: [f32; 2],    // 2D position (screen space)
-    pub tex_coords: [f32; 2],  // UV coordinates into glyph atlas
+    pub position: [f32; 2],   // 2D position (screen space)
+    pub tex_coords: [f32; 2], // UV coordinates into glyph atlas
 }
 
 impl TextVertex {
@@ -32,9 +32,9 @@ impl TextVertex {
 #[repr(C)]
 #[derive(Copy, Clone, Debug, Pod, Zeroable)]
 pub struct TextInstance {
-    pub position: [f32; 2],    // Screen position (pixels)
-    pub scale: f32,            // Text scale factor
-    pub color: [f32; 4],       // Text color RGBA
+    pub position: [f32; 2], // Screen position (pixels)
+    pub scale: f32,         // Text scale factor
+    pub color: [f32; 4],    // Text color RGBA
 }
 
 impl TextInstance {
@@ -56,10 +56,10 @@ impl TextInstance {
 // Glyph information in the atlas
 #[derive(Debug, Clone)]
 pub struct GlyphInfo {
-    pub uv: [f32; 4],          // UV coords: [min_x, min_y, max_x, max_y]
-    pub size: [f32; 2],        // Glyph size in pixels
-    pub bearing: [f32; 2],     // Bearing (offset from baseline)
-    pub advance: f32,          // Horizontal advance
+    pub uv: [f32; 4],      // UV coords: [min_x, min_y, max_x, max_y]
+    pub size: [f32; 2],    // Glyph size in pixels
+    pub bearing: [f32; 2], // Bearing (offset from baseline)
+    pub advance: f32,      // Horizontal advance
 }
 
 // Glyph atlas for texture management
@@ -229,10 +229,15 @@ pub struct TextRenderer {
 }
 
 impl TextRenderer {
-    pub fn new(device: &wgpu::Device, queue: &wgpu::Queue, config: &wgpu::SurfaceConfiguration) -> Self {
+    pub fn new(
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        config: &wgpu::SurfaceConfiguration,
+    ) -> Self {
         // Load embedded JetBrains Mono font
         let font_data = include_bytes!("../../assets/fonts/JetBrainsMono-Regular.ttf");
-        let font = Font::from_bytes(font_data.as_slice(), FontSettings::default()).expect("Failed to load JetBrains Mono font");
+        let font = Font::from_bytes(font_data.as_slice(), FontSettings::default())
+            .expect("Failed to load JetBrains Mono font");
 
         // Create glyph atlas
         let atlas = GlyphAtlas::new(device, queue, 512); // 512x512 initial atlas
@@ -261,10 +266,10 @@ impl TextRenderer {
         });
 
         // Create screen uniform bind group layout
-        let screen_bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-            label: Some("Screen Uniform Bind Group Layout"),
-            entries: &[
-                wgpu::BindGroupLayoutEntry {
+        let screen_bind_group_layout =
+            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                label: Some("Screen Uniform Bind Group Layout"),
+                entries: &[wgpu::BindGroupLayoutEntry {
                     binding: 0,
                     visibility: wgpu::ShaderStages::VERTEX,
                     ty: wgpu::BindingType::Buffer {
@@ -273,9 +278,8 @@ impl TextRenderer {
                         min_binding_size: None,
                     },
                     count: None,
-                },
-            ],
-        });
+                }],
+            });
 
         // Create bind group
         let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
@@ -296,7 +300,7 @@ impl TextRenderer {
         // Create shader
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("Text Shader"),
-            source: wgpu::ShaderSource::Wgsl(include_str!("shaders/text.wgsl").into()),
+            source: wgpu::ShaderSource::Wgsl(include_str!("text.wgsl").into()),
         });
 
         // Create screen uniform buffer
@@ -311,12 +315,10 @@ impl TextRenderer {
         let screen_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("Screen Bind Group"),
             layout: &screen_bind_group_layout,
-            entries: &[
-                wgpu::BindGroupEntry {
-                    binding: 0,
-                    resource: screen_uniform_buffer.as_entire_binding(),
-                },
-            ],
+            entries: &[wgpu::BindGroupEntry {
+                binding: 0,
+                resource: screen_uniform_buffer.as_entire_binding(),
+            }],
         });
 
         // Create pipeline layout
@@ -410,7 +412,15 @@ impl TextRenderer {
         }
     }
 
-    pub fn add_text(&mut self, device: &wgpu::Device, queue: &wgpu::Queue, text: &str, position: [f32; 2], font_size: u32, color: Color) {
+    pub fn add_text(
+        &mut self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        text: &str,
+        position: [f32; 2],
+        font_size: u32,
+        color: Color,
+    ) {
         let mut current_x = position[0];
         let y = position[1];
 
@@ -424,7 +434,10 @@ impl TextRenderer {
             }
 
             // Get or cache the glyph from the atlas
-            if let Some(glyph_info) = self.atlas.get_or_cache_glyph(device, queue, &self.font, character, font_size) {
+            if let Some(glyph_info) = self
+                .atlas
+                .get_or_cache_glyph(device, queue, &self.font, character, font_size)
+            {
                 // Use actual glyph dimensions
                 let char_width = glyph_info.size[0];
                 let char_height = glyph_info.size[1];
@@ -455,8 +468,12 @@ impl TextRenderer {
 
                 // Add indices for two triangles (quad)
                 let quad_indices = [
-                    base_index,     base_index + 1, base_index + 2, // First triangle
-                    base_index,     base_index + 2, base_index + 3, // Second triangle
+                    base_index,
+                    base_index + 1,
+                    base_index + 2, // First triangle
+                    base_index,
+                    base_index + 2,
+                    base_index + 3, // Second triangle
                 ];
                 self.indices.extend_from_slice(&quad_indices);
 
@@ -499,7 +516,11 @@ impl TextRenderer {
             queue.write_buffer(&self.vertex_buffer, 0, bytemuck::cast_slice(&self.vertices));
         }
         if !self.instances.is_empty() {
-            queue.write_buffer(&self.instance_buffer, 0, bytemuck::cast_slice(&self.instances));
+            queue.write_buffer(
+                &self.instance_buffer,
+                0,
+                bytemuck::cast_slice(&self.instances),
+            );
         }
         if !self.indices.is_empty() {
             queue.write_buffer(&self.index_buffer, 0, bytemuck::cast_slice(&self.indices));

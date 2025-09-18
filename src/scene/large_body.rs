@@ -68,21 +68,21 @@ impl LargeBodyType {
     pub fn default_collision_radius_ratio(self) -> f32 {
         match self {
             // Smaller collision radii for better orbital mechanics
-            LargeBodyType::Planet => 0.6,
-            LargeBodyType::Star => 0.6,
-            LargeBodyType::GasGiant => 0.6,
+            LargeBodyType::Planet => 1.0,
+            LargeBodyType::Star => 1.0,
+            LargeBodyType::GasGiant => 1.0,
             // Keep larger collision radii for extreme objects
-            LargeBodyType::BlackHole => 0.6,
-            LargeBodyType::WhiteHole => 0.6,
-            LargeBodyType::NeutronStar => 0.6,
-            LargeBodyType::ExoticMatter => 0.6, // Large collision area for oscillating effects
+            LargeBodyType::BlackHole => 1.0,
+            LargeBodyType::WhiteHole => 1.0,
+            LargeBodyType::NeutronStar => 1.0,
+            LargeBodyType::ExoticMatter => 1.0, // Large collision area for oscillating effects
         }
     }
 
     /// Get default angular velocity for this body type (radians per second)
     pub fn default_angular_velocity(self) -> f32 {
         match self {
-            LargeBodyType::BlackHole => 3.0, // Fast spinning black hole for frame-dragging
+            LargeBodyType::BlackHole => 4.0, // Fast spinning black hole for frame-dragging
             LargeBodyType::WhiteHole => -3.0, // Counter-rotating white hole
             LargeBodyType::NeutronStar => 12.0, // Extremely fast pulsar rotation
             LargeBodyType::Star => 0.5,      // Moderate stellar rotation
