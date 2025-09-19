@@ -94,17 +94,18 @@ impl InputManager {
                 }
             }
             
-            // Update gamepad with gilrs context
+            // Update gamepad with gilrs context (but don't clear just_pressed state yet)
             self.gamepad.update(gilrs, self.active_gamepad);
         }
         
         // Update input subsystems (but don't clear transient state yet)
-        self.keyboard.update();
+        // Note: keyboard.update() is called in end_frame() to preserve just_pressed state
         self.mouse.update();
     }
     
     /// Call this after game systems have processed input to clear transient state
     pub fn end_frame(&mut self) {
+        self.keyboard.update(); // Clear just_pressed state after game systems read it
         self.gamepad.clear_transient_state();
     }
     

@@ -25,7 +25,7 @@ pub enum Action {
     Dash,
     Interact,
     PlasmaBurst,
-    
+
     // Weapon switching
     NextWeapon,
     PrevWeapon,
@@ -41,6 +41,7 @@ pub enum Action {
 
     // Debug
     ToggleWireframe,
+    TestLightning,
 
     // Application
     Exit,
@@ -200,13 +201,6 @@ impl Default for ActionBindings {
             ],
         );
 
-        bindings.insert(
-            Action::PlasmaBurst,
-            vec![
-                InputBinding::keyboard(KeyCode::KeyG).with_gamepad_button(Button::North), // G key + Y button (North on Xbox)
-            ],
-        );
-
         // Weapon switching
         bindings.insert(
             Action::NextWeapon,
@@ -253,6 +247,11 @@ impl Default for ActionBindings {
         bindings.insert(
             Action::ToggleWireframe,
             vec![InputBinding::keyboard(KeyCode::KeyT)],
+        );
+
+        bindings.insert(
+            Action::TestLightning,
+            vec![InputBinding::keyboard(KeyCode::KeyK)],
         );
 
         // Application

@@ -6,9 +6,12 @@ use winit::{
     window::{Window, WindowId},
 };
 
-use crate::engine::{Engine, Vec3};
 use crate::graphics::GraphicsEngine;
 use crate::input::{Action, InputManager};
+use crate::{
+    engine::{Engine, Vec3},
+    graphics::LightningConfig,
+};
 
 pub struct WindowManager {
     window: Option<Arc<Window>>,
@@ -93,7 +96,7 @@ impl ApplicationHandler for WindowManager {
                 let delta_time = now.duration_since(self.last_frame).as_secs_f32();
                 self.last_frame = now;
 
-                // Update input state
+                // Update input state BEFORE engine update (critical for gamepad event processing)
                 self.input_manager.update();
 
                 // Get camera vectors for movement (including Y axis)
@@ -224,10 +227,10 @@ impl ApplicationHandler for WindowManager {
                                 self.engine.scheduler.check_collisions_cpu();
                             }
                         }
-                        
+
                         // Process large body collisions every frame (independent of GPU collisions)
                         self.engine.process_large_body_collisions();
-                        
+
                         // Handle collision cleanup and event dispatch every frame
                         self.engine.process_collision_cleanup();
                     }
@@ -280,6 +283,9 @@ impl ApplicationHandler for WindowManager {
                     // Update particle system
                     graphics_engine.update_particles(delta_time);
 
+                    // Update lightning effects
+                    graphics_engine.update_lightning(delta_time);
+
                     // Add FPS counter UI (update only 10 times per second)
                     let current_fps = 1.0 / delta_time;
                     let now = std::time::Instant::now();
@@ -293,10 +299,26 @@ impl ApplicationHandler for WindowManager {
                     graphics_engine.clear_text();
                     graphics_engine.add_text(
                         &format!("FPS: {:.1}", self.displayed_fps), // Readable FPS display!
-                        [10.0, 10.0], // Top-left corner
-                        32, // Good readable size
-                        crate::graphics::Color::YELLOW // Classic FPS counter color
+                        [10.0, 10.0],                               // Top-left corner
+                        32,                                         // Good readable size
+                        crate::graphics::Color::YELLOW,             // Classic FPS counter color
                     );
+
+                    // Lightning test - press 'K' to spawn lightning bolts
+                    if self
+                        .input_manager
+                        .is_action_just_pressed(Action::TestLightning)
+                    {
+                        let player_pos = self.engine.scheduler.player().player().position();
+                        // Create lightning from player position to a point 10 units away
+                        let target = player_pos + crate::engine::Vec3::new(20.0, 0.0, 10.0);
+                        graphics_engine.spawn_lightning(
+                            player_pos,
+                            target,
+                            Some(LightningConfig::default()),
+                        );
+                        println!("⚡ Lightning bolt spawned!");
+                    }
 
                     // Render the primitives
                     if let Err(e) = graphics_engine.render(&primitives) {
@@ -304,7 +326,7 @@ impl ApplicationHandler for WindowManager {
                     }
                 }
 
-                // Clear transient input state
+                // Clear transient input state at end of frame
                 self.input_manager.end_frame();
             }
             WindowEvent::Resized(new_size) => {

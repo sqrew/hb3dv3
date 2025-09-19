@@ -33,6 +33,7 @@ The application follows a layered entity-component-like architecture with distin
 - **GraphicsEngine**: Main renderer managing wgpu context, camera, and render pipelines
 - **ThirdPersonCamera**: Orbital camera system with manual and auto-rotation modes
 - **Line Rendering**: Specialized instanced line renderer for wireframe primitives
+- **Lightning Effects**: Advanced electrical discharge system with fractal branching and seeking tendrils
 - **Primitive System**: Supports various 3D primitive types (cubes, spheres, etc.)
 - **Advanced Features**: Bloom renderer, frustum culling, and primitive caching
 - **Shaders**: Custom WGSL shaders for various rendering techniques
@@ -119,7 +120,17 @@ The engine supports advanced rendering features including bloom effects, frustum
 - **Collision Physics**: Elastic collisions between large bodies with angular momentum conservation
 - **Arena Containment**: Soft binding forces keep all bodies within playable area using absolute mass to handle negative mass correctly
 
+### Lightning Effects System
+- **Fractal Branching**: Multi-generational branching with configurable probability and decay rates
+- **Seeking Tendrils**: Dead-end exploratory branches that create realistic electrical discharge patterns
+- **True 3D Effects**: Full Y-axis branching for authentic three-dimensional lightning
+- **Advanced Visual Features**: Multi-layered rendering with core/glow effects, progressive formation animation
+- **Highly Configurable**: Extensive configuration options for segment count, chaos, thickness, duration, colors
+- **Performance Optimized**: GPU-efficient line rendering with configurable complexity levels
+- **Test Integration**: Press 'K' to spawn lightning bolts for testing and demonstration
+
 ### Performance Characteristics
 - **Scalable Architecture**: Maintains 75+ FPS even with hundreds of entities and complex physics
 - **Batch Processing**: Collision detection, physics updates, and particle spawning performed in batches
 - **GPU Utilization**: Heavy computational work offloaded to GPU for maximum performance
+- **Lightning Performance**: Efficient line instancing supports complex lightning with 60+ segments and multiple branches

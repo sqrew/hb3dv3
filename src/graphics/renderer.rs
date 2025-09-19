@@ -3,7 +3,7 @@ use wgpu::util::DeviceExt;
 use winit::{dpi::PhysicalSize, window::Window};
 
 use crate::graphics::{
-    BloomRenderer, CameraUniform, CollisionCompute, Frustum, InstancedLineRenderer, ParticleSystem,
+    BloomRenderer, CameraUniform, CollisionCompute, Frustum, InstancedLineRenderer, LightningEffectManager, ParticleSystem,
     Primitive, PrimitiveType, Projection, ThirdPersonCamera, Vertex, constants::*,
     is_visible_sphere, line_batch::ReusableLineBatch, primitive_cache::PrimitiveCache,
 };
@@ -31,6 +31,7 @@ pub struct GraphicsEngine {
     primitive_cache: PrimitiveCache,
     line_batch: ReusableLineBatch,
     particles: ParticleSystem,
+    lightning_manager: LightningEffectManager,
 }
 
 impl GraphicsEngine {
@@ -252,6 +253,9 @@ impl GraphicsEngine {
         // Create particle system (without physics buffers for now - they'll be set later)
         let particles = ParticleSystem::new(&device, &camera_bind_group_layout, None, None, surface_format);
 
+        // Create lightning effect manager
+        let lightning_manager = LightningEffectManager::new();
+
         println!("Graphics engine initialized:");
         println!("- Surface format: {:?}", surface_format);
         println!(
@@ -289,6 +293,7 @@ impl GraphicsEngine {
             primitive_cache: PrimitiveCache::new(),
             line_batch: ReusableLineBatch::new(1000), // Estimate 1000 primitives per frame
             particles,
+            lightning_manager,
         })
     }
 
@@ -534,6 +539,12 @@ impl GraphicsEngine {
             );
         }
 
+        // Add lightning line instances to the same batch before finishing the frame
+        let lightning_lines = self.lightning_manager.get_line_instances();
+        if !lightning_lines.is_empty() {
+            self.line_batch.add_line_instances(lightning_lines);
+        }
+
         // Generate all lines using optimized systems with full rotation support
         // Lines are now batched by primitive type for better cache locality
         let mut lines = self.line_batch.finish_frame(&self.primitive_cache);
@@ -610,5 +621,15 @@ impl GraphicsEngine {
     /// Update particle system (call before render)
     pub fn update_particles(&mut self, delta_time: f32) {
         self.particles.update(&self.device, &self.queue, delta_time);
+    }
+
+    /// Update lightning effects (call before render)
+    pub fn update_lightning(&mut self, delta_time: f32) {
+        self.lightning_manager.update(delta_time);
+    }
+
+    /// Spawn a lightning bolt between two points
+    pub fn spawn_lightning(&mut self, start: crate::graphics::Vec3, end: crate::graphics::Vec3, config: Option<crate::graphics::LightningConfig>) {
+        self.lightning_manager.spawn_lightning(start, end, config);
     }
 }

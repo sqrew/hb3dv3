@@ -180,6 +180,7 @@ impl LineBatch {
 /// Batched line generator that can be reused across frames
 pub struct ReusableLineBatch {
     batch: LineBatch,
+    direct_lines: Vec<LineInstance>,
 }
 
 impl ReusableLineBatch {
@@ -187,12 +188,14 @@ impl ReusableLineBatch {
     pub fn new(estimated_primitives: usize) -> Self {
         Self {
             batch: LineBatch::with_capacity(estimated_primitives),
+            direct_lines: Vec::new(),
         }
     }
     
     /// Start a new frame by clearing previous data
     pub fn start_frame(&mut self) {
         self.batch.clear();
+        self.direct_lines.clear();
     }
     
     /// Add a primitive to the current batch
@@ -219,17 +222,28 @@ impl ReusableLineBatch {
     ) {
         self.batch.add_primitive_with_rotation(primitive_type, world_position, rotation, scale, color, thickness);
     }
+
+    /// Add pre-computed line instances directly to the batch (for dynamic effects like lightning)
+    pub fn add_line_instances(&mut self, instances: Vec<LineInstance>) {
+        self.direct_lines.extend(instances);
+    }
     
     /// Generate all line instances for the current batch (consumes batch)
     pub fn finish_frame(&mut self, primitive_cache: &PrimitiveCache) -> Vec<LineInstance> {
         // Take ownership of requests to avoid cloning
         let requests = std::mem::take(&mut self.batch.requests);
         let estimated_line_count = self.batch.estimated_line_count;
-        
+
         // Create temporary batch that owns the data
         let batch = LineBatch { requests, estimated_line_count };
-        
-        batch.finish(primitive_cache)
+
+        // Generate lines from primitives
+        let mut all_lines = batch.finish(primitive_cache);
+
+        // Add direct line instances (e.g., from lightning effects)
+        all_lines.extend(std::mem::take(&mut self.direct_lines));
+
+        all_lines
     }
     
     /// Get the number of primitives in the current batch
