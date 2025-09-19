@@ -3,10 +3,10 @@ use crate::scene::physics::GravitationalBody;
 use wgpu::util::DeviceExt;
 
 /// Maximum number of particles in the system
-const MAX_PARTICLES: u32 = 1048576;
+const MAX_PARTICLES: u32 = 262144;
 
 /// Maximum spawn requests per frame
-const MAX_SPAWN_REQUESTS: u32 = 32768;
+const MAX_SPAWN_REQUESTS: u32 = 8192;
 
 /// Particles per collision effect
 const PARTICLES_PER_COLLISION: u32 = 256;

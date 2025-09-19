@@ -239,7 +239,7 @@ impl Dispatcher {
                 graphics_events.push(GraphicsEvent::SpawnParticles {
                     position: impact_point,
                     velocity: tangential_velocity, // Particles inherit tangential motion
-                    count: 250,                    // Increased from 100 for dramatic effect
+                    count: 100,                    // Increased from 100 for dramatic effect
                     lifetime: 60.0,                // Longer lifetime for visibility
                     color: Color::CYAN,
                 });
@@ -353,14 +353,19 @@ impl Dispatcher {
                 amount,
                 source,
             } => {
-                scheduler.enemies_mut().damage_enemy_with_event(enemy_id, amount, source);
+                scheduler
+                    .enemies_mut()
+                    .damage_enemy_with_event(enemy_id, amount, source);
             }
             EnemyEvent::Die { enemy_id } => {
                 // Death particles are now handled directly in EnemyManager when the event is generated
                 // This event is now just for notification/cleanup purposes
                 // The enemy is already marked as dead and will be removed by retain()
             }
-            EnemyEvent::Spawn { position, enemy_type: _ } => {
+            EnemyEvent::Spawn {
+                position,
+                enemy_type: _,
+            } => {
                 // Handle enemy spawning if needed
             }
         }

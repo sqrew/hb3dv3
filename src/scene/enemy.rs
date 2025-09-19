@@ -457,7 +457,7 @@ impl EnemyManager {
                             .push(EventType::Graphics(GraphicsEvent::SpawnParticles {
                                 position: enemy.position(),
                                 velocity: crate::engine::Vec3::new(0.0, 0.0, 0.0), // Upward explosion
-                                count: 150,          // Big explosion for enemy death
+                                count: 100,          // Big explosion for enemy death
                                 lifetime: 2.0,       // Longer lasting death particles
                                 color: Color::GREEN, // Orange explosion color: use enemy.color eventually once its coded in
                             }));

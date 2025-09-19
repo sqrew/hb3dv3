@@ -43,7 +43,7 @@ struct GravitationalBody {
 @group(0) @binding(6) var<storage, read> gravity_body_count: u32;
 
 // Constants
-const MAX_PARTICLES: u32 = 1048576u;
+const MAX_PARTICLES: u32 = 262144u;
 const GRAVITATIONAL_CONSTANT: f32 = 6.674e-1; // Match physics system constant
 const MAX_DISTANCE_FROM_ORIGIN: f32 = 1000.0;
 const MAX_PARTICLE_VELOCITY: f32 = 500.0; // Prevent particles from being yeeted too far
