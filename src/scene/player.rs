@@ -5,6 +5,11 @@ use crate::graphics::{Color, Primitive, PrimitiveType};
 use crate::input::{Action, InputManager};
 use crate::scene::{BulletSpawnRequest, GravityAffected, WeaponManager};
 
+// Dash constants
+const DASH_DURATION: f32 = 0.15; // 150ms dash duration
+const DASH_COOLDOWN: f32 = 1.0; // 1 second cooldown
+const DASH_SPEED_MULTIPLIER: f32 = 6.0; // 4x normal speed during dash
+
 pub struct Player {
     entity_id: EntityId,
     pos: Vec3,
@@ -16,6 +21,11 @@ pub struct Player {
     weapon_manager: WeaponManager,
     mass: f32,
     applied_force: Vec3,
+
+    // Dash system
+    is_dashing: bool,
+    dash_timer: f32,
+    dash_cooldown_timer: f32,
 }
 
 impl Player {
@@ -31,6 +41,11 @@ impl Player {
             weapon_manager: WeaponManager::new(),
             mass: 75.0, // Player mass in kg
             applied_force: Vec3::zeros(),
+
+            // Dash system initialization
+            is_dashing: false,
+            dash_timer: 0.0,
+            dash_cooldown_timer: 0.0,
         }
     }
 
@@ -45,6 +60,11 @@ impl Player {
         // Update weapon manager
         self.weapon_manager.update(delta_time, input);
 
+        // Update dash cooldown timer
+        if self.dash_cooldown_timer > 0.0 {
+            self.dash_cooldown_timer -= delta_time;
+        }
+
         // Handle movement input with correct mapping
         let (input_x, input_z) = input.get_action_vector2(Action::MoveForward);
         let input_y =
@@ -58,14 +78,36 @@ impl Player {
         // Combine all movement vectors
         let movement_direction = forward_movement + right_movement + up_movement;
 
-        // Update velocity based on camera-relative input + gravity forces
-        let input_velocity = movement_direction * self.speed;
+        // Handle dash input
+        let dash_pressed = input.is_action_just_pressed(Action::Dash);
+        if dash_pressed && !self.is_dashing && self.dash_cooldown_timer <= 0.0 {
+            self.start_dash();
+        }
 
-        // Apply gravitational forces (F = ma, so a = F/m)
-        let gravity_acceleration = self.applied_force / self.mass;
+        // Update dash timer and handle dash movement
+        if self.is_dashing {
+            self.dash_timer += delta_time;
 
-        // Combine input movement with gravity effects
-        self.vel = input_velocity + gravity_acceleration * delta_time;
+            if self.dash_timer >= DASH_DURATION {
+                // End dash
+                self.is_dashing = false;
+                self.dash_timer = 0.0;
+                self.dash_cooldown_timer = DASH_COOLDOWN;
+            }
+        }
+
+        // Calculate velocity
+        let final_velocity = if self.is_dashing {
+            // During dash: use current input direction at high speed, ignore gravity
+            movement_direction * self.speed * DASH_SPEED_MULTIPLIER
+        } else {
+            // Normal movement: combine input with gravity
+            let input_velocity = movement_direction * self.speed;
+            let gravity_acceleration = self.applied_force / self.mass;
+            input_velocity + gravity_acceleration * delta_time
+        };
+
+        self.vel = final_velocity;
 
         // Update position
         self.pos += self.vel * delta_time;
@@ -84,12 +126,37 @@ impl Player {
         }
     }
 
+    fn start_dash(&mut self) {
+        // Simply activate dash state - direction will be handled in real-time by input
+        self.is_dashing = true;
+        self.dash_timer = 0.0;
+    }
+
     pub fn position(&self) -> Vec3 {
         self.pos
     }
 
     pub fn entity_id(&self) -> EntityId {
         self.entity_id
+    }
+
+    /// Returns true if player has invincibility frames (during dash)
+    pub fn is_invincible(&self) -> bool {
+        self.is_dashing
+    }
+
+    /// Returns true if player is currently dashing
+    pub fn is_dashing(&self) -> bool {
+        self.is_dashing
+    }
+
+    /// Returns dash cooldown progress (0.0 = ready, 1.0 = just used)
+    pub fn dash_cooldown_progress(&self) -> f32 {
+        if self.dash_cooldown_timer <= 0.0 {
+            0.0
+        } else {
+            self.dash_cooldown_timer / DASH_COOLDOWN
+        }
     }
 
     pub fn collision_radius(&self) -> f32 {
@@ -102,20 +169,11 @@ impl Player {
 
     pub fn take_damage(&mut self, damage: f32) {
         self.health -= damage;
-        if self.health <= 0.0 {
-            println!("💀 Player took fatal damage: {}", damage);
-        } else {
-            println!("🩸 Player took {} damage, health: {}", damage, self.health);
-        }
     }
 
     pub fn heal(&mut self, amount: f32) {
         self.health += amount;
         self.health = self.health.min(100.0); // Cap at max health
-        println!(
-            "💚 Player healed {} points, health: {}",
-            amount, self.health
-        );
     }
 }
 
@@ -216,5 +274,20 @@ impl PlayerManager {
                 );
             }
         }
+    }
+
+    /// Returns true if player has invincibility frames (during dash)
+    pub fn is_invincible(&self) -> bool {
+        self.player.is_invincible()
+    }
+
+    /// Returns true if player is currently dashing
+    pub fn is_dashing(&self) -> bool {
+        self.player.is_dashing()
+    }
+
+    /// Returns dash cooldown progress (0.0 = ready, 1.0 = just used)
+    pub fn dash_cooldown_progress(&self) -> f32 {
+        self.player.dash_cooldown_progress()
     }
 }

@@ -35,6 +35,10 @@ pub enum Action {
     Confirm,
     Cancel,
 
+    // Game State
+    Pause,
+    Restart,
+
     // Debug
     ToggleWireframe,
 
@@ -124,14 +128,14 @@ impl Default for ActionBindings {
         bindings.insert(
             Action::MoveUp,
             vec![
-                InputBinding::keyboard(KeyCode::Space), // Only keyboard for up movement
+                InputBinding::keyboard(KeyCode::Space).with_gamepad_button(Button::South), // Space + A/X button for up movement
             ],
         );
 
         bindings.insert(
             Action::MoveDown,
             vec![
-                InputBinding::keyboard(KeyCode::ControlLeft), // Only keyboard for down movement
+                InputBinding::keyboard(KeyCode::ControlLeft).with_gamepad_button(Button::East), // Ctrl + B/Circle button for down movement
             ],
         );
 
@@ -234,10 +238,21 @@ impl Default for ActionBindings {
             vec![InputBinding::keyboard(KeyCode::Escape).with_gamepad_button(Button::East)],
         );
 
+        // Game State actions
+        bindings.insert(
+            Action::Pause,
+            vec![InputBinding::keyboard(KeyCode::KeyP).with_gamepad_button(Button::Start)],
+        );
+
+        bindings.insert(
+            Action::Restart,
+            vec![InputBinding::keyboard(KeyCode::KeyR).with_gamepad_button(Button::Select)],
+        );
+
         // Debug actions
         bindings.insert(
             Action::ToggleWireframe,
-            vec![InputBinding::keyboard(KeyCode::KeyT).with_gamepad_button(Button::Select)],
+            vec![InputBinding::keyboard(KeyCode::KeyT)],
         );
 
         // Application

@@ -1,28 +1,37 @@
-#+title: Scratchpad
+#+TITLE: scratchpad
+#+DATE: <2025-09-18 Thu>
 
-50k enemies, 100k bullets on screen, never below 60 fps
-with full collisions/gravity, events, particles, etc
+* TABLE OF CONTENTS :TOC_2:
+- [[#ideas][ideas]]
+- [[#random][Random]]
 
-
-
+* ideas
 visual on bodies vs collision bounce size is off
 gravity visuals on large bodies
 arena and bounding
-bullet bounds - lower to 10k?
+make Dispatcher::handle_collision_events() match block BulletHitEnemy's SpawnParticle event look up the enemy and use it's color as the particles color
+use LineInstance to build arbitrary shapes
 
 
 
 
 
 
+
+
+
+
+
+
+
+
+* Random
    Visual Polish:
-  - Rotation/Spin: Especially cool for gas giants and planets - they could rotate around their axis
   - Pulsing effects: Stars could pulsate brightness, black holes could have event horizon effects
   - Particle trails: Comets with tails, black holes with accretion disk particles
 
   Physics Enhancements:
   - Tidal forces: Objects get stretched/torn apart when too close to massive bodies
-  - Orbital capture: Fast-moving objects could get captured into stable orbits instead of flying away
   - Atmospheric drag: Gas giants slow down objects passing through their "atmosphere"
 
   Gameplay Features:
@@ -35,12 +44,6 @@ bullet bounds - lower to 10k?
 
 
 
-
-  Gravitational Lensing & Light Bending
-
-  Visual Effect: Light rays from stars/bullets curve around massive objects like black holes
-  Implementation: Add light ray tracing compute shader that simulates photon paths affected by gravity
-  Gameplay Impact: Creates strategic positioning around large bodies, visual distortion effects
 
   Orbital Mechanics Weaponry
 
@@ -56,30 +59,15 @@ bullet bounds - lower to 10k?
   Implementation: Add tidal force calculation to compute shaders, progressive destruction particles
 
 
-  Lagrange Point Dynamics
-  Stable Points: Special positions where objects remain stationary relative to two large bodies
-  Strategic Gameplay: Hide bases, create chokepoints, or set ambushes at L4/L5 points
-  Implementation: Calculate and visualize Lagrange points between any two massive bodies
-
-
-
-  Multi-Body Resonances
-
-  Orbital Resonances: Objects in specific orbital ratios create stable patterns
-  Chain Reactions: Disturbing one resonant system affects others
-  Implementation: Detect resonant frequencies, create feedback loops between orbiting entities
-
   Gravitational Wave Generation
 
   Binary Systems: Two massive bodies orbiting create ripple effects
   Wave Propagation: Distortions spread outward affecting other objects
   Implementation: Generate periodic force waves from accelerating masses
 
-  Strange Matter: High-density objects with unique collision properties
 
 
 
-shockwaves/explosion (use as solar wind) that affect velocity
 
 
     Visually Spectacular:

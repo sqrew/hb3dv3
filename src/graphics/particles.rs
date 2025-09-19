@@ -3,7 +3,7 @@ use crate::scene::physics::GravitationalBody;
 use wgpu::util::DeviceExt;
 
 /// Maximum number of particles in the system
-const MAX_PARTICLES: u32 = 65536;
+const MAX_PARTICLES: u32 = 1048576;
 
 /// Maximum spawn requests per frame
 const MAX_SPAWN_REQUESTS: u32 = 32768;
@@ -563,6 +563,10 @@ impl ParticleSystem {
 
     /// Update particle system on GPU
     pub fn update(&mut self, device: &wgpu::Device, queue: &wgpu::Queue, delta_time: f32) {
+        // Debug: Print spawn queue size
+        if self.spawn_queue.len() > 100 {
+            println!("Large spawn queue: {} requests", self.spawn_queue.len());
+        }
         // Aggressively cap spawn queue at start of update
         if self.spawn_queue.len() > MAX_SPAWN_REQUESTS as usize {
             self.spawn_queue.truncate(MAX_SPAWN_REQUESTS as usize);

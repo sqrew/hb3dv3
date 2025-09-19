@@ -335,4 +335,35 @@ impl Scheduler {
             self.bullets.remove_bullet_by_entity_id(bullet_id);
         }
     }
+
+    /// Restart the game by resetting all managers to initial state
+    pub fn restart_game(&mut self) {
+        // Reset entity manager
+        self.entity_manager = EntityManager::new();
+
+        // Reset player
+        let player_entity = self.entity_manager.create_entity(EntityType::Player);
+        self.player = PlayerManager::new(player_entity);
+
+        // Reset enemies
+        self.enemies = EnemyManager::new();
+
+        // Reset bullets
+        self.bullets = BulletManager::new();
+
+        // Reset explosions
+        self.explosions = ExplosionManager::new();
+
+        // Reset physics and large bodies to initial state
+        self.physics = PhysicsManager::new();
+        self.large_bodies = LargeBodyManager::new();
+
+        // Recreate initial large bodies
+        self.large_bodies.spawn_body(
+            LargeBodyType::BlackHole,
+            Vec3::new(50.0, 10.0, 50.0),
+            &mut self.physics,
+            &mut self.entity_manager,
+        );
+    }
 }

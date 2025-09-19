@@ -219,7 +219,7 @@ impl Dispatcher {
                             let tangent_dir = tangent_dir.normalize();
 
                             // Scale tangential velocity based on large body's angular velocity and distance
-                            let tangential_speed = large_body.angular_velocity() * distance * 0.3;
+                            let tangential_speed = large_body.angular_velocity() * distance * 0.1;
                             tangent_dir * tangential_speed * 0.1
                         } else {
                             Vec3::new(0.0, 0.0, 0.0)
@@ -248,7 +248,7 @@ impl Dispatcher {
                     velocity: Vec3::new(0.0, 0.0, 0.0), // Impact sparks spread outward
                     count: 50,                          // Increased from 10 for better visibility
                     lifetime: 60.0,                     // Shorter lifetime for quick effect
-                    color: Color::YELLOW,
+                    color: Color::ORANGE,
                 });
             }
             CollisionEvent::BulletHitBullet {
@@ -261,8 +261,8 @@ impl Dispatcher {
                     position: impact_point,
                     velocity: Vec3::new(0.0, 0.0, 0.0), // Sparks spread in all directions
                     count: 30,                          // Increased from 5 for better visibility
-                    lifetime: 10.0,                     // Quick flash effect
-                    color: Color::WHITE,
+                    lifetime: 30.0,                     // Quick flash effect
+                    color: Color::ORANGE,
                 });
             }
             CollisionEvent::LargeBodyHitLargeBody {

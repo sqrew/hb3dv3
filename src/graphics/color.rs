@@ -33,11 +33,50 @@ impl Color {
         [self.r, self.g, self.b, self.a]
     }
 
-    // Common colors
+    pub fn random_rgb_values() -> Color {
+        let r = rand::random_range(0.0..1.0);
+        let g = rand::random_range(0.0..1.0);
+        let b = rand::random_range(0.0..1.0);
+        let a = 1.0;
+
+        Color { r, g, b, a }
+    }
+
+    pub fn random_color() -> Color {
+        const COLORLIST: [Color; 17] = [
+            Color::WHITE,
+            Color::GRAY,
+            Color::BLACK,
+            Color::RED,
+            Color::GREEN,
+            Color::BLUE,
+            Color::CYAN,
+            Color::TEAL,
+            Color::NAVY,
+            Color::MAGENTA,
+            Color::PURPLE,
+            Color::MAROON,
+            Color::PINK,
+            Color::ORANGE,
+            Color::YELLOW,
+            Color::OLIVE,
+            Color::FOREST,
+        ];
+        let index = rand::random_range(0..COLORLIST.len());
+        COLORLIST[index]
+    }
+
+    // Individual color constants for convenience
     pub const WHITE: Color = Color {
         r: 1.0,
         g: 1.0,
         b: 1.0,
+        a: 1.0,
+    };
+    pub const GRAY: Color = Color {
+        r: 0.5,
+        g: 0.5,
+        b: 0.5,
         a: 1.0,
     };
     pub const BLACK: Color = Color {
@@ -64,10 +103,22 @@ impl Color {
         b: 1.0,
         a: 1.0,
     };
-    pub const YELLOW: Color = Color {
-        r: 1.0,
+    pub const CYAN: Color = Color {
+        r: 0.0,
         g: 1.0,
-        b: 0.0,
+        b: 1.0,
+        a: 1.0,
+    };
+    pub const TEAL: Color = Color {
+        r: 0.0,
+        g: 0.5,
+        b: 0.5,
+        a: 1.0,
+    };
+    pub const NAVY: Color = Color {
+        r: 0.0,
+        g: 0.0,
+        b: 0.5,
         a: 1.0,
     };
     pub const MAGENTA: Color = Color {
@@ -76,16 +127,47 @@ impl Color {
         b: 1.0,
         a: 1.0,
     };
-    pub const CYAN: Color = Color {
-        r: 0.0,
-        g: 1.0,
-        b: 1.0,
+    pub const PURPLE: Color = Color {
+        r: 0.5,
+        g: 0.0,
+        b: 0.5,
         a: 1.0,
     };
+    pub const MAROON: Color = Color {
+        r: 0.5,
+        g: 0.0,
+        b: 0.0,
+        a: 1.0,
+    };
+
     pub const PINK: Color = Color {
         r: 1.0,
         g: 0.4,
         b: 0.7,
+        a: 1.0,
+    };
+    pub const ORANGE: Color = Color {
+        r: 1.0,
+        g: 0.6,
+        b: 0.0,
+        a: 1.0,
+    };
+    pub const YELLOW: Color = Color {
+        r: 1.0,
+        g: 1.0,
+        b: 0.0,
+        a: 1.0,
+    };
+    pub const OLIVE: Color = Color {
+        r: 0.5,
+        g: 0.5,
+        b: 0.0,
+        a: 1.0,
+    };
+    pub const FOREST: Color = Color {
+        r: 0.0,
+        g: 0.5,
+        b: 0.0,
         a: 1.0,
     };
 }

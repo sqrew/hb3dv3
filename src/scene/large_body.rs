@@ -10,6 +10,7 @@ use rand;
 pub enum LargeBodyType {
     /// Massive gravitational body with extreme pull
     BlackHole,
+    BlackHoleLarge,
     /// Massive gravitational body with extreme repulsion (negative mass)
     WhiteHole,
     /// Large rocky body with moderate gravity
@@ -28,12 +29,13 @@ impl LargeBodyType {
     /// Get default mass for this body type (in kg, scaled for gameplay)
     pub fn default_mass(self) -> f32 {
         match self {
-            LargeBodyType::BlackHole => 1_000_000.0,  // Extreme mass
-            LargeBodyType::WhiteHole => -900_000.0,   // Slightly less negative mass for stability
-            LargeBodyType::NeutronStar => 500_000.0,  // Very high mass
-            LargeBodyType::Star => 200_000.0,         // Very high mass for strong gravity
-            LargeBodyType::GasGiant => 100_000.0,     // Large mass
-            LargeBodyType::Planet => 50_000.0,        // Medium mass
+            LargeBodyType::BlackHole => 1_000_000.0, // Extreme mass
+            LargeBodyType::BlackHoleLarge => 10_000_000.0,
+            LargeBodyType::WhiteHole => -900_000.0, // Slightly less negative mass for stability
+            LargeBodyType::NeutronStar => 500_000.0, // Very high mass
+            LargeBodyType::Star => 200_000.0,       // Very high mass for strong gravity
+            LargeBodyType::GasGiant => 100_000.0,   // Large mass
+            LargeBodyType::Planet => 50_000.0,      // Medium mass
             LargeBodyType::ExoticMatter => 250_000.0, // High mass for strong oscillating effects
         }
     }
@@ -41,12 +43,13 @@ impl LargeBodyType {
     /// Get default radius for this body type (for rendering and collision)
     pub fn default_radius(self) -> f32 {
         match self {
-            LargeBodyType::BlackHole => 2.0,     // Small but visible
-            LargeBodyType::WhiteHole => 2.0,     // Same size as black hole, but opposite effect
-            LargeBodyType::NeutronStar => 2.5,   // Very small but dense
-            LargeBodyType::Star => 80.0,         // Large and bright for visibility
-            LargeBodyType::GasGiant => 20.0,     // Very large
-            LargeBodyType::Planet => 10.0,       // Medium size
+            LargeBodyType::BlackHole => 2.0, // Small but visible
+            LargeBodyType::BlackHoleLarge => 50.0,
+            LargeBodyType::WhiteHole => 2.0, // Same size as black hole, but opposite effect
+            LargeBodyType::NeutronStar => 2.5, // Very small but dense
+            LargeBodyType::Star => 80.0,     // Large and bright for visibility
+            LargeBodyType::GasGiant => 20.0, // Very large
+            LargeBodyType::Planet => 10.0,   // Medium size
             LargeBodyType::ExoticMatter => 15.0, // Large and visible for its effects
         }
     }
@@ -55,6 +58,7 @@ impl LargeBodyType {
     pub fn color(self) -> Color {
         match self {
             LargeBodyType::BlackHole => Color::MAGENTA,
+            LargeBodyType::BlackHoleLarge => Color::MAGENTA,
             LargeBodyType::WhiteHole => Color::WHITE,
             LargeBodyType::NeutronStar => Color::GREEN,
             LargeBodyType::Star => Color::RED,
@@ -67,14 +71,13 @@ impl LargeBodyType {
     /// Get default collision radius ratio for this body type (multiplier of visual radius)
     pub fn default_collision_radius_ratio(self) -> f32 {
         match self {
-            // Smaller collision radii for better orbital mechanics
-            LargeBodyType::Planet => 1.0,
-            LargeBodyType::Star => 1.0,
-            LargeBodyType::GasGiant => 1.0,
-            // Keep larger collision radii for extreme objects
             LargeBodyType::BlackHole => 1.0,
+            LargeBodyType::BlackHoleLarge => 0.67,
             LargeBodyType::WhiteHole => 1.0,
             LargeBodyType::NeutronStar => 1.0,
+            LargeBodyType::Star => 1.0,
+            LargeBodyType::GasGiant => 1.0,
+            LargeBodyType::Planet => 1.0,
             LargeBodyType::ExoticMatter => 1.0, // Large collision area for oscillating effects
         }
     }
@@ -82,12 +85,13 @@ impl LargeBodyType {
     /// Get default angular velocity for this body type (radians per second)
     pub fn default_angular_velocity(self) -> f32 {
         match self {
-            LargeBodyType::BlackHole => 4.0, // Fast spinning black hole for frame-dragging
+            LargeBodyType::BlackHole => 2.67, // Fast spinning black hole for frame-dragging
+            LargeBodyType::BlackHoleLarge => 1.8, // Fast spinning black hole for frame-dragging
             LargeBodyType::WhiteHole => -3.0, // Counter-rotating white hole
             LargeBodyType::NeutronStar => 12.0, // Extremely fast pulsar rotation
-            LargeBodyType::Star => 0.5,      // Moderate stellar rotation
-            LargeBodyType::GasGiant => 1.0,  // Fast rotation like Jupiter
-            LargeBodyType::Planet => 0.3,    // Earth-like rotation (slower)
+            LargeBodyType::Star => 0.5,       // Moderate stellar rotation
+            LargeBodyType::GasGiant => 1.0,   // Fast rotation like Jupiter
+            LargeBodyType::Planet => 0.3,     // Earth-like rotation (slower)
             LargeBodyType::ExoticMatter => 6.0, // Rapid oscillating rotation for visual effect
         }
     }
@@ -95,12 +99,13 @@ impl LargeBodyType {
     /// Get default ergosphere radius ratio (multiplied by visual radius)
     pub fn default_ergosphere_radius_ratio(self) -> f32 {
         match self {
-            LargeBodyType::BlackHole => 20.0, // Much larger ergosphere for visible frame-dragging
-            LargeBodyType::NeutronStar => 20.0, // Large intense ergosphere
-            LargeBodyType::WhiteHole => 20.0, // Significant ergosphere effect
-            LargeBodyType::Star => 0.0,       // No ergosphere effect
-            LargeBodyType::GasGiant => 0.0,   // No ergosphere effect
-            LargeBodyType::Planet => 0.0,     // No ergosphere effect
+            LargeBodyType::BlackHole => 100.0, // Much larger ergosphere for visible frame-dragging
+            LargeBodyType::BlackHoleLarge => 10.0, // Much larger ergosphere for visible frame-dragging
+            LargeBodyType::NeutronStar => 20.0,    // Large intense ergosphere
+            LargeBodyType::WhiteHole => 20.0,      // Significant ergosphere effect
+            LargeBodyType::Star => 0.0,            // No ergosphere effect
+            LargeBodyType::GasGiant => 0.0,        // No ergosphere effect
+            LargeBodyType::Planet => 0.0,          // No ergosphere effect
             LargeBodyType::ExoticMatter => 20.0, // No ergosphere (oscillating gravity is the main effect)
         }
     }
@@ -110,11 +115,12 @@ impl LargeBodyType {
         let mass = self.default_mass();
         let angular_vel = self.default_angular_velocity().abs(); // Use absolute value
         let strength_factor = match self {
-            LargeBodyType::BlackHole => 0.5,    // Strong frame-dragging
-            LargeBodyType::NeutronStar => 0.25, // Very strong (dense + fast spinning)
-            LargeBodyType::WhiteHole => 0.15,   // Moderate frame-dragging
-            LargeBodyType::ExoticMatter => 0.8, // No frame-dragging (oscillation is main effect)
-            _ => 0.0,                           // No frame-dragging for other types
+            LargeBodyType::BlackHole => 0.2,      // Strong frame-dragging
+            LargeBodyType::BlackHoleLarge => 0.3, // Strong frame-dragging
+            LargeBodyType::NeutronStar => 0.25,   // Very strong (dense + fast spinning)
+            LargeBodyType::WhiteHole => 0.15,     // Moderate frame-dragging
+            LargeBodyType::ExoticMatter => 0.8,   // No frame-dragging (oscillation is main effect)
+            _ => 0.0,                             // No frame-dragging for other types
         };
         mass * angular_vel * strength_factor
     }
@@ -123,6 +129,7 @@ impl LargeBodyType {
     pub fn primitive_type(self) -> PrimitiveType {
         match self {
             LargeBodyType::BlackHole => PrimitiveType::Sphere, // Dark sphere
+            LargeBodyType::BlackHoleLarge => PrimitiveType::Sphere, // Dark sphere
             LargeBodyType::WhiteHole => PrimitiveType::Sphere, // Bright sphere
             LargeBodyType::NeutronStar => PrimitiveType::Sphere, // Bright sphere
             LargeBodyType::Star => PrimitiveType::Sphere,      // Glowing sphere

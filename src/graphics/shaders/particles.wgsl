@@ -43,8 +43,11 @@ struct GravitationalBody {
 @group(0) @binding(6) var<storage, read> gravity_body_count: u32;
 
 // Constants
-const MAX_PARTICLES: u32 = 65536u;
+const MAX_PARTICLES: u32 = 1048576u;
 const GRAVITATIONAL_CONSTANT: f32 = 6.674e-1; // Match physics system constant
+const MAX_DISTANCE_FROM_ORIGIN: f32 = 1000.0;
+const MAX_PARTICLE_VELOCITY: f32 = 500.0; // Prevent particles from being yeeted too far
+const AIR_RESISTANCE: f32 = 0.995;
 
 // Simple random function
 fn random(seed: u32) -> f32 {
@@ -65,8 +68,12 @@ fn update_particles(@builtin(global_invocation_id) global_id: vec3<u32>) {
     // Update existing particles
     if (particles[index].life > 0.0) {
         particles[index].life -= dt;
-        if (particles[index].life <= 0.0) {
-            // Particle died
+
+        // Check distance from origin for culling (same as bullet system)
+        let distance_from_origin = length(particles[index].position);
+
+        if (particles[index].life <= 0.0 || distance_from_origin >= MAX_DISTANCE_FROM_ORIGIN) {
+            // Particle died or too far from origin
             particles[index].life = 0.0;
             atomicSub(&alive_count, 1u);
         } else {
@@ -123,11 +130,17 @@ fn update_particles(@builtin(global_invocation_id) global_id: vec3<u32>) {
             let gravitational_acceleration = gravitational_force / particle_mass;
             particles[index].velocity += gravitational_acceleration * dt;
 
+            // Clamp velocity to prevent particles from being yeeted too far
+            let velocity_magnitude = length(particles[index].velocity);
+            if (velocity_magnitude > MAX_PARTICLE_VELOCITY) {
+                particles[index].velocity = normalize(particles[index].velocity) * MAX_PARTICLE_VELOCITY;
+            }
+
             // Update position
             particles[index].position += particles[index].velocity * dt;
 
             // Apply air resistance
-            particles[index].velocity *= 0.999;
+            particles[index].velocity *= AIR_RESISTANCE;
         }
     }
 }
@@ -146,10 +159,10 @@ fn spawn_particles(@builtin(global_invocation_id) global_id: vec3<u32>) {
         // Better slot distribution using prime numbers to avoid clustering
         let primary_index = (spawn_index * 113u + i * 79u + global_id.x * 31u) % MAX_PARTICLES;
         
-        // Search for free slot with fallback (try up to 8 slots)
+        // Search for free slot with fallback (try up to 512 slots)
         var particle_index = primary_index;
         var found_slot = false;
-        for (var search = 0u; search < 64u; search++) {
+        for (var search = 0u; search < 512u; search++) {
             if (particles[particle_index].life <= 0.0) {
                 found_slot = true;
                 break;

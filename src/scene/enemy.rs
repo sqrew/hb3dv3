@@ -100,7 +100,7 @@ impl EnemyManager {
         use rand::Rng;
 
         // 1. Orbital Ring Formation (classic spiral around center)
-        for i in 0..200 {
+        for i in 0..500 {
             let angle = (i as f32 / 50.0) * std::f32::consts::TAU;
             let radius = 8.0;
             let pos = Vec3::new(
