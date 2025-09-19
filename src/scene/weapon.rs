@@ -1,6 +1,12 @@
 use crate::engine::Vec3;
 use crate::engine::dispatcher::{EventType, WeaponEvent};
 use crate::input::InputManager;
+use crate::scene::bullet::{ChainLightningEffect, ProjectileEffects, ProjectileType};
+
+// Chain Lightning Configuration Constants
+const CHAIN_LIGHTNING_JUMP_RANGE: f32 = 100.0; // Maximum distance for chain lightning jumps
+const CHAIN_LIGHTNING_MAX_JUMPS: usize = 7; // Maximum number of jumps
+const CHAIN_LIGHTNING_DAMAGE_FALLOFF: f32 = 0.8; // Damage multiplier per jump (75% damage per jump)
 
 #[derive(Debug, Clone)]
 pub enum WeaponType {
@@ -8,6 +14,7 @@ pub enum WeaponType {
     RapidFire,
     Shotgun,
     AntiGravityCannon,
+    ChainLightning,
 }
 
 #[derive(Debug, Clone)]
@@ -69,6 +76,18 @@ impl WeaponStats {
             bullet_mass: -5.0, // Negative mass for anti-gravity effects!
         }
     }
+
+    pub fn chain_lightning() -> Self {
+        Self {
+            damage: 50.0,         // Base damage for initial hit
+            fire_rate: 1.0,       // Moderate firing rate
+            bullet_speed: 200.0,  // Fast but trackable projectile
+            bullet_lifetime: 5.0, // Decent range
+            projectile_count: 1,  // Single lightning bolt
+            spread_angle: 0.0,    // Precise targeting
+            bullet_mass: 0.1,     // Very light - minimal gravity effect
+        }
+    }
 }
 
 pub struct Weapon {
@@ -85,6 +104,7 @@ impl Weapon {
             WeaponType::RapidFire => WeaponStats::rapid_fire(),
             WeaponType::Shotgun => WeaponStats::shotgun(),
             WeaponType::AntiGravityCannon => WeaponStats::anti_gravity_cannon(),
+            WeaponType::ChainLightning => WeaponStats::chain_lightning(),
         };
 
         Self {
@@ -114,7 +134,41 @@ impl Weapon {
         let mut requests = Vec::new();
 
         if self.stats.projectile_count == 1 {
-            // Single projectile
+            // Single projectile - check if it's chain lightning
+            let projectile_type = match self.weapon_type {
+                WeaponType::ChainLightning => {
+                    // Create chain lightning projectile with custom effects
+                    let chain_effect = ChainLightningEffect::new(
+                        self.stats.damage,              // Base damage for chain
+                        CHAIN_LIGHTNING_MAX_JUMPS,      // Max jumps from constants
+                        CHAIN_LIGHTNING_JUMP_RANGE,     // Jump range from constants
+                        CHAIN_LIGHTNING_DAMAGE_FALLOFF, // Damage falloff from constants
+                    );
+
+                    let effects = ProjectileEffects {
+                        on_hit: Some(vec![Box::new(chain_effect)]),
+                        on_expire: None,
+                    };
+
+                    ProjectileType::Custom {
+                        damage: self.stats.damage,
+                        velocity: direction.normalize() * self.stats.bullet_speed,
+                        lifetime: self.stats.bullet_lifetime,
+                        mass: self.stats.bullet_mass,
+                        effects,
+                    }
+                }
+                _ => {
+                    // Standard projectile
+                    ProjectileType::Basic {
+                        damage: self.stats.damage,
+                        velocity: direction.normalize() * self.stats.bullet_speed,
+                        lifetime: self.stats.bullet_lifetime,
+                        mass: self.stats.bullet_mass,
+                    }
+                }
+            };
+
             requests.push(BulletSpawnRequest {
                 position: origin,
                 direction: direction.normalize(),
@@ -122,6 +176,7 @@ impl Weapon {
                 lifetime: self.stats.bullet_lifetime,
                 damage: self.stats.damage,
                 mass: self.stats.bullet_mass,
+                projectile_type,
             });
         } else {
             // Multiple projectiles (shotgun-style)
@@ -154,6 +209,12 @@ impl Weapon {
                     lifetime: self.stats.bullet_lifetime,
                     damage: self.stats.damage,
                     mass: self.stats.bullet_mass,
+                    projectile_type: ProjectileType::Basic {
+                        damage: self.stats.damage,
+                        velocity: spread_direction.normalize() * self.stats.bullet_speed,
+                        lifetime: self.stats.bullet_lifetime,
+                        mass: self.stats.bullet_mass,
+                    },
                 });
             }
         }
@@ -177,7 +238,8 @@ pub struct BulletSpawnRequest {
     pub speed: f32,
     pub lifetime: f32,
     pub damage: f32,
-    pub mass: f32, // Allow custom mass for exotic bullets
+    pub mass: f32,                       // Allow custom mass for exotic bullets
+    pub projectile_type: ProjectileType, // What kind of projectile to spawn
 }
 
 pub struct WeaponManager {
@@ -194,10 +256,11 @@ impl WeaponManager {
             WeaponType::RapidFire,
             WeaponType::Shotgun,
             WeaponType::AntiGravityCannon,
+            WeaponType::ChainLightning,
         ];
 
         Self {
-            current_weapon: Weapon::new(WeaponType::BasicBlaster),
+            current_weapon: Weapon::new(WeaponType::ChainLightning),
             available_weapons,
             current_weapon_index: 0,
             event_queue: Vec::new(),

@@ -429,6 +429,28 @@ impl BulletManager {
                     impact_point,
                 }));
         }
+
+        // Check if this is a MetaBullet with OnHitEffects and trigger them
+        self.trigger_metabullet_on_hit_effects(bullet_id, target_id, impact_point);
+    }
+
+    /// Trigger OnHitEffects for MetaBullets
+    fn trigger_metabullet_on_hit_effects(&mut self, bullet_id: EntityId, target_id: EntityId, impact_point: Vec3) {
+        // Find the metabullet and trigger its effects
+        for metabullet in &self.metabullets {
+            if metabullet.entity_id() == bullet_id {
+                if let Some(ref on_hit_effects) = metabullet.on_hit {
+                    for effect in on_hit_effects.iter() {
+                        let chain_events = effect.on_hit(impact_point, Some(target_id));
+                        // Add chain lightning events to the event queue
+                        for chain_event in chain_events {
+                            self.event_queue.push(EventType::ChainLightning(chain_event));
+                        }
+                    }
+                }
+                break;
+            }
+        }
     }
 
     /// Mark a bullet for removal by entity ID (for collision processing)
@@ -474,6 +496,10 @@ impl BulletManager {
                 mass,
                 effects,
             } => {
+                // Store the on_hit effects before passing to MetaBullet
+                let on_hit_effects = effects.on_hit;
+                let on_expire_effects = effects.on_expire;
+
                 // Create MetaBullet with custom effects
                 self.metabullets.push(MetaBullet::new(
                     entity_id,
@@ -482,8 +508,8 @@ impl BulletManager {
                     lifetime,
                     damage,
                     mass,
-                    effects.on_hit,
-                    effects.on_expire,
+                    on_hit_effects,
+                    on_expire_effects,
                 ));
             }
         }
@@ -639,5 +665,55 @@ impl GravityAffected for MetaBullet {
     }
 }
 
-pub trait OnHitEffect {}
-pub trait OnExpireEffect {}
+/// Chain lightning effect that triggers when bullet hits a target
+#[derive(Debug)]
+pub struct ChainLightningEffect {
+    pub base_damage: f32,
+    pub max_jumps: usize,
+    pub jump_range: f32,
+    pub damage_falloff: f32, // Multiplier for damage reduction per jump (e.g., 0.75)
+}
+
+impl ChainLightningEffect {
+    pub fn new(base_damage: f32, max_jumps: usize, jump_range: f32, damage_falloff: f32) -> Self {
+        Self {
+            base_damage,
+            max_jumps,
+            jump_range,
+            damage_falloff,
+        }
+    }
+}
+
+pub trait OnHitEffect: std::fmt::Debug {
+    /// Called when the bullet hits a target
+    /// Returns chain lightning events if this is a chain lightning bullet
+    fn on_hit(&self, hit_position: Vec3, target_id: Option<EntityId>) -> Vec<ChainLightningEvent>;
+}
+
+pub trait OnExpireEffect: std::fmt::Debug {}
+
+/// Event fired when chain lightning should occur
+#[derive(Debug, Clone)]
+pub struct ChainLightningEvent {
+    pub start_position: Vec3,
+    pub base_damage: f32,
+    pub max_jumps: usize,
+    pub jump_range: f32,
+    pub damage_falloff: f32,
+    pub excluded_target: Option<EntityId>, // Don't chain back to the original target
+}
+
+impl OnHitEffect for ChainLightningEffect {
+    fn on_hit(&self, hit_position: Vec3, target_id: Option<EntityId>) -> Vec<ChainLightningEvent> {
+        // Generate a chain lightning event
+        vec![ChainLightningEvent {
+            start_position: hit_position,
+            base_damage: self.base_damage,
+            max_jumps: self.max_jumps,
+            jump_range: self.jump_range,
+            damage_falloff: self.damage_falloff,
+            excluded_target: target_id,
+        }]
+    }
+}

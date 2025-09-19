@@ -1,6 +1,6 @@
 use crate::engine::dispatcher::{EnemyEvent, EventType};
 use crate::engine::entity::{EntityId, EntityType};
-use crate::engine::{CollisionMask, Vec3};
+use crate::engine::{CollisionMask, GraphicsEvent, Vec3};
 use crate::graphics::{Color, Primitive, PrimitiveType};
 use crate::scene::GravityAffected;
 
@@ -210,6 +210,32 @@ impl EnemyManager {
             enemy.update(dt);
         }
 
+        // Check for dead enemies and generate death events with position before removing them
+        let mut enemies_to_remove = Vec::new();
+        for enemy in &self.enemies {
+            if !enemy.is_alive() {
+                enemies_to_remove.push((enemy.entity_id(), enemy.position()));
+            }
+        }
+
+        // Generate death events with position for dead enemies
+        for (enemy_id, position) in enemies_to_remove {
+            use crate::engine::dispatcher::{EventType, EnemyEvent};
+            self.event_queue.push(EventType::Enemy(EnemyEvent::Die { enemy_id }));
+
+            // Also generate immediate death particles
+            use crate::engine::dispatcher::GraphicsEvent;
+            use crate::graphics::Color;
+            self.event_queue.push(EventType::Graphics(GraphicsEvent::SpawnParticles {
+                position,
+                velocity: crate::engine::Vec3::new(0.0, 0.0, 0.0),
+                count: 150,
+                lifetime: 2.0,
+                color: Color::GREEN,
+            }));
+        }
+
+        // Now remove the dead enemies
         self.enemies.retain(|e| e.is_alive());
 
         self.spawn_timer += dt;
@@ -417,9 +443,22 @@ impl EnemyManager {
                 self.damage_enemy_with_event(enemy_id, amount, source);
             }
             EnemyEvent::Die { enemy_id } => {
-                // Mark enemy as dead (damage_enemy already handles this)
+                // Find enemy and spawn death particles before marking as dead
                 for enemy in &mut self.enemies {
                     if enemy.entity_id() == enemy_id {
+                        // Spawn explosion particles at enemy death location
+                        use crate::engine::dispatcher::{EventType, GraphicsEvent};
+                        use crate::graphics::Color;
+
+                        self.event_queue
+                            .push(EventType::Graphics(GraphicsEvent::SpawnParticles {
+                                position: enemy.position(),
+                                velocity: crate::engine::Vec3::new(0.0, 0.0, 0.0), // Upward explosion
+                                count: 150,          // Big explosion for enemy death
+                                lifetime: 2.0,       // Longer lasting death particles
+                                color: Color::GREEN, // Orange explosion color: use enemy.color eventually once its coded in
+                            }));
+
                         enemy.take_damage(9999.0); // Ensure death
                         break;
                     }

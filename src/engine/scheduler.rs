@@ -24,17 +24,17 @@ impl Scheduler {
         let player_entity = entity_manager.create_entity(EntityType::Player);
 
         let mut enemies = EnemyManager::new();
-        // enemies.spawn_initial_enemies(&mut entity_manager);
+        enemies.spawn_initial_enemies(&mut entity_manager);
 
         let mut physics = PhysicsManager::new();
         let mut large_bodies = LargeBodyManager::new();
 
-        large_bodies.spawn_body(
-            LargeBodyType::BlackHole,
-            Vec3::new(50.0, 10.0, 50.0),
-            &mut physics,
-            &mut entity_manager,
-        );
+        // large_bodies.spawn_body(
+        //     LargeBodyType::BlackHole,
+        //     Vec3::new(50.0, 10.0, 50.0),
+        //     &mut physics,
+        //     &mut entity_manager,
+        // );
 
         // large_bodies.spawn_binary_pair(
         //     crate::scene::large_body::LargeBodyType::BlackHole,
@@ -111,20 +111,15 @@ impl Scheduler {
                 .update(delta_time, input, camera_forward, camera_right, camera_up)
         {
             // Spawn bullets from player weapon using new projectile system
-            for request in bullet_requests.iter() {
+            for request in bullet_requests.into_iter() {
                 let bullet_entity = self.entity_manager.create_entity(EntityType::PlayerBullet);
 
-                // Create basic projectile type from request
-                let velocity = request.direction * request.speed;
-                let projectile_type = crate::scene::bullet::ProjectileType::Basic {
-                    damage: request.damage,
-                    velocity,
-                    lifetime: request.lifetime,
-                    mass: request.mass,
-                };
-
-                self.bullets
-                    .spawn_projectile(bullet_entity, request.position, projectile_type);
+                // Use the projectile type from the weapon request (moved, not cloned)
+                self.bullets.spawn_projectile(
+                    bullet_entity,
+                    request.position,
+                    request.projectile_type,
+                );
             }
         }
 

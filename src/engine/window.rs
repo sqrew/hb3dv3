@@ -180,6 +180,17 @@ impl ApplicationHandler for WindowManager {
                                     intensity, duration
                                 );
                             }
+                            crate::engine::dispatcher::GraphicsEvent::SpawnLightning {
+                                start,
+                                end,
+                            } => {
+                                // Spawn lightning bolt between the two points
+                                graphics_engine.spawn_lightning(
+                                    start,
+                                    end,
+                                    Some(LightningConfig::default()),
+                                );
+                            }
                         }
                     }
                 }

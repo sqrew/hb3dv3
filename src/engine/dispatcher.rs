@@ -1,6 +1,7 @@
 use crate::engine::entity::EntityId;
 use crate::engine::math::Vec3;
 use crate::graphics::color::Color;
+use crate::scene::bullet::ChainLightningEvent;
 
 pub struct Dispatcher {
     /// Events to be processed at the start of next frame
@@ -80,6 +81,7 @@ impl Dispatcher {
         let mut graphics_events_batch = Vec::new();
         let mut audio_events = Vec::new();
         let mut debug_events = Vec::new();
+        let mut chain_lightning_events = Vec::new();
 
         // Group events by type
         for event in events {
@@ -92,6 +94,7 @@ impl Dispatcher {
                 EventType::Graphics(e) => graphics_events_batch.push(e),
                 EventType::Audio(e) => audio_events.push(e),
                 EventType::Debug(e) => debug_events.push(e),
+                EventType::ChainLightning(e) => chain_lightning_events.push(e),
             }
         }
 
@@ -118,7 +121,7 @@ impl Dispatcher {
 
         // 3. Process enemy events
         for event in enemy_events {
-            scheduler.enemies_mut().handle_event(event);
+            Self::handle_enemy_event(event, scheduler, &mut graphics_events_batch);
         }
 
         // 4. Process weapon events
@@ -131,13 +134,20 @@ impl Dispatcher {
             Self::handle_explosion_event(event, scheduler);
         }
 
-        // 6. Process graphics events (visual effects)
+        // 6. Process chain lightning events (after collisions and explosions)
+        Self::handle_chain_lightning_events_batch(
+            chain_lightning_events,
+            scheduler,
+            &mut graphics_events_batch,
+        );
+
+        // 7. Process graphics events (visual effects)
         graphics_events.extend(graphics_events_batch);
 
-        // 6. Process audio events (sound effects)
+        // 8. Process audio events (sound effects)
         Self::handle_audio_events_batch(audio_events);
 
-        // 7. Process debug events
+        // 9. Process debug events
         Self::handle_debug_events_batch(debug_events);
     }
 
@@ -148,11 +158,12 @@ impl Dispatcher {
                 EventType::Collision(_) => 0, // Process collisions first
                 EventType::Weapon(_) => 1,
                 EventType::Explosion(_) => 2, // Process explosions after weapons
-                EventType::Enemy(_) => 3,
-                EventType::Player(_) => 4,
-                EventType::Graphics(_) => 5, // Graphics last
-                EventType::Audio(_) => 6,
-                EventType::Debug(_) => 7,
+                EventType::ChainLightning(_) => 3, // Process chain lightning after explosions
+                EventType::Enemy(_) => 4,
+                EventType::Player(_) => 5,
+                EventType::Graphics(_) => 6, // Graphics last
+                EventType::Audio(_) => 7,
+                EventType::Debug(_) => 8,
             }
         });
     }
@@ -170,20 +181,16 @@ impl Dispatcher {
                 damage,
                 impact_point,
             } => {
+                // Trigger MetaBullet OnHitEffects (like chain lightning) before removing bullet
+                scheduler
+                    .bullets_mut()
+                    .register_hit(bullet_id, enemy_id, impact_point);
+
                 // Use direct damage to avoid generating another damage event
                 scheduler
                     .enemies_mut()
                     .damage_enemy_direct(enemy_id, damage, bullet_id);
                 scheduler.bullets_mut().mark_bullet_for_removal(bullet_id);
-
-                use crate::graphics::Color;
-                graphics_events.push(GraphicsEvent::SpawnParticles {
-                    position: impact_point,
-                    velocity: Vec3::new(0.0, 0.0, 0.0), // Default upward
-                    count: 200,
-                    lifetime: 30.0,
-                    color: Color::GREEN,
-                });
             }
             CollisionEvent::EnemyHitPlayer {
                 enemy_id: _,
@@ -335,6 +342,30 @@ impl Dispatcher {
         }
     }
 
+    fn handle_enemy_event(
+        event: EnemyEvent,
+        scheduler: &mut crate::engine::scheduler::Scheduler,
+        graphics_events: &mut Vec<GraphicsEvent>,
+    ) {
+        match event {
+            EnemyEvent::TakeDamage {
+                enemy_id,
+                amount,
+                source,
+            } => {
+                scheduler.enemies_mut().damage_enemy_with_event(enemy_id, amount, source);
+            }
+            EnemyEvent::Die { enemy_id } => {
+                // Death particles are now handled directly in EnemyManager when the event is generated
+                // This event is now just for notification/cleanup purposes
+                // The enemy is already marked as dead and will be removed by retain()
+            }
+            EnemyEvent::Spawn { position, enemy_type: _ } => {
+                // Handle enemy spawning if needed
+            }
+        }
+    }
+
     fn handle_audio_event(event: AudioEvent) {
         match event {
             AudioEvent::PlaySound {
@@ -384,6 +415,110 @@ impl Dispatcher {
             DebugEvent::Log(message) => println!("[DEBUG] {}", message),
         }
     }
+
+    fn handle_chain_lightning_events_batch(
+        events: Vec<ChainLightningEvent>,
+        scheduler: &mut crate::engine::scheduler::Scheduler,
+        graphics_events: &mut Vec<GraphicsEvent>,
+    ) {
+        for event in events {
+            Self::handle_chain_lightning_event(event, scheduler, graphics_events);
+        }
+    }
+
+    fn handle_chain_lightning_event(
+        event: ChainLightningEvent,
+        scheduler: &mut crate::engine::scheduler::Scheduler,
+        graphics_events: &mut Vec<GraphicsEvent>,
+    ) {
+        // Chain lightning algorithm: find nearby enemies and chain between them
+        let mut current_position = event.start_position;
+        let mut current_damage = event.base_damage;
+        let mut visited_targets = Vec::new();
+
+        // Add the excluded target to visited list if specified
+        if let Some(excluded) = event.excluded_target {
+            visited_targets.push(excluded);
+        }
+
+        let mut lightning_segments = Vec::new(); // For visual effects
+
+        for jump in 0..event.max_jumps {
+            // Find the nearest enemy within jump range
+            let enemies = scheduler.enemies().enemies();
+            let mut nearest_enemy = None;
+            let mut nearest_distance = f32::INFINITY;
+
+            for enemy in enemies {
+                let enemy_id = enemy.entity_id();
+                let enemy_pos = enemy.position();
+
+                // Skip if already visited
+                if visited_targets.contains(&enemy_id) {
+                    continue;
+                }
+
+                let distance = (enemy_pos - current_position).magnitude();
+                if distance <= event.jump_range && distance < nearest_distance {
+                    nearest_distance = distance;
+                    nearest_enemy = Some((enemy_id, enemy_pos));
+                }
+            }
+
+            // If no valid target found, stop chaining
+            if let Some((target_id, target_pos)) = nearest_enemy {
+                // Apply damage to the target
+                scheduler
+                    .enemies_mut()
+                    .damage_enemy_direct(target_id, current_damage, target_id);
+
+                // Add to visited list
+                visited_targets.push(target_id);
+
+                // Store lightning segment for visual effects
+                lightning_segments.push((current_position, target_pos));
+
+                // Update position and damage for next jump
+                current_position = target_pos;
+                current_damage *= event.damage_falloff;
+            } else {
+                // No more targets in range
+                break;
+            }
+        }
+
+        // Generate visual lightning effects for all segments using actual lightning bolts
+        for (start, end) in lightning_segments {
+            // Spawn actual lightning bolt between chain targets
+            graphics_events.push(GraphicsEvent::SpawnLightning { start, end });
+
+            // Add particle effects at both ends of each lightning segment for extra impact
+            graphics_events.push(GraphicsEvent::SpawnParticles {
+                position: start,
+                velocity: (end - start).normalize() * 3.0,
+                count: 30,
+                lifetime: 6.0,
+                color: Color::new(0.3, 0.8, 1.0, 1.0), // Electric blue-cyan
+            });
+
+            graphics_events.push(GraphicsEvent::SpawnParticles {
+                position: end,
+                velocity: Vec3::new(0.0, 2.0, 0.0) + (start - end).normalize() * 1.5,
+                count: 20,
+                lifetime: 6.0,
+                color: Color::new(1.0, 1.0, 0.9, 1.0), // Bright electric white
+            });
+
+            // Add impact particles at the target
+            graphics_events.push(GraphicsEvent::SpawnParticles {
+                position: end,
+                velocity: Vec3::zeros(),
+                count: 15,
+                lifetime: 6.0,
+                color: Color::new(0.8, 0.9, 1.0, 1.0), // Electric glow
+            });
+        }
+    }
 }
 
 /// Main event type hierarchy
@@ -397,6 +532,7 @@ pub enum EventType {
     Graphics(GraphicsEvent),
     Audio(AudioEvent),
     Debug(DebugEvent),
+    ChainLightning(ChainLightningEvent),
 }
 
 /// Player-specific events
@@ -512,6 +648,10 @@ pub enum GraphicsEvent {
     ScreenShake {
         intensity: f32,
         duration: f32,
+    },
+    SpawnLightning {
+        start: Vec3,
+        end: Vec3,
     },
 }
 
