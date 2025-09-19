@@ -24,17 +24,17 @@ impl Scheduler {
         let player_entity = entity_manager.create_entity(EntityType::Player);
 
         let mut enemies = EnemyManager::new();
-        enemies.spawn_initial_enemies(&mut entity_manager);
+        // enemies.spawn_initial_enemies(&mut entity_manager);
 
         let mut physics = PhysicsManager::new();
         let mut large_bodies = LargeBodyManager::new();
 
-        // large_bodies.spawn_body(
-        //     LargeBodyType::BlackHole,
-        //     Vec3::new(50.0, 10.0, 50.0),
-        //     &mut physics,
-        //     &mut entity_manager,
-        // );
+        large_bodies.spawn_body(
+            LargeBodyType::BlackHole,
+            Vec3::new(50.0, 10.0, 50.0),
+            &mut physics,
+            &mut entity_manager,
+        );
 
         // large_bodies.spawn_binary_pair(
         //     crate::scene::large_body::LargeBodyType::BlackHole,

@@ -89,7 +89,8 @@ impl EnemyManager {
             enemies: Vec::new(),
             event_queue: Vec::new(),
             spawn_timer: 0.0,
-            spawn_interval: 1.0, // Spawn every 2 seconds
+            // Spawn interval: how many enemies spawned per second
+            spawn_interval: 0.1, // Spawn every 2 seconds
         }
     }
 
@@ -220,19 +221,21 @@ impl EnemyManager {
 
         // Generate death events with position for dead enemies
         for (enemy_id, position) in enemies_to_remove {
-            use crate::engine::dispatcher::{EventType, EnemyEvent};
-            self.event_queue.push(EventType::Enemy(EnemyEvent::Die { enemy_id }));
+            use crate::engine::dispatcher::{EnemyEvent, EventType};
+            self.event_queue
+                .push(EventType::Enemy(EnemyEvent::Die { enemy_id }));
 
             // Also generate immediate death particles
             use crate::engine::dispatcher::GraphicsEvent;
             use crate::graphics::Color;
-            self.event_queue.push(EventType::Graphics(GraphicsEvent::SpawnParticles {
-                position,
-                velocity: crate::engine::Vec3::new(0.0, 0.0, 0.0),
-                count: 150,
-                lifetime: 2.0,
-                color: Color::GREEN,
-            }));
+            self.event_queue
+                .push(EventType::Graphics(GraphicsEvent::SpawnParticles {
+                    position,
+                    velocity: crate::engine::Vec3::new(0.0, 0.0, 0.0),
+                    count: 150,
+                    lifetime: 2.0,
+                    color: Color::GREEN,
+                }));
         }
 
         // Now remove the dead enemies

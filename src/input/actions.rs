@@ -205,14 +205,14 @@ impl Default for ActionBindings {
         bindings.insert(
             Action::NextWeapon,
             vec![
-                InputBinding::keyboard(KeyCode::KeyQ).with_gamepad_button(Button::RightTrigger2), // Q key + Right Bumper
+                InputBinding::keyboard(KeyCode::KeyQ).with_gamepad_button(Button::RightTrigger), // Q key + Right Bumper
             ],
         );
 
         bindings.insert(
             Action::PrevWeapon,
             vec![
-                InputBinding::keyboard(KeyCode::KeyE).with_gamepad_button(Button::LeftTrigger2), // E key + Left Bumper
+                InputBinding::keyboard(KeyCode::KeyE), //.with_gamepad_button(Button::LeftTrigger2), // E key + Left Bumper
             ],
         );
 

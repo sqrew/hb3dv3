@@ -4,9 +4,9 @@ use crate::input::InputManager;
 use crate::scene::bullet::{ChainLightningEffect, ProjectileEffects, ProjectileType};
 
 // Chain Lightning Configuration Constants
-const CHAIN_LIGHTNING_JUMP_RANGE: f32 = 100.0; // Maximum distance for chain lightning jumps
-const CHAIN_LIGHTNING_MAX_JUMPS: usize = 7; // Maximum number of jumps
-const CHAIN_LIGHTNING_DAMAGE_FALLOFF: f32 = 0.8; // Damage multiplier per jump (75% damage per jump)
+const CHAIN_LIGHTNING_JUMP_RANGE: f32 = 128.0; // Maximum distance for chain lightning jumps
+const CHAIN_LIGHTNING_MAX_JUMPS: usize = 16; // Maximum number of jumps
+const CHAIN_LIGHTNING_DAMAGE_FALLOFF: f32 = 0.9; // Damage multiplier per jump (75% damage per jump)
 
 #[derive(Debug, Clone)]
 pub enum WeaponType {
@@ -253,14 +253,14 @@ impl WeaponManager {
     pub fn new() -> Self {
         let available_weapons = vec![
             WeaponType::BasicBlaster,
-            WeaponType::RapidFire,
-            WeaponType::Shotgun,
-            WeaponType::AntiGravityCannon,
+            // WeaponType::RapidFire,
+            // WeaponType::Shotgun,
+            // WeaponType::AntiGravityCannon,
             WeaponType::ChainLightning,
         ];
 
         Self {
-            current_weapon: Weapon::new(WeaponType::ChainLightning),
+            current_weapon: Weapon::new(WeaponType::BasicBlaster),
             available_weapons,
             current_weapon_index: 0,
             event_queue: Vec::new(),
