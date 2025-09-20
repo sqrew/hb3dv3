@@ -294,6 +294,10 @@ impl ApplicationHandler for WindowManager {
                     // Update particle system (now with reduced GPU submission frequency)
                     graphics_engine.update_particles(delta_time);
 
+                    // Update particle system with current explosion data
+                    let explosions = self.engine.scheduler.explosions().explosions();
+                    graphics_engine.update_particle_explosions(explosions);
+
                     // Update lightning effects
                     graphics_engine.update_lightning(delta_time);
 

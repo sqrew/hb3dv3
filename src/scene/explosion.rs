@@ -124,7 +124,7 @@ impl ExplosionManager {
         self.spawn_explosion(
             position,
             50.0,   // Large radius
-            5000.0, // Strong force
+            1000.0, // Strong force
             0.3,    // Duration in seconds
             FalloffType::Quadratic,
         );
@@ -134,9 +134,9 @@ impl ExplosionManager {
     pub fn spawn_solar_wind(&mut self, position: Vec3) {
         self.spawn_explosion(
             position,
-            600.0,  // Very large radius
-            3000.0, // Moderate force
-            3.0,    // Short duration
+            500.0, // Very large radius
+            500.0, // Moderate force
+            3.0,   // Short duration
             FalloffType::Linear,
         );
     }
@@ -144,9 +144,9 @@ impl ExplosionManager {
     pub fn spawn_anti_wind(&mut self, position: Vec3) {
         self.spawn_explosion(
             position,
-            600.0,   // Very large radius
-            -3000.0, // Moderate force
-            3.0,     // Short duration
+            500.0,  // Very large radius
+            -500.0, // Moderate force
+            3.0,    // Short duration
             FalloffType::Linear,
         );
     }
@@ -177,7 +177,7 @@ impl ExplosionManager {
             if explosion.current_radius > 0.1 {
                 // Create expanding sphere primitive
                 let alpha = 1.0 - (explosion.elapsed_time / explosion.duration); // Fade out over time
-                
+
                 // Different colors for different force types
                 let color = if explosion.force_strength < 0.0 {
                     // Negative force = attractive/implosive = green

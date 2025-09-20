@@ -630,6 +630,29 @@ impl GraphicsEngine {
         self.particles.update(&self.device, &self.queue, delta_time);
     }
 
+    /// Update particle system with explosion data for physics interactions
+    pub fn update_particle_explosions(&mut self, explosions: &[crate::scene::explosion::Explosion]) {
+        // Convert scene explosions to GPU format
+        let gpu_explosions: Vec<crate::graphics::particles::GpuExplosion> = explosions
+            .iter()
+            .map(|explosion| crate::graphics::particles::GpuExplosion {
+                position: [explosion.position.x, explosion.position.y, explosion.position.z],
+                current_radius: explosion.current_radius,
+                force_strength: explosion.force_strength,
+                falloff_type: match explosion.falloff_type {
+                    crate::scene::explosion::FalloffType::Linear => 0,
+                    crate::scene::explosion::FalloffType::Quadratic => 1,
+                    crate::scene::explosion::FalloffType::Constant => 2,
+                },
+                _pad1: 0.0,
+                _pad2: 0.0,
+            })
+            .collect();
+
+        // Update particle system with explosion data
+        self.particles.set_explosion_data(&self.queue, &gpu_explosions);
+    }
+
     /// Update lightning effects (call before render)
     pub fn update_lightning(&mut self, delta_time: f32) {
         self.lightning_manager.update(delta_time);

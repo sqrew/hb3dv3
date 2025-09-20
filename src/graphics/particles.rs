@@ -50,6 +50,18 @@ struct SpawnRequest {
     _padding: [f32; 4], // Ensure 16-byte alignment
 }
 
+/// GPU explosion data structure (matches shader)
+#[repr(C)]
+#[derive(Debug, Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
+pub struct GpuExplosion {
+    pub position: [f32; 3],
+    pub current_radius: f32,
+    pub force_strength: f32,
+    pub falloff_type: u32,  // 0=Linear, 1=Quadratic, 2=Constant
+    pub _pad1: f32,
+    pub _pad2: f32,
+}
+
 /// GPU particle system
 pub struct ParticleSystem {
     // Compute pipelines
@@ -65,6 +77,8 @@ pub struct ParticleSystem {
     spawn_queue_buffer: wgpu::Buffer,
     spawn_count_buffer: wgpu::Buffer,
     delta_time_buffer: wgpu::Buffer,
+    explosion_buffer: wgpu::Buffer,
+    explosion_count_buffer: wgpu::Buffer,
 
     // Bind groups
     compute_bind_group: wgpu::BindGroup,
@@ -122,6 +136,20 @@ impl ParticleSystem {
         let delta_time_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Delta Time Buffer"),
             contents: bytemuck::cast_slice(&[0.016f32]), // Default to 60 FPS
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+        });
+
+        // Create explosion buffers
+        let explosion_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("Explosion Buffer"),
+            size: (64 * std::mem::size_of::<GpuExplosion>()) as u64, // Max 64 explosions
+            usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+
+        let explosion_count_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Explosion Count Buffer"),
+            contents: bytemuck::cast_slice(&[0u32]),
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
         });
 
@@ -202,6 +230,28 @@ impl ParticleSystem {
                         },
                         count: None,
                     },
+                    // Explosions buffer (binding 7)
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 7,
+                        visibility: wgpu::ShaderStages::COMPUTE,
+                        ty: wgpu::BindingType::Buffer {
+                            ty: wgpu::BufferBindingType::Storage { read_only: true },
+                            has_dynamic_offset: false,
+                            min_binding_size: None,
+                        },
+                        count: None,
+                    },
+                    // Explosion count buffer (binding 8)
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 8,
+                        visibility: wgpu::ShaderStages::COMPUTE,
+                        ty: wgpu::BindingType::Buffer {
+                            ty: wgpu::BufferBindingType::Uniform,
+                            has_dynamic_offset: false,
+                            min_binding_size: None,
+                        },
+                        count: None,
+                    },
                 ],
             });
 
@@ -262,6 +312,14 @@ impl ParticleSystem {
                 wgpu::BindGroupEntry {
                     binding: 6,
                     resource: count_buffer.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 7,
+                    resource: explosion_buffer.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 8,
+                    resource: explosion_count_buffer.as_entire_binding(),
                 },
             ],
         });
@@ -380,6 +438,8 @@ impl ParticleSystem {
             spawn_queue: Vec::new(),
             frame_counter: 0,
             update_frequency: 2, // Update every 2 frames to reduce GPU stalls
+            explosion_buffer,
+            explosion_count_buffer,
         }
     }
 
@@ -527,6 +587,28 @@ impl ParticleSystem {
                         },
                         count: None,
                     },
+                    // Explosions buffer (binding 7)
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 7,
+                        visibility: wgpu::ShaderStages::COMPUTE,
+                        ty: wgpu::BindingType::Buffer {
+                            ty: wgpu::BufferBindingType::Storage { read_only: true },
+                            has_dynamic_offset: false,
+                            min_binding_size: None,
+                        },
+                        count: None,
+                    },
+                    // Explosion count buffer (binding 8)
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 8,
+                        visibility: wgpu::ShaderStages::COMPUTE,
+                        ty: wgpu::BindingType::Buffer {
+                            ty: wgpu::BufferBindingType::Uniform,
+                            has_dynamic_offset: false,
+                            min_binding_size: None,
+                        },
+                        count: None,
+                    },
                 ],
             });
 
@@ -563,8 +645,32 @@ impl ParticleSystem {
                     binding: 6,
                     resource: count_buffer.as_entire_binding(),
                 },
+                wgpu::BindGroupEntry {
+                    binding: 7,
+                    resource: self.explosion_buffer.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 8,
+                    resource: self.explosion_count_buffer.as_entire_binding(),
+                },
             ],
         });
+    }
+
+    /// Update explosion data for particle interactions
+    pub fn set_explosion_data(&self, queue: &wgpu::Queue, explosions: &[GpuExplosion]) {
+        // Update explosion buffer
+        if !explosions.is_empty() {
+            let data_bytes = bytemuck::cast_slice::<GpuExplosion, u8>(explosions);
+            queue.write_buffer(&self.explosion_buffer, 0, data_bytes);
+        }
+
+        // Update explosion count
+        queue.write_buffer(
+            &self.explosion_count_buffer,
+            0,
+            bytemuck::cast_slice(&[explosions.len() as u32]),
+        );
     }
 
     /// Update particle system on GPU with reduced submission frequency to avoid stalls
