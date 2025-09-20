@@ -1,0 +1,65 @@
+/// Visual style for rendering bullets
+#[derive(Debug, Clone)]
+pub struct BulletVisuals {
+    pub primitive_type: crate::graphics::PrimitiveType,
+    pub color: crate::graphics::Color,
+    pub scale: f32,
+}
+
+impl BulletVisuals {
+    pub fn basic_blaster() -> Self {
+        Self {
+            primitive_type: crate::graphics::PrimitiveType::Tetrahedron,
+            color: crate::graphics::Color::YELLOW,
+            scale: 1.0,
+        }
+    }
+
+    pub fn chain_lightning() -> Self {
+        Self {
+            primitive_type: crate::graphics::PrimitiveType::Sphere,
+            color: crate::graphics::Color::new(0.3, 0.8, 1.0, 1.0), // Electric blue
+            scale: 0.8,
+        }
+    }
+
+    pub fn seeking_explosive() -> Self {
+        Self {
+            primitive_type: crate::graphics::PrimitiveType::Octahedron,
+            color: crate::graphics::Color::ORANGE,
+            scale: 1.2,
+        }
+    }
+
+    pub fn rapid_fire() -> Self {
+        Self {
+            primitive_type: crate::graphics::PrimitiveType::Tetrahedron,
+            color: crate::graphics::Color::GREEN,
+            scale: 0.6,
+        }
+    }
+
+    pub fn shotgun() -> Self {
+        Self {
+            primitive_type: crate::graphics::PrimitiveType::Sphere,
+            color: crate::graphics::Color::YELLOW,
+            scale: 0.4,
+        }
+    }
+
+    pub fn anti_gravity() -> Self {
+        Self {
+            primitive_type: crate::graphics::PrimitiveType::Octahedron,
+            color: crate::graphics::Color::MAGENTA,
+            scale: 1.1,
+        }
+    }
+
+    pub fn fractal_tree() -> Self {
+        Self {
+            primitive_type: crate::graphics::PrimitiveType::Tetrahedron,
+            color: crate::graphics::Color::new(0.2, 1.0, 0.4, 1.0), // Bright emerald green
+            scale: 0.7,
+        }
+    }
+}

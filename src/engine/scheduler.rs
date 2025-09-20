@@ -24,17 +24,23 @@ impl Scheduler {
         let player_entity = entity_manager.create_entity(EntityType::Player);
 
         let mut enemies = EnemyManager::new();
-        // enemies.spawn_initial_enemies(&mut entity_manager);
+        enemies.spawn_initial_enemies(&mut entity_manager);
 
         let mut physics = PhysicsManager::new();
         let mut large_bodies = LargeBodyManager::new();
 
         large_bodies.spawn_body(
-            LargeBodyType::BlackHole,
-            Vec3::new(50.0, 10.0, 50.0),
+            LargeBodyType::Debug,
+            Vec3::new(0.0, 0.0, 0.0),
             &mut physics,
             &mut entity_manager,
         );
+        // large_bodies.spawn_body(
+        //     LargeBodyType::BlackHole,
+        //     Vec3::new(50.0, 10.0, 50.0),
+        //     &mut physics,
+        //     &mut entity_manager,
+        // );
 
         // large_bodies.spawn_binary_pair(
         //     crate::scene::large_body::LargeBodyType::BlackHole,
@@ -128,7 +134,10 @@ impl Scheduler {
             self.player.player().position(),
             &mut self.entity_manager,
         );
-        self.bullets.update(delta_time);
+        // Get enemy positions for seeking weapons
+        let enemy_positions = self.enemies.get_all_enemy_positions();
+        self.bullets
+            .update_with_targets(delta_time, &enemy_positions);
         self.explosions.update(delta_time);
 
         // Update large bodies (these get their physics from the PhysicsManager N-body simulation)

@@ -14,15 +14,17 @@ pub enum LargeBodyType {
     /// Massive gravitational body with extreme repulsion (negative mass)
     WhiteHole,
     /// Large rocky body with moderate gravity
+    NeutronStar,
+    ExoticMatter,
     Star,
     /// Habitable world with Earth-like gravity
+    GasGiant,
     Planet,
     /// Artificial structure with artificial gravity
-    NeutronStar,
     /// Gas giant with strong gravity and large radius
-    GasGiant,
     /// Exotic matter that oscillates between attractive and repulsive gravity
-    ExoticMatter,
+    Asteroid,
+    Debug,
 }
 
 impl LargeBodyType {
@@ -33,10 +35,12 @@ impl LargeBodyType {
             LargeBodyType::BlackHoleLarge => 10_000_000.0,
             LargeBodyType::WhiteHole => -900_000.0, // Slightly less negative mass for stability
             LargeBodyType::NeutronStar => 500_000.0, // Very high mass
+            LargeBodyType::ExoticMatter => 250_000.0, // High mass for strong oscillating effects
             LargeBodyType::Star => 200_000.0,       // Very high mass for strong gravity
             LargeBodyType::GasGiant => 100_000.0,   // Large mass
             LargeBodyType::Planet => 50_000.0,      // Medium mass
-            LargeBodyType::ExoticMatter => 250_000.0, // High mass for strong oscillating effects
+            LargeBodyType::Asteroid => 5_000.0,
+            LargeBodyType::Debug => 0.0,
         }
     }
 
@@ -47,10 +51,12 @@ impl LargeBodyType {
             LargeBodyType::BlackHoleLarge => 50.0,
             LargeBodyType::WhiteHole => 2.0, // Same size as black hole, but opposite effect
             LargeBodyType::NeutronStar => 2.5, // Very small but dense
+            LargeBodyType::ExoticMatter => 15.0, // Large and visible for its effects
             LargeBodyType::Star => 80.0,     // Large and bright for visibility
             LargeBodyType::GasGiant => 20.0, // Very large
             LargeBodyType::Planet => 10.0,   // Medium size
-            LargeBodyType::ExoticMatter => 15.0, // Large and visible for its effects
+            LargeBodyType::Asteroid => 3.0,
+            LargeBodyType::Debug => 0.0,
         }
     }
 
@@ -61,10 +67,12 @@ impl LargeBodyType {
             LargeBodyType::BlackHoleLarge => Color::MAGENTA,
             LargeBodyType::WhiteHole => Color::WHITE,
             LargeBodyType::NeutronStar => Color::GREEN,
+            LargeBodyType::ExoticMatter => Color::MAGENTA,
             LargeBodyType::Star => Color::RED,
             LargeBodyType::GasGiant => Color::YELLOW,
             LargeBodyType::Planet => Color::CYAN,
-            LargeBodyType::ExoticMatter => Color::MAGENTA,
+            LargeBodyType::Asteroid => Color::GRAY,
+            LargeBodyType::Debug => Color::BLACK,
         }
     }
 
@@ -75,10 +83,12 @@ impl LargeBodyType {
             LargeBodyType::BlackHoleLarge => 0.67,
             LargeBodyType::WhiteHole => 1.0,
             LargeBodyType::NeutronStar => 1.0,
+            LargeBodyType::ExoticMatter => 1.0, // Large collision area for oscillating effects
             LargeBodyType::Star => 1.0,
             LargeBodyType::GasGiant => 1.0,
             LargeBodyType::Planet => 1.0,
-            LargeBodyType::ExoticMatter => 1.0, // Large collision area for oscillating effects
+            LargeBodyType::Asteroid => 1.0,
+            LargeBodyType::Debug => 0.0,
         }
     }
 
@@ -89,10 +99,12 @@ impl LargeBodyType {
             LargeBodyType::BlackHoleLarge => 1.8, // Fast spinning black hole for frame-dragging
             LargeBodyType::WhiteHole => -3.0, // Counter-rotating white hole
             LargeBodyType::NeutronStar => 12.0, // Extremely fast pulsar rotation
+            LargeBodyType::ExoticMatter => 6.0, // Rapid oscillating rotation for visual effect
             LargeBodyType::Star => 0.5,       // Moderate stellar rotation
             LargeBodyType::GasGiant => 1.0,   // Fast rotation like Jupiter
             LargeBodyType::Planet => 0.3,     // Earth-like rotation (slower)
-            LargeBodyType::ExoticMatter => 6.0, // Rapid oscillating rotation for visual effect
+            LargeBodyType::Asteroid => 1.0,
+            LargeBodyType::Debug => 0.0,
         }
     }
 
@@ -100,13 +112,11 @@ impl LargeBodyType {
     pub fn default_ergosphere_radius_ratio(self) -> f32 {
         match self {
             LargeBodyType::BlackHole => 100.0, // Much larger ergosphere for visible frame-dragging
-            LargeBodyType::BlackHoleLarge => 10.0, // Much larger ergosphere for visible frame-dragging
-            LargeBodyType::NeutronStar => 20.0,    // Large intense ergosphere
-            LargeBodyType::WhiteHole => 20.0,      // Significant ergosphere effect
-            LargeBodyType::Star => 0.0,            // No ergosphere effect
-            LargeBodyType::GasGiant => 0.0,        // No ergosphere effect
-            LargeBodyType::Planet => 0.0,          // No ergosphere effect
-            LargeBodyType::ExoticMatter => 20.0, // No ergosphere (oscillating gravity is the main effect)
+            LargeBodyType::BlackHoleLarge => 10.0, // Reduced to match playable area
+            LargeBodyType::NeutronStar => 20.0, // Large intense ergosphere
+            LargeBodyType::WhiteHole => 20.0,  // Significant ergosphere effect
+            LargeBodyType::ExoticMatter => 20.0, //
+            _ => 0.0,
         }
     }
 
@@ -128,14 +138,16 @@ impl LargeBodyType {
     /// Get the primitive type for rendering
     pub fn primitive_type(self) -> PrimitiveType {
         match self {
-            LargeBodyType::BlackHole => PrimitiveType::Sphere, // Dark sphere
-            LargeBodyType::BlackHoleLarge => PrimitiveType::Sphere, // Dark sphere
-            LargeBodyType::WhiteHole => PrimitiveType::Sphere, // Bright sphere
-            LargeBodyType::NeutronStar => PrimitiveType::Sphere, // Bright sphere
-            LargeBodyType::Star => PrimitiveType::Sphere,      // Glowing sphere
-            LargeBodyType::GasGiant => PrimitiveType::Sphere,  // Large sphere
-            LargeBodyType::Planet => PrimitiveType::Sphere,    // Earth-like sphere
-            LargeBodyType::ExoticMatter => PrimitiveType::Sphere, // Oscillating sphere
+            LargeBodyType::BlackHole => PrimitiveType::Sphere,
+            LargeBodyType::BlackHoleLarge => PrimitiveType::Sphere,
+            LargeBodyType::WhiteHole => PrimitiveType::Sphere,
+            LargeBodyType::NeutronStar => PrimitiveType::Sphere,
+            LargeBodyType::Star => PrimitiveType::Sphere,
+            LargeBodyType::GasGiant => PrimitiveType::Sphere,
+            LargeBodyType::Planet => PrimitiveType::Sphere,
+            LargeBodyType::ExoticMatter => PrimitiveType::Sphere,
+            LargeBodyType::Asteroid => PrimitiveType::Icosahedron,
+            LargeBodyType::Debug => PrimitiveType::Sphere,
         }
     }
 }

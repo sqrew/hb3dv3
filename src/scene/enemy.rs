@@ -90,7 +90,7 @@ impl EnemyManager {
             event_queue: Vec::new(),
             spawn_timer: 0.0,
             // Spawn interval: how many enemies spawned per second
-            spawn_interval: 0.1, // Spawn every 2 seconds
+            spawn_interval: 110.1, // Spawn every 2 seconds
         }
     }
 
@@ -381,6 +381,11 @@ impl EnemyManager {
             }
         }
         None
+    }
+
+    /// Get all enemy positions (for seeking weapons)
+    pub fn get_all_enemy_positions(&self) -> Vec<Vec3> {
+        self.enemies.iter().map(|enemy| enemy.position()).collect()
     }
 
     /// Spawn a new enemy near the player position (in a 3D sphere around player)

@@ -1,12 +1,17 @@
 use crate::engine::Vec3;
 use crate::engine::dispatcher::{EventType, WeaponEvent};
 use crate::input::InputManager;
-use crate::scene::bullet::{ChainLightningEffect, ProjectileEffects, ProjectileType};
+use crate::scene::bullet::{ChainLightningEffect, ProjectileEffects, ProjectileType, BulletVisuals};
 
 // Chain Lightning Configuration Constants
 const CHAIN_LIGHTNING_JUMP_RANGE: f32 = 128.0; // Maximum distance for chain lightning jumps
 const CHAIN_LIGHTNING_MAX_JUMPS: usize = 16; // Maximum number of jumps
 const CHAIN_LIGHTNING_DAMAGE_FALLOFF: f32 = 0.9; // Damage multiplier per jump (75% damage per jump)
+const SEEKING_EXPLOSIVE_SEEK_FORCE: f32 = 1000.0;
+const SEEKING_EXPLOSIVE_SEEK_RANGE: f32 = 500.0;
+const SEEKING_EXPLOSIVE_EXPLOSION_RADIUS: f32 = 50.0;
+const SEEKING_EXPLOSIVE_EXPLOSION_FORCE: f32 = 3000.0;
+const SEEKING_EXPLOSIVE_EXPLOSION_DURATION: f32 = 0.5;
 
 #[derive(Debug, Clone)]
 pub enum WeaponType {
@@ -15,6 +20,7 @@ pub enum WeaponType {
     Shotgun,
     AntiGravityCannon,
     ChainLightning,
+    SeekingExplosive,
 }
 
 #[derive(Debug, Clone)]
@@ -88,6 +94,18 @@ impl WeaponStats {
             bullet_mass: 0.1,     // Very light - minimal gravity effect
         }
     }
+
+    pub fn seeking_explosive() -> Self {
+        Self {
+            damage: 50.0,          // Base damage - explosion adds area effect
+            fire_rate: 1.0,        // Slower rate for powerful explosive
+            bullet_speed: 100.0,   // Starts slow to allow seeking time
+            bullet_lifetime: 10.0, // Long lifetime for seeking behavior
+            projectile_count: 1,   // Single seeking missile
+            spread_angle: 0.0,     // Precise targeting
+            bullet_mass: 1.0,      // Keep at 1.0 for seeking speed scaling
+        }
+    }
 }
 
 pub struct Weapon {
@@ -105,6 +123,7 @@ impl Weapon {
             WeaponType::Shotgun => WeaponStats::shotgun(),
             WeaponType::AntiGravityCannon => WeaponStats::anti_gravity_cannon(),
             WeaponType::ChainLightning => WeaponStats::chain_lightning(),
+            WeaponType::SeekingExplosive => WeaponStats::seeking_explosive(),
         };
 
         Self {
@@ -134,7 +153,7 @@ impl Weapon {
         let mut requests = Vec::new();
 
         if self.stats.projectile_count == 1 {
-            // Single projectile - check if it's chain lightning
+            // Single projectile - check weapon type
             let projectile_type = match self.weapon_type {
                 WeaponType::ChainLightning => {
                     // Create chain lightning projectile with custom effects
@@ -156,15 +175,40 @@ impl Weapon {
                         lifetime: self.stats.bullet_lifetime,
                         mass: self.stats.bullet_mass,
                         effects,
+                        visuals: BulletVisuals::chain_lightning(),
+                    }
+                }
+                WeaponType::SeekingExplosive => {
+                    // Create seeking explosive projectile
+                    ProjectileType::SeekingExplosive {
+                        damage: self.stats.damage,
+                        velocity: direction.normalize() * self.stats.bullet_speed,
+                        lifetime: self.stats.bullet_lifetime,
+                        mass: self.stats.bullet_mass,
+                        seeking_force: SEEKING_EXPLOSIVE_SEEK_FORCE,
+                        seeking_range: SEEKING_EXPLOSIVE_SEEK_RANGE,
+                        explosion_radius: SEEKING_EXPLOSIVE_EXPLOSION_RADIUS,
+                        explosion_force: SEEKING_EXPLOSIVE_EXPLOSION_FORCE,
+                        explosion_duration: SEEKING_EXPLOSIVE_EXPLOSION_DURATION,
+                        visuals: BulletVisuals::seeking_explosive(),
                     }
                 }
                 _ => {
-                    // Standard projectile
+                    // Standard projectile - map weapon type to visuals
+                    let visuals = match self.weapon_type {
+                        WeaponType::BasicBlaster => BulletVisuals::basic_blaster(),
+                        WeaponType::RapidFire => BulletVisuals::rapid_fire(),
+                        WeaponType::Shotgun => BulletVisuals::shotgun(),
+                        WeaponType::AntiGravityCannon => BulletVisuals::anti_gravity(),
+                        _ => BulletVisuals::basic_blaster(), // Fallback
+                    };
+
                     ProjectileType::Basic {
                         damage: self.stats.damage,
                         velocity: direction.normalize() * self.stats.bullet_speed,
                         lifetime: self.stats.bullet_lifetime,
                         mass: self.stats.bullet_mass,
+                        visuals,
                     }
                 }
             };
@@ -202,6 +246,9 @@ impl Weapon {
                     direction.x * sin_angle + direction.z * cos_angle,
                 );
 
+                // Get visuals for shotgun pellets
+                let visuals = BulletVisuals::shotgun();
+
                 requests.push(BulletSpawnRequest {
                     position: origin,
                     direction: spread_direction.normalize(),
@@ -214,6 +261,7 @@ impl Weapon {
                         velocity: spread_direction.normalize() * self.stats.bullet_speed,
                         lifetime: self.stats.bullet_lifetime,
                         mass: self.stats.bullet_mass,
+                        visuals,
                     },
                 });
             }
@@ -257,6 +305,7 @@ impl WeaponManager {
             // WeaponType::Shotgun,
             // WeaponType::AntiGravityCannon,
             WeaponType::ChainLightning,
+            WeaponType::SeekingExplosive,
         ];
 
         Self {
