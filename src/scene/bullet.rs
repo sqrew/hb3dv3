@@ -436,6 +436,11 @@ impl BulletManager {
 
     /// Trigger OnHitEffects for MetaBullets
     fn trigger_metabullet_on_hit_effects(&mut self, bullet_id: EntityId, target_id: EntityId, impact_point: Vec3) {
+        // Early exit if no metabullets exist (optimization for regular bullets)
+        if self.metabullets.is_empty() {
+            return;
+        }
+
         // Find the metabullet and trigger its effects
         for metabullet in &self.metabullets {
             if metabullet.entity_id() == bullet_id {

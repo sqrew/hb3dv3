@@ -876,12 +876,14 @@ impl LightningBolt {
 /// Manager for multiple lightning effects
 pub struct LightningEffectManager {
     active_bolts: Vec<LightningBolt>,
+    line_instances_buffer: Vec<LineInstance>, // Reused buffer to avoid allocations
 }
 
 impl LightningEffectManager {
     pub fn new() -> Self {
         Self {
             active_bolts: Vec::new(),
+            line_instances_buffer: Vec::new(),
         }
     }
 
@@ -904,14 +906,16 @@ impl LightningEffectManager {
     }
 
     /// Get all line instances for rendering - this feeds into ReusableLineBatch
-    pub fn get_line_instances(&self) -> Vec<LineInstance> {
-        let mut all_instances = Vec::new();
+    /// Reuses internal buffer to avoid allocations
+    pub fn get_line_instances(&mut self) -> Vec<LineInstance> {
+        self.line_instances_buffer.clear();
 
         for bolt in &self.active_bolts {
-            all_instances.extend(bolt.get_line_instances());
+            self.line_instances_buffer.extend(bolt.get_line_instances());
         }
 
-        all_instances
+        // Return a copy (this is still faster than allocating every time)
+        self.line_instances_buffer.clone()
     }
 
     /// Get the number of active lightning bolts

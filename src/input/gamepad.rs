@@ -177,14 +177,9 @@ impl GamepadManager {
     pub fn update(&mut self, gilrs: &mut Gilrs, active_id: Option<GamepadId>) {
         self.active_gamepad = active_id;
 
-        // Update names for connected gamepads
-        for (id, gamepad) in &mut self.gamepads {
-            if gamepad.is_connected() {
-                gamepad.name = gilrs.gamepad(*id).name().to_string();
-            }
-            // DON'T clear just_pressed state yet - game systems need to read it first
-            // gamepad.update(); // This will be called after game systems read input
-        }
+        // Don't update gamepad names every frame - they're already set on connection
+        // This was causing frame stalls due to expensive gamepad.name() calls
+        // Names are set once in handle_gilrs_event() when gamepads connect
     }
 
     /// Clear the just_pressed/just_released state after game systems have processed input

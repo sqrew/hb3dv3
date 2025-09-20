@@ -33,6 +33,15 @@ struct GravitationalBody {
     _pad5: f32,
 }
 
+struct Explosion {
+    position: vec3<f32>,
+    current_radius: f32,
+    force_strength: f32,
+    falloff_type: u32,  // 0=Linear, 1=Quadratic, 2=Constant
+    _pad1: f32,
+    _pad2: f32,
+}
+
 // Particle buffers (for compute shaders)
 @group(0) @binding(0) var<storage, read_write> particles: array<Particle>;
 @group(0) @binding(1) var<storage, read_write> alive_count: atomic<u32>;
@@ -41,6 +50,8 @@ struct GravitationalBody {
 @group(0) @binding(4) var<uniform> delta_time: f32;
 @group(0) @binding(5) var<storage, read> gravitational_bodies: array<GravitationalBody>;
 @group(0) @binding(6) var<storage, read> gravity_body_count: u32;
+@group(0) @binding(7) var<storage, read> explosions: array<Explosion>;
+@group(0) @binding(8) var<uniform> explosion_count: u32;
 
 // Constants
 const MAX_PARTICLES: u32 = 262144u;
@@ -126,9 +137,41 @@ fn update_particles(@builtin(global_invocation_id) global_id: vec3<u32>) {
                 }
             }
 
-            // Apply gravitational acceleration (F = ma, so a = F/m)
-            let gravitational_acceleration = gravitational_force / particle_mass;
-            particles[index].velocity += gravitational_acceleration * dt;
+            // Apply explosion forces
+            var explosion_force = vec3<f32>(0.0, 0.0, 0.0);
+            for (var explosion_idx = 0u; explosion_idx < explosion_count; explosion_idx++) {
+                let explosion = explosions[explosion_idx];
+                let explosion_displacement = particles[index].position - explosion.position;
+                let explosion_distance = length(explosion_displacement);
+
+                // Check if particle is within explosion radius
+                if (explosion_distance <= explosion.current_radius && explosion_distance > 0.001) {
+                    // Calculate explosion force direction (radial outward from explosion center)
+                    let explosion_direction = explosion_displacement / explosion_distance;
+
+                    // Calculate force magnitude based on falloff type (same logic as physics.wgsl)
+                    var force_magnitude = 0.0;
+                    if (explosion.falloff_type == 0u) {
+                        // Linear falloff
+                        force_magnitude = explosion.force_strength * (1.0 - (explosion_distance / explosion.current_radius));
+                    } else if (explosion.falloff_type == 1u) {
+                        // Quadratic falloff
+                        let normalized_distance = explosion_distance / explosion.current_radius;
+                        force_magnitude = explosion.force_strength * (1.0 - normalized_distance * normalized_distance);
+                    } else if (explosion.falloff_type == 2u) {
+                        // Constant falloff
+                        force_magnitude = explosion.force_strength;
+                    }
+
+                    // Apply explosion force (outward from explosion center, scaled for particles)
+                    let explosion_force_vec = explosion_direction * force_magnitude * 0.05; // Scale down for particles
+                    explosion_force += explosion_force_vec;
+                }
+            }
+
+            // Apply total acceleration (gravitational + explosion forces)
+            let total_acceleration = (gravitational_force + explosion_force) / particle_mass;
+            particles[index].velocity += total_acceleration * dt;
 
             // Clamp velocity to prevent particles from being yeeted too far
             let velocity_magnitude = length(particles[index].velocity);

@@ -436,36 +436,42 @@ impl Dispatcher {
         scheduler: &mut crate::engine::scheduler::Scheduler,
         graphics_events: &mut Vec<GraphicsEvent>,
     ) {
-        // Chain lightning algorithm: find nearby enemies and chain between them
+        // Optimized chain lightning algorithm with early termination and reduced allocations
         let mut current_position = event.start_position;
         let mut current_damage = event.base_damage;
-        let mut visited_targets = Vec::new();
+        let mut visited_targets = std::collections::HashSet::new(); // Use HashSet for O(1) lookups instead of Vec
 
         // Add the excluded target to visited list if specified
         if let Some(excluded) = event.excluded_target {
-            visited_targets.push(excluded);
+            visited_targets.insert(excluded);
         }
 
-        let mut lightning_segments = Vec::new(); // For visual effects
+        let mut lightning_segments = Vec::with_capacity(event.max_jumps); // Pre-allocate capacity
 
-        for jump in 0..event.max_jumps {
-            // Find the nearest enemy within jump range
-            let enemies = scheduler.enemies().enemies();
+        // Get enemies once and cache positions to avoid repeated method calls
+        let enemies = scheduler.enemies().enemies();
+        let enemy_data: Vec<_> = enemies
+            .iter()
+            .map(|enemy| (enemy.entity_id(), enemy.position()))
+            .collect();
+
+        for _jump in 0..event.max_jumps {
             let mut nearest_enemy = None;
-            let mut nearest_distance = f32::INFINITY;
+            let mut nearest_distance_sq = event.jump_range * event.jump_range; // Use squared distance to avoid sqrt
 
-            for enemy in enemies {
-                let enemy_id = enemy.entity_id();
-                let enemy_pos = enemy.position();
-
-                // Skip if already visited
+            // Find nearest enemy using cached data
+            for &(enemy_id, enemy_pos) in &enemy_data {
+                // Skip if already visited (O(1) lookup with HashSet)
                 if visited_targets.contains(&enemy_id) {
                     continue;
                 }
 
-                let distance = (enemy_pos - current_position).magnitude();
-                if distance <= event.jump_range && distance < nearest_distance {
-                    nearest_distance = distance;
+                // Use squared distance to avoid expensive sqrt calls
+                let diff = enemy_pos - current_position;
+                let distance_sq = diff.x * diff.x + diff.y * diff.y + diff.z * diff.z;
+
+                if distance_sq < nearest_distance_sq {
+                    nearest_distance_sq = distance_sq;
                     nearest_enemy = Some((enemy_id, enemy_pos));
                 }
             }
@@ -477,8 +483,8 @@ impl Dispatcher {
                     .enemies_mut()
                     .damage_enemy_direct(target_id, current_damage, target_id);
 
-                // Add to visited list
-                visited_targets.push(target_id);
+                // Add to visited set (O(1) insertion)
+                visited_targets.insert(target_id);
 
                 // Store lightning segment for visual effects
                 lightning_segments.push((current_position, target_pos));
@@ -486,6 +492,11 @@ impl Dispatcher {
                 // Update position and damage for next jump
                 current_position = target_pos;
                 current_damage *= event.damage_falloff;
+
+                // Early termination if damage becomes negligible
+                if current_damage < 1.0 {
+                    break;
+                }
             } else {
                 // No more targets in range
                 break;

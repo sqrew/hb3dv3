@@ -291,7 +291,7 @@ impl ApplicationHandler for WindowManager {
                         player_pos.z,
                     ));
 
-                    // Update particle system
+                    // Update particle system (now with reduced GPU submission frequency)
                     graphics_engine.update_particles(delta_time);
 
                     // Update lightning effects

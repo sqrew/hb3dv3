@@ -74,9 +74,13 @@ impl InputManager {
     pub fn update(&mut self) {
         // Update gilrs and handle gamepad events if available
         if let Some(ref mut gilrs) = self.gilrs {
+            // Limit gamepad event processing to prevent frame stalls
+            let mut events_processed = 0;
+            const MAX_EVENTS_PER_FRAME: usize = 32; // Safety limit to prevent input event storms
+
             while let Some(gilrs::Event { id, event, time: _, .. }) = gilrs.next_event() {
                 self.gamepad.handle_gilrs_event(id, &event);
-                
+
                 // Auto-select the first connected gamepad
                 if self.active_gamepad.is_none() {
                     if let gilrs::EventType::Connected = event {
@@ -84,13 +88,22 @@ impl InputManager {
                         println!("Gamepad connected and selected: {:?}", gilrs.gamepad(id).name());
                     }
                 }
-                
+
                 // Handle disconnection
                 if Some(id) == self.active_gamepad {
                     if let gilrs::EventType::Disconnected = event {
                         self.active_gamepad = None;
                         println!("Active gamepad disconnected");
                     }
+                }
+
+                events_processed += 1;
+                if events_processed >= MAX_EVENTS_PER_FRAME {
+                    // If we hit the limit, log it and break to prevent frame stalls
+                    if cfg!(debug_assertions) {
+                        println!("Warning: Gamepad event processing limited to {} events per frame", MAX_EVENTS_PER_FRAME);
+                    }
+                    break;
                 }
             }
             

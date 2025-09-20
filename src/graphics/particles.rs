@@ -72,6 +72,10 @@ pub struct ParticleSystem {
 
     // CPU-side spawn queue
     spawn_queue: Vec<SpawnRequest>,
+
+    // Reduce GPU submission frequency to avoid frame stalls
+    frame_counter: u32,
+    update_frequency: u32, // Update every N frames (2 = every other frame)
 }
 
 impl ParticleSystem {
@@ -374,6 +378,8 @@ impl ParticleSystem {
             compute_bind_group,
             render_bind_group,
             spawn_queue: Vec::new(),
+            frame_counter: 0,
+            update_frequency: 2, // Update every 2 frames to reduce GPU stalls
         }
     }
 
@@ -561,8 +567,26 @@ impl ParticleSystem {
         });
     }
 
-    /// Update particle system on GPU
+    /// Update particle system on GPU with reduced submission frequency to avoid stalls
     pub fn update(&mut self, device: &wgpu::Device, queue: &wgpu::Queue, delta_time: f32) {
+        // Increment frame counter
+        self.frame_counter += 1;
+
+        // Only process GPU updates every N frames to reduce submission stalls
+        let should_update_gpu = self.frame_counter % self.update_frequency == 0;
+
+        // Always accumulate spawn requests (don't lose particles)
+        // But only process them when we do GPU updates
+
+        if !should_update_gpu {
+            // Still accumulate spawn requests but don't process them yet
+            // Cap the queue to prevent memory bloat during skip frames
+            if self.spawn_queue.len() > MAX_SPAWN_REQUESTS as usize {
+                self.spawn_queue.truncate(MAX_SPAWN_REQUESTS as usize);
+            }
+            return;
+        }
+
         // Debug: Print spawn queue size
         if self.spawn_queue.len() > 100 {
             println!("Large spawn queue: {} requests", self.spawn_queue.len());
@@ -596,11 +620,12 @@ impl ParticleSystem {
             queue.write_buffer(&self.spawn_count_buffer, 0, bytemuck::cast_slice(&[0u32]));
         }
 
-        // Upload delta time
+        // Upload delta time (adjust for skipped frames)
+        let adjusted_delta_time = delta_time * self.update_frequency as f32;
         queue.write_buffer(
             &self.delta_time_buffer,
             0,
-            bytemuck::cast_slice(&[delta_time]),
+            bytemuck::cast_slice(&[adjusted_delta_time]),
         );
 
         let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {

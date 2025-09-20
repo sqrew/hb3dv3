@@ -165,6 +165,44 @@ impl LineBatch {
         
         lines
     }
+
+    /// Generate all lines for this batch into a reusable buffer to avoid allocations
+    pub fn finish_into(self, primitive_cache: &PrimitiveCache, buffer: &mut Vec<LineInstance>) {
+        // Group requests by primitive type for better cache locality
+        for primitive_type in [
+            PrimitiveType::Cube,
+            PrimitiveType::Sphere,
+            PrimitiveType::Cylinder,
+            PrimitiveType::Capsule,
+            PrimitiveType::Cone,
+            PrimitiveType::Torus,
+            PrimitiveType::Octahedron,
+            PrimitiveType::Tetrahedron,
+            PrimitiveType::Icosahedron,
+            PrimitiveType::Dodecahedron,
+        ] {
+            // Collect all requests for this primitive type
+            let requests: Vec<_> = self.requests.iter()
+                .filter(|r| r.primitive_type == primitive_type)
+                .collect();
+
+            if !requests.is_empty() {
+                // Process all requests of this type at once for better cache performance
+                for request in requests {
+                    let primitive_lines = primitive_cache.generate_line_instances_with_rotation(
+                        request.primitive_type,
+                        request.world_position,
+                        request.rotation,
+                        request.scale,
+                        request.color,
+                        request.thickness,
+                    );
+
+                    buffer.extend(primitive_lines);
+                }
+            }
+        }
+    }
     
     /// Get the number of primitives in this batch
     pub fn primitive_count(&self) -> usize {
@@ -228,8 +266,10 @@ impl ReusableLineBatch {
         self.direct_lines.extend(instances);
     }
     
-    /// Generate all line instances for the current batch (consumes batch)
-    pub fn finish_frame(&mut self, primitive_cache: &PrimitiveCache) -> Vec<LineInstance> {
+    /// Generate all line instances for the current batch using a reusable buffer
+    pub fn finish_frame_into(&mut self, primitive_cache: &PrimitiveCache, buffer: &mut Vec<LineInstance>) {
+        buffer.clear(); // Reuse existing capacity
+
         // Take ownership of requests to avoid cloning
         let requests = std::mem::take(&mut self.batch.requests);
         let estimated_line_count = self.batch.estimated_line_count;
@@ -237,13 +277,21 @@ impl ReusableLineBatch {
         // Create temporary batch that owns the data
         let batch = LineBatch { requests, estimated_line_count };
 
-        // Generate lines from primitives
-        let mut all_lines = batch.finish(primitive_cache);
+        // Generate lines from primitives directly into buffer
+        batch.finish_into(primitive_cache, buffer);
 
-        // Add direct line instances (e.g., from lightning effects)
-        all_lines.extend(std::mem::take(&mut self.direct_lines));
+        // Add direct line instances (e.g., from lightning effects) only if they exist
+        if !self.direct_lines.is_empty() {
+            buffer.extend(std::mem::take(&mut self.direct_lines));
+        }
+    }
 
-        all_lines
+    /// Generate all line instances for the current batch (consumes batch) - DEPRECATED
+    /// Use finish_frame_into() instead to avoid allocations
+    pub fn finish_frame(&mut self, primitive_cache: &PrimitiveCache) -> Vec<LineInstance> {
+        let mut buffer = Vec::new();
+        self.finish_frame_into(primitive_cache, &mut buffer);
+        buffer
     }
     
     /// Get the number of primitives in the current batch

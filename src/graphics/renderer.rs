@@ -5,7 +5,7 @@ use winit::{dpi::PhysicalSize, window::Window};
 use crate::graphics::{
     BloomRenderer, CameraUniform, CollisionCompute, Frustum, InstancedLineRenderer, LightningEffectManager, ParticleSystem,
     Primitive, PrimitiveType, Projection, ThirdPersonCamera, Vertex, constants::*,
-    is_visible_sphere, line_batch::ReusableLineBatch, primitive_cache::PrimitiveCache,
+    is_visible_sphere, line_batch::ReusableLineBatch, primitive_cache::PrimitiveCache, vertex::LineInstance,
 };
 use crate::ui::text_renderer::TextRenderer;
 
@@ -32,6 +32,8 @@ pub struct GraphicsEngine {
     line_batch: ReusableLineBatch,
     particles: ParticleSystem,
     lightning_manager: LightningEffectManager,
+    // Reusable buffer to avoid allocating new Vec every frame
+    line_instances_buffer: Vec<LineInstance>,
 }
 
 impl GraphicsEngine {
@@ -294,6 +296,7 @@ impl GraphicsEngine {
             line_batch: ReusableLineBatch::new(1000), // Estimate 1000 primitives per frame
             particles,
             lightning_manager,
+            line_instances_buffer: Vec::with_capacity(10000), // Pre-allocate for typical frame
         })
     }
 
@@ -540,35 +543,39 @@ impl GraphicsEngine {
         }
 
         // Add lightning line instances to the same batch before finishing the frame
-        let lightning_lines = self.lightning_manager.get_line_instances();
-        if !lightning_lines.is_empty() {
-            self.line_batch.add_line_instances(lightning_lines);
+        // Only call get_line_instances if there are active lightning bolts to avoid unnecessary Vec allocations
+        if self.lightning_manager.active_count() > 0 {
+            let lightning_lines = self.lightning_manager.get_line_instances();
+            if !lightning_lines.is_empty() {
+                self.line_batch.add_line_instances(lightning_lines);
+            }
         }
 
         // Generate all lines using optimized systems with full rotation support
         // Lines are now batched by primitive type for better cache locality
-        let mut lines = self.line_batch.finish_frame(&self.primitive_cache);
+        // Use reusable buffer to avoid allocations that cause frame spikes
+        self.line_batch.finish_frame_into(&self.primitive_cache, &mut self.line_instances_buffer);
 
         // Arena wireframes now use the standard rendering pipeline above
         // They are handled like any other entity with RenderComponent + ArenaMarkerComponent
 
         // Ensure we don't exceed the instanced renderer's capacity to prevent buffer overflow
         let max_capacity = self.line_renderer.max_instance_count();
-        if lines.len() > max_capacity {
+        if self.line_instances_buffer.len() > max_capacity {
             println!(
                 "Warning: {} lines exceed capacity {}, truncating",
-                lines.len(),
+                self.line_instances_buffer.len(),
                 max_capacity
             );
-            lines.truncate(max_capacity);
+            self.line_instances_buffer.truncate(max_capacity);
         }
 
         // Update GPU buffers BEFORE starting the render pass to prevent stalls
-        self.line_renderer.update_buffers(&lines);
+        self.line_renderer.update_buffers(&self.line_instances_buffer);
 
         // Always render - even empty to maintain consistent frame timing
         self.line_renderer
-            .render_lines(render_pass, &self.camera_bind_group, &lines);
+            .render_lines(render_pass, &self.camera_bind_group, &self.line_instances_buffer);
     }
 
     /// Spawn particles with full collision event data
