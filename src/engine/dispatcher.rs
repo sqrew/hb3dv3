@@ -126,12 +126,12 @@ impl Dispatcher {
 
         // 4. Process weapon events
         for event in weapon_events {
-            Self::handle_weapon_event(event, scheduler);
+            Self::handle_weapon_event(event, scheduler, &mut graphics_events_batch);
         }
 
         // 5. Process explosion events
         for event in explosion_events {
-            Self::handle_explosion_event(event, scheduler);
+            Self::handle_explosion_event(event, scheduler, &mut graphics_events_batch);
         }
 
         // 6. Process chain lightning events (after collisions and explosions)
@@ -253,7 +253,7 @@ impl Dispatcher {
                 graphics_events.push(GraphicsEvent::SpawnParticles {
                     position: impact_point,
                     velocity: Vec3::new(0.0, 0.0, 0.0), // Impact sparks spread outward
-                    count: 50,                          // Increased from 10 for better visibility
+                    count: 30,                          // Increased from 10 for better visibility
                     lifetime: 60.0,                     // Shorter lifetime for quick effect
                     color: Color::ORANGE,
                 });
@@ -267,9 +267,9 @@ impl Dispatcher {
                 graphics_events.push(GraphicsEvent::SpawnParticles {
                     position: impact_point,
                     velocity: Vec3::new(0.0, 0.0, 0.0), // Sparks spread in all directions
-                    count: 30,                          // Increased from 5 for better visibility
-                    lifetime: 30.0,                     // Quick flash effect
-                    color: Color::ORANGE,
+                    count: 3,                           // Increased from 5 for better visibility
+                    lifetime: 10.0,                     // Quick flash effect
+                    color: Color::WHITE,
                 });
             }
             CollisionEvent::LargeBodyHitLargeBody {
@@ -281,7 +281,7 @@ impl Dispatcher {
                 graphics_events.push(GraphicsEvent::SpawnParticles {
                     position: impact_point,
                     velocity: Vec3::new(0.0, 0.0, 0.0), // Explosion spreads in all directions
-                    count: 1000,    // Increased from 300 for massive dramatic effect
+                    count: 300,
                     lifetime: 30.0, // Increased lifetime for longer visibility
                     color: Color::RED,
                 });
@@ -297,6 +297,7 @@ impl Dispatcher {
     fn handle_weapon_event(
         event: WeaponEvent,
         _scheduler: &mut crate::engine::scheduler::Scheduler,
+        _graphics_events: &mut Vec<GraphicsEvent>,
     ) {
         match event {
             WeaponEvent::Fired {
@@ -313,6 +314,7 @@ impl Dispatcher {
     fn handle_explosion_event(
         event: ExplosionEvent,
         scheduler: &mut crate::engine::scheduler::Scheduler,
+        graphics_events: &mut Vec<GraphicsEvent>,
     ) {
         match event {
             ExplosionEvent::SolarWind { position } => {
@@ -322,7 +324,7 @@ impl Dispatcher {
                 scheduler.explosions_mut().spawn_anti_wind(position);
             }
             ExplosionEvent::Shockwave { position } => {
-                scheduler.explosions_mut().spawn_shockwave(position);
+                scheduler.explosions_mut().spawn_simple_shockwave(position);
             }
             ExplosionEvent::Custom {
                 position,
@@ -330,6 +332,11 @@ impl Dispatcher {
                 force_strength,
                 duration,
                 falloff_type,
+                damage,
+                damage_radius,
+                explosion_color,
+                particle_color,
+                particle_count,
             } => {
                 scheduler.explosions_mut().spawn_explosion(
                     position,
@@ -337,7 +344,35 @@ impl Dispatcher {
                     force_strength,
                     duration,
                     falloff_type,
+                    explosion_color,
+                    particle_color,
+                    particle_count,
                 );
+
+                // Apply damage to enemies within damage radius
+                if damage > 0.0 && damage_radius > 0.0 {
+                    let damage_events = scheduler.explosions().calculate_explosion_damage(
+                        position,
+                        damage,
+                        damage_radius,
+                        scheduler.enemies().enemies(),
+                    );
+
+                    for (enemy_id, actual_damage) in damage_events {
+                        scheduler
+                            .enemies_mut()
+                            .damage_enemy(enemy_id, actual_damage);
+                    }
+                }
+                if particle_count > 0 {
+                    graphics_events.push(GraphicsEvent::SpawnParticles {
+                        position,
+                        velocity: Vec3::new(0.0, 0.0, 0.0),
+                        count: particle_count,
+                        lifetime: 3.0,
+                        color: particle_color,
+                    });
+                }
             }
         }
     }
@@ -642,6 +677,11 @@ pub enum ExplosionEvent {
         force_strength: f32,
         duration: f32,
         falloff_type: crate::scene::explosion::FalloffType,
+        damage: f32,
+        damage_radius: f32,
+        explosion_color: Color,
+        particle_color: Color,
+        particle_count: u32,
     },
 }
 

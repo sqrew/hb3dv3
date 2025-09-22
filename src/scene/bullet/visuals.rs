@@ -55,11 +55,11 @@ impl BulletVisuals {
         }
     }
 
-    pub fn fractal_tree() -> Self {
+    pub fn fractal_cannon() -> Self {
         Self {
             primitive_type: crate::graphics::PrimitiveType::Tetrahedron,
-            color: crate::graphics::Color::new(0.2, 1.0, 0.4, 1.0), // Bright emerald green
-            scale: 0.7,
+            color: crate::graphics::Color::YELLOW,
+            scale: 2.0, // start large, each successive generation becomes smaller so the huge swarm will end up composed of mostly regular sized bullets
         }
     }
 }

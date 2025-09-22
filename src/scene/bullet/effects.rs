@@ -1,4 +1,8 @@
-use crate::engine::{EntityId, Vec3};
+use crate::{
+    engine::{EntityId, Vec3},
+    graphics::Color,
+    scene::explosion,
+};
 
 /// Trait for effects that trigger when a bullet hits a target
 pub trait OnHitEffect: std::fmt::Debug {
@@ -55,6 +59,11 @@ pub struct ExplosionEffect {
     pub force_strength: f32,
     pub duration: f32,
     pub falloff_type: crate::scene::explosion::FalloffType,
+    pub damage: f32,
+    pub damage_radius: f32,
+    pub explosion_color: Color,
+    pub particle_color: Color,
+    pub particle_count: u32,
 }
 
 impl ExplosionEffect {
@@ -63,12 +72,22 @@ impl ExplosionEffect {
         force_strength: f32,
         duration: f32,
         falloff_type: crate::scene::explosion::FalloffType,
+        damage: f32,
+        damage_radius: f32,
+        explosion_color: Color,
+        particle_color: Color,
+        particle_count: u32,
     ) -> Self {
         Self {
             max_radius,
             force_strength,
             duration,
             falloff_type,
+            damage,
+            damage_radius,
+            explosion_color,
+            particle_color,
+            particle_count,
         }
     }
 }
@@ -82,6 +101,11 @@ impl OnExpireEffect for ExplosionEffect {
             force_strength: self.force_strength,
             duration: self.duration,
             falloff_type: self.falloff_type,
+            damage: self.damage,
+            damage_radius: self.damage_radius,
+            explosion_color: self.explosion_color,
+            particle_color: self.particle_color,
+            particle_count: self.particle_count,
         }]
     }
 }

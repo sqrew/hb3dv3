@@ -602,6 +602,11 @@ impl LargeBodyManager {
                                 force_strength: 10000.0,
                                 duration: 2.0,
                                 falloff_type: super::FalloffType::Quadratic,
+                                damage: 0.0, // Solar wind doesn't deal damage, just physics force
+                                damage_radius: 0.0,
+                                explosion_color: Color::MAGENTA,
+                                particle_color: Color::MAGENTA,
+                                particle_count: 0,
                             },
                         ));
                 }

@@ -395,10 +395,17 @@ impl CollisionManager {
                 _ => {
                     // Unhandled collision type or invalid entities
                     if type_a.is_none() || type_b.is_none() {
-                        println!(
-                            "⚠️ Warning: Collision between invalid entities {} and {}",
-                            entity_a.0, entity_b.0
-                        );
+                        // Check if these are fractal bullet entities (IDs >= 1M) that are being cleaned up
+                        // This happens due to timing between collision detection and entity cleanup
+                        let is_fractal_cleanup = entity_a.0 >= 1000000 || entity_b.0 >= 1000000;
+
+                        if !is_fractal_cleanup {
+                            println!(
+                                "⚠️ Warning: Collision between invalid entities {} and {}",
+                                entity_a.0, entity_b.0
+                            );
+                        }
+                        // Fractal bullet cleanup collisions are expected and can be silently ignored
                     }
                 }
             }

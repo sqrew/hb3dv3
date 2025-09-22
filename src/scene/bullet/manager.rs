@@ -1,15 +1,17 @@
-use crate::engine::{EntityId, Vec3};
-use crate::engine::dispatcher::{CollisionEvent, EventType};
-use crate::graphics::Primitive;
-use crate::scene::GravityAffected;
+use super::effects::{ExplosionEffect, OnExpireEffect};
 use super::types::{Bullet, MetaBullet, ProjectileType};
-use super::effects::{OnExpireEffect, ExplosionEffect};
+use crate::engine::dispatcher::{CollisionEvent, EventType};
+use crate::engine::{EntityId, Vec3};
+use crate::graphics::{Color, Primitive};
+use crate::scene::GravityAffected;
+// Note: FractalBullet and FractalSplitEvent no longer used - fractal data embedded in regular bullets
 
 /// Manages all bullets in the game
 pub struct BulletManager {
     bullets: Vec<Bullet>,
     metabullets: Vec<MetaBullet>,
     event_queue: Vec<EventType>,
+    next_entity_id: u32, // For generating entity IDs for fractal children
 }
 
 impl BulletManager {
@@ -18,6 +20,7 @@ impl BulletManager {
             bullets: Vec::new(),
             metabullets: Vec::new(),
             event_queue: Vec::new(),
+            next_entity_id: 1000000, // Start fractal child IDs from 1M to avoid conflicts
         }
     }
 
@@ -26,7 +29,11 @@ impl BulletManager {
     }
 
     /// Update bullets with target positions for seeking behavior
-    pub fn update_with_targets(&mut self, dt: f32, enemy_positions: &[Vec3]) {
+    pub fn update_with_targets(
+        &mut self,
+        dt: f32,
+        enemy_positions: &[Vec3],
+    ) -> Vec<crate::engine::entity::EntityId> {
         // Update all bullets
         for bullet in self.bullets.iter_mut() {
             bullet.update(dt);
@@ -40,6 +47,9 @@ impl BulletManager {
             }
             metabullet.update(dt);
         }
+
+        // Handle fractal splitting for regular bullets and collect new entity IDs
+        let new_fractal_entities = self.handle_fractal_splitting(dt);
 
         // Check for expired metabullets and trigger their OnExpireEffects
         let mut expired_metabullets = Vec::new();
@@ -61,13 +71,16 @@ impl BulletManager {
             }
         }
 
-        // Remove expired bullets (regular bullets first, then metabullets)
+        // Remove expired bullets
         self.bullets.retain(|b| b.is_alive());
 
         // Remove expired metabullets (in reverse order to maintain indices)
         for &index in expired_metabullets.iter().rev() {
             self.metabullets.remove(index);
         }
+
+        // Return new fractal entity IDs for registration
+        new_fractal_entities
     }
 
     /// Apply seeking force to a metabullet towards the nearest enemy
@@ -193,6 +206,8 @@ impl BulletManager {
             }
         }
 
+        // Note: Fractal bullets are now regular bullets and handled above
+
         destroyed_entities
     }
 
@@ -210,6 +225,7 @@ impl BulletManager {
                 return Some(metabullet.damage());
             }
         }
+        // Note: Fractal bullets are now regular bullets and handled above
         None
     }
 
@@ -226,6 +242,7 @@ impl BulletManager {
                 return Some(metabullet.velocity());
             }
         }
+        // Note: Fractal bullets are now regular bullets and handled above
         None
     }
 
@@ -248,6 +265,7 @@ impl BulletManager {
                 return true;
             }
         }
+        // Note: Fractal bullets are now regular bullets and handled above
         false
     }
 
@@ -270,6 +288,7 @@ impl BulletManager {
                 return true;
             }
         }
+        // Note: Fractal bullets are now regular bullets and handled above
         false
     }
 
@@ -345,6 +364,7 @@ impl BulletManager {
                 return;
             }
         }
+        // Note: Fractal bullets are now regular bullets and handled above
     }
 
     /// Unified projectile spawning method
@@ -409,7 +429,12 @@ impl BulletManager {
                     explosion_radius,
                     explosion_force,
                     explosion_duration,
-                    crate::scene::explosion::FalloffType::Quadratic,
+                    crate::scene::explosion::FalloffType::Linear,
+                    damage,           // Add damage parameter
+                    explosion_radius, // Use explosion_radius for damage_radius too
+                    Color::ORANGE,
+                    Color::ORANGE,
+                    50,
                 );
 
                 let on_expire_effects: Option<Vec<Box<dyn OnExpireEffect>>> =
@@ -430,6 +455,69 @@ impl BulletManager {
                     visuals,
                 ));
             }
+            ProjectileType::Fractal {
+                damage,
+                velocity,
+                lifetime,
+                mass,
+                fractal_config,
+                visuals,
+            } => {
+                // Create a fractal bullet that can both split AND participate in collision detection
+                self.bullets.push(Bullet::new_fractal(
+                    entity_id,
+                    position,
+                    velocity,
+                    lifetime,
+                    damage,
+                    mass,
+                    visuals,
+                    fractal_config,
+                    0, // Generation 0 (parent)
+                ));
+            }
         }
+    }
+
+    /// Update fractal bullets and handle splitting
+    fn handle_fractal_splitting(&mut self, dt: f32) -> Vec<crate::engine::entity::EntityId> {
+        let mut new_bullets_to_spawn = Vec::new();
+        let mut new_entity_ids = Vec::new();
+
+        // Check each regular bullet for fractal splitting
+        for bullet in &mut self.bullets {
+            if bullet.should_split(dt) {
+                // Generate children based on fractal pattern
+                let split_directions = bullet.get_split_directions();
+
+                for direction in split_directions {
+                    let child_entity_id = EntityId(self.next_entity_id);
+                    self.next_entity_id += 1;
+
+                    // Create child fractal bullet
+                    if let Some(child) = bullet.create_fractal_child(child_entity_id, direction) {
+                        new_bullets_to_spawn.push(child);
+                        new_entity_ids.push(child_entity_id); // Collect entity ID for registration
+                    }
+                }
+
+                // Mark parent as having split
+                bullet.mark_split();
+            }
+        }
+
+        // Add all the new fractal children
+        self.bullets.extend(new_bullets_to_spawn);
+
+        // Return entity IDs that need to be registered
+        new_entity_ids
+    }
+
+    /// Get fractal bullet count for debugging
+    pub fn fractal_bullet_count(&self) -> usize {
+        self.bullets
+            .iter()
+            .filter(|b| b.fractal_data().is_some())
+            .count()
     }
 }

@@ -90,7 +90,7 @@ impl EnemyManager {
             event_queue: Vec::new(),
             spawn_timer: 0.0,
             // Spawn interval: how many enemies spawned per second
-            spawn_interval: 110.1, // Spawn every 2 seconds
+            spawn_interval: 1.0, // Spawn every 2 seconds
         }
     }
 
@@ -397,7 +397,7 @@ impl EnemyManager {
         use rand::Rng;
 
         // Random distance from player (5-15 units away)
-        let distance = rand::rng().random_range(5.0..=15.0);
+        let distance = rand::rng().random_range(5.0..=100.0);
 
         // Generate random point on sphere using spherical coordinates
         // Uniform distribution on sphere surface

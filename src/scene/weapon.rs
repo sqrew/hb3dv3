@@ -1,16 +1,18 @@
 use crate::engine::Vec3;
 use crate::engine::dispatcher::{EventType, WeaponEvent};
 use crate::input::InputManager;
-use crate::scene::bullet::{ChainLightningEffect, ProjectileEffects, ProjectileType, BulletVisuals};
+use crate::scene::bullet::{
+    BulletVisuals, ChainLightningEffect, FractalConfig, ProjectileEffects, ProjectileType,
+};
 
 // Chain Lightning Configuration Constants
-const CHAIN_LIGHTNING_JUMP_RANGE: f32 = 128.0; // Maximum distance for chain lightning jumps
-const CHAIN_LIGHTNING_MAX_JUMPS: usize = 16; // Maximum number of jumps
+const CHAIN_LIGHTNING_JUMP_RANGE: f32 = 256.0; // Maximum distance for chain lightning jumps
+const CHAIN_LIGHTNING_MAX_JUMPS: usize = 32; // Maximum number of jumps
 const CHAIN_LIGHTNING_DAMAGE_FALLOFF: f32 = 0.9; // Damage multiplier per jump (75% damage per jump)
-const SEEKING_EXPLOSIVE_SEEK_FORCE: f32 = 1000.0;
-const SEEKING_EXPLOSIVE_SEEK_RANGE: f32 = 500.0;
-const SEEKING_EXPLOSIVE_EXPLOSION_RADIUS: f32 = 50.0;
-const SEEKING_EXPLOSIVE_EXPLOSION_FORCE: f32 = 3000.0;
+const SEEKING_EXPLOSIVE_SEEK_FORCE: f32 = 5000.0;
+const SEEKING_EXPLOSIVE_SEEK_RANGE: f32 = 1000.0;
+const SEEKING_EXPLOSIVE_EXPLOSION_RADIUS: f32 = 30.0;
+const SEEKING_EXPLOSIVE_EXPLOSION_FORCE: f32 = 5000.0;
 const SEEKING_EXPLOSIVE_EXPLOSION_DURATION: f32 = 0.5;
 
 #[derive(Debug, Clone)]
@@ -21,6 +23,7 @@ pub enum WeaponType {
     AntiGravityCannon,
     ChainLightning,
     SeekingExplosive,
+    FractalCannon,
 }
 
 #[derive(Debug, Clone)]
@@ -98,12 +101,24 @@ impl WeaponStats {
     pub fn seeking_explosive() -> Self {
         Self {
             damage: 50.0,          // Base damage - explosion adds area effect
-            fire_rate: 1.0,        // Slower rate for powerful explosive
-            bullet_speed: 100.0,   // Starts slow to allow seeking time
+            fire_rate: 2.0,        // Slower rate for powerful explosive
+            bullet_speed: 200.0,   // Starts slow to allow seeking time
             bullet_lifetime: 10.0, // Long lifetime for seeking behavior
             projectile_count: 1,   // Single seeking missile
             spread_angle: 0.0,     // Precise targeting
             bullet_mass: 1.0,      // Keep at 1.0 for seeking speed scaling
+        }
+    }
+
+    pub fn fractal_cannon() -> Self {
+        Self {
+            damage: 30.0,          // Base damage - multiplies with fractal generations
+            fire_rate: 2.0,        // Slower rate for spectacular fractal shots
+            bullet_speed: 150.0,   // Moderate speed for good fractal development
+            bullet_lifetime: 60.0, // Long enough for deep fractals to unfold
+            projectile_count: 1,   // Single fractal parent
+            spread_angle: 0.0,     // Precise initial shot
+            bullet_mass: 0.8,      // Light for fractal dynamics
         }
     }
 }
@@ -124,6 +139,7 @@ impl Weapon {
             WeaponType::AntiGravityCannon => WeaponStats::anti_gravity_cannon(),
             WeaponType::ChainLightning => WeaponStats::chain_lightning(),
             WeaponType::SeekingExplosive => WeaponStats::seeking_explosive(),
+            WeaponType::FractalCannon => WeaponStats::fractal_cannon(),
         };
 
         Self {
@@ -152,8 +168,33 @@ impl Weapon {
 
         let mut requests = Vec::new();
 
-        if self.stats.projectile_count == 1 {
-            // Single projectile - check weapon type
+        // Calculate spread for multiple projectiles
+        let spread_rad = self.stats.spread_angle.to_radians();
+        let half_spread = spread_rad / 2.0;
+
+        for i in 0..self.stats.projectile_count {
+            // Calculate direction for this projectile
+            let projectile_direction = if self.stats.projectile_count == 1 {
+                // Single projectile - use original direction
+                direction.normalize()
+            } else {
+                // Multiple projectiles - apply spread
+                let t = (i as f32) / (self.stats.projectile_count - 1) as f32;
+                let angle_offset = -half_spread + (t * spread_rad);
+
+                // Rotate the direction vector around the up axis
+                let cos_angle = angle_offset.cos();
+                let sin_angle = angle_offset.sin();
+
+                Vec3::new(
+                    direction.x * cos_angle - direction.z * sin_angle,
+                    direction.y,
+                    direction.x * sin_angle + direction.z * cos_angle,
+                )
+                .normalize()
+            };
+
+            // Determine projectile type based on weapon
             let projectile_type = match self.weapon_type {
                 WeaponType::ChainLightning => {
                     // Create chain lightning projectile with custom effects
@@ -171,7 +212,7 @@ impl Weapon {
 
                     ProjectileType::Custom {
                         damage: self.stats.damage,
-                        velocity: direction.normalize() * self.stats.bullet_speed,
+                        velocity: projectile_direction * self.stats.bullet_speed,
                         lifetime: self.stats.bullet_lifetime,
                         mass: self.stats.bullet_mass,
                         effects,
@@ -182,7 +223,7 @@ impl Weapon {
                     // Create seeking explosive projectile
                     ProjectileType::SeekingExplosive {
                         damage: self.stats.damage,
-                        velocity: direction.normalize() * self.stats.bullet_speed,
+                        velocity: projectile_direction * self.stats.bullet_speed,
                         lifetime: self.stats.bullet_lifetime,
                         mass: self.stats.bullet_mass,
                         seeking_force: SEEKING_EXPLOSIVE_SEEK_FORCE,
@@ -191,6 +232,17 @@ impl Weapon {
                         explosion_force: SEEKING_EXPLOSIVE_EXPLOSION_FORCE,
                         explosion_duration: SEEKING_EXPLOSIVE_EXPLOSION_DURATION,
                         visuals: BulletVisuals::seeking_explosive(),
+                    }
+                }
+                WeaponType::FractalCannon => {
+                    // Create fractal projectile with random pattern
+                    ProjectileType::Fractal {
+                        damage: self.stats.damage,
+                        velocity: projectile_direction * self.stats.bullet_speed,
+                        lifetime: self.stats.bullet_lifetime,
+                        mass: self.stats.bullet_mass,
+                        fractal_config: FractalConfig::random(), // Random fractal pattern each shot!
+                        visuals: BulletVisuals::fractal_cannon(),
                     }
                 }
                 _ => {
@@ -205,7 +257,7 @@ impl Weapon {
 
                     ProjectileType::Basic {
                         damage: self.stats.damage,
-                        velocity: direction.normalize() * self.stats.bullet_speed,
+                        velocity: projectile_direction * self.stats.bullet_speed,
                         lifetime: self.stats.bullet_lifetime,
                         mass: self.stats.bullet_mass,
                         visuals,
@@ -215,56 +267,13 @@ impl Weapon {
 
             requests.push(BulletSpawnRequest {
                 position: origin,
-                direction: direction.normalize(),
+                direction: projectile_direction,
                 speed: self.stats.bullet_speed,
                 lifetime: self.stats.bullet_lifetime,
                 damage: self.stats.damage,
                 mass: self.stats.bullet_mass,
                 projectile_type,
             });
-        } else {
-            // Multiple projectiles (shotgun-style)
-            let spread_rad = self.stats.spread_angle.to_radians();
-            let half_spread = spread_rad / 2.0;
-
-            for i in 0..self.stats.projectile_count {
-                let t = if self.stats.projectile_count == 1 {
-                    0.0
-                } else {
-                    (i as f32) / (self.stats.projectile_count - 1) as f32
-                };
-
-                let angle_offset = -half_spread + (t * spread_rad);
-
-                // Rotate the direction vector around the up axis
-                let cos_angle = angle_offset.cos();
-                let sin_angle = angle_offset.sin();
-
-                let spread_direction = Vec3::new(
-                    direction.x * cos_angle - direction.z * sin_angle,
-                    direction.y,
-                    direction.x * sin_angle + direction.z * cos_angle,
-                );
-
-                // Get visuals for shotgun pellets
-                let visuals = BulletVisuals::shotgun();
-
-                requests.push(BulletSpawnRequest {
-                    position: origin,
-                    direction: spread_direction.normalize(),
-                    speed: self.stats.bullet_speed,
-                    lifetime: self.stats.bullet_lifetime,
-                    damage: self.stats.damage,
-                    mass: self.stats.bullet_mass,
-                    projectile_type: ProjectileType::Basic {
-                        damage: self.stats.damage,
-                        velocity: spread_direction.normalize() * self.stats.bullet_speed,
-                        lifetime: self.stats.bullet_lifetime,
-                        mass: self.stats.bullet_mass,
-                        visuals,
-                    },
-                });
-            }
         }
 
         Some(requests)
@@ -306,6 +315,7 @@ impl WeaponManager {
             // WeaponType::AntiGravityCannon,
             WeaponType::ChainLightning,
             WeaponType::SeekingExplosive,
+            WeaponType::FractalCannon,
         ];
 
         Self {

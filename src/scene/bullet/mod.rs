@@ -10,3 +10,4 @@ pub use visuals::BulletVisuals;
 pub use effects::{OnHitEffect, OnExpireEffect, ChainLightningEffect, ExplosionEffect, ProjectileEffects, ChainLightningEvent};
 pub use types::{ProjectileType, Bullet, MetaBullet};
 pub use manager::BulletManager;
+pub use fractal::{FractalPattern, FractalConfig, FractalBullet, FractalSplitEvent};

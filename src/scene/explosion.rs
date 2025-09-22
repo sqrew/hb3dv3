@@ -1,5 +1,5 @@
 use crate::engine::EntityId;
-use crate::graphics::{Primitive, Vec3};
+use crate::graphics::{Color, Primitive, Vec3};
 
 /// How the explosion force falls off with distance
 #[derive(Debug, Clone, Copy)]
@@ -29,6 +29,12 @@ pub struct Explosion {
     pub elapsed_time: f32,
     /// How force decreases with distance
     pub falloff_type: FalloffType,
+
+    /// Color of the explosion animation
+    pub explosion_color: Color,
+    pub particle_color: Color,
+    pub particle_count: u32,
+
     /// Whether this explosion affects all object types
     pub affects_all: bool,
 }
@@ -41,6 +47,9 @@ impl Explosion {
         force_strength: f32,
         duration: f32,
         falloff_type: FalloffType,
+        explosion_color: Color,
+        particle_color: Color,
+        particle_count: u32,
     ) -> Self {
         Self {
             position,
@@ -50,6 +59,10 @@ impl Explosion {
             duration,
             elapsed_time: 0.0,
             falloff_type,
+            explosion_color,
+            particle_color,
+            particle_count,
+
             affects_all: true,
         }
     }
@@ -113,20 +126,34 @@ impl ExplosionManager {
         force_strength: f32,
         duration: f32,
         falloff_type: FalloffType,
+        explosion_color: Color,
+        particle_color: Color,
+        particle_count: u32,
     ) {
-        let explosion =
-            Explosion::new(position, max_radius, force_strength, duration, falloff_type);
+        let explosion = Explosion::new(
+            position,
+            max_radius,
+            force_strength,
+            duration,
+            falloff_type,
+            explosion_color,
+            particle_color,
+            particle_count,
+        );
         self.explosions.push(explosion);
     }
 
     /// Spawn a shockwave explosion (for large body collisions)
-    pub fn spawn_shockwave(&mut self, position: Vec3) {
+    pub fn spawn_simple_shockwave(&mut self, position: Vec3) {
         self.spawn_explosion(
             position,
             50.0,   // Large radius
             1000.0, // Strong force
             0.3,    // Duration in seconds
             FalloffType::Quadratic,
+            Color::ORANGE,
+            Color::ORANGE,
+            100,
         );
     }
 
@@ -138,6 +165,9 @@ impl ExplosionManager {
             500.0, // Moderate force
             3.0,   // Short duration
             FalloffType::Linear,
+            Color::ORANGE,
+            Color::ORANGE,
+            100,
         );
     }
 
@@ -148,6 +178,9 @@ impl ExplosionManager {
             -500.0, // Moderate force
             3.0,    // Short duration
             FalloffType::Linear,
+            Color::GREEN,
+            Color::GREEN,
+            100,
         );
     }
 
@@ -176,16 +209,12 @@ impl ExplosionManager {
         for explosion in &self.explosions {
             if explosion.current_radius > 0.1 {
                 // Create expanding sphere primitive
+
                 let alpha = 1.0 - (explosion.elapsed_time / explosion.duration); // Fade out over time
 
-                // Different colors for different force types
-                let color = if explosion.force_strength < 0.0 {
-                    // Negative force = attractive/implosive = green
-                    Color::new(0.2, 1.0, 0.2, alpha * 0.3) // Green with transparency
-                } else {
-                    // Positive force = repulsive/explosive = orange
-                    Color::new(1.0, 0.6, 0.2, alpha * 0.3) // Orange with transparency
-                };
+                // Get color from explosion, modify it to use alpha
+                let mut color = explosion.explosion_color;
+                color.a = alpha * 0.3;
 
                 let primitive = Primitive::new(PrimitiveType::Sphere, explosion.position, color)
                     .with_uniform_scale(explosion.current_radius);
@@ -205,6 +234,37 @@ impl ExplosionManager {
     /// Clear all explosions (useful for testing)
     pub fn clear(&mut self) {
         self.explosions.clear();
+    }
+
+    /// Calculate explosion damage for enemies within range
+    /// Returns list of (enemy_id, damage) pairs for scheduler to apply
+    pub fn calculate_explosion_damage(
+        &self,
+        explosion_position: Vec3,
+        damage: f32,
+        damage_radius: f32,
+        enemies: &[crate::scene::enemy::Enemy],
+    ) -> Vec<(EntityId, f32)> {
+        let mut damage_events = Vec::new();
+
+        for enemy in enemies {
+            let distance = (enemy.position() - explosion_position).magnitude();
+            if distance <= damage_radius {
+                // Calculate damage falloff based on distance (closer = more damage)
+                let damage_falloff = if damage_radius > 0.0 {
+                    1.0 - (distance / damage_radius)
+                } else {
+                    1.0 // Full damage if radius is 0
+                };
+                let actual_damage = damage * damage_falloff.max(0.0);
+
+                if actual_damage > 0.0 {
+                    damage_events.push((enemy.entity_id(), actual_damage));
+                }
+            }
+        }
+
+        damage_events
     }
 }
 

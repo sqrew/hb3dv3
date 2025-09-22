@@ -56,6 +56,12 @@ impl EntityManager {
         }
     }
 
+    /// Register an existing entity ID with the entity manager (for fractal bullets)
+    pub fn register_existing_entity(&mut self, entity_id: EntityId, entity_type: EntityType) {
+        self.active_entities.insert(entity_id);
+        self.entity_types.insert(entity_id, entity_type);
+    }
+
     /// Marks an entity as destroyed and removes it from active tracking
     pub fn destroy_entity(&mut self, id: EntityId) -> bool {
         self.entity_types.remove(&id);

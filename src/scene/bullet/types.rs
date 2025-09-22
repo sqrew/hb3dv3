@@ -37,6 +37,15 @@ pub enum ProjectileType {
         explosion_duration: f32,
         visuals: BulletVisuals,
     },
+    /// Fractal projectile that splits into mathematical patterns
+    Fractal {
+        damage: f32,
+        velocity: Vec3,
+        lifetime: f32,
+        mass: f32,
+        fractal_config: super::fractal::FractalConfig,
+        visuals: BulletVisuals,
+    },
 }
 
 /// Basic bullet struct for simple projectiles
@@ -52,6 +61,17 @@ pub struct Bullet {
     mass: f32,
     applied_force: Vec3,
     visuals: BulletVisuals,
+    // Optional fractal metadata for bullets that can split
+    fractal_data: Option<FractalBulletData>,
+}
+
+/// Fractal data that can be attached to regular bullets to enable splitting
+#[derive(Debug, Clone)]
+pub struct FractalBulletData {
+    pub config: super::fractal::FractalConfig,
+    pub generation: usize,
+    pub time_until_split: f32,
+    pub has_split: bool,
 }
 
 impl Bullet {
@@ -76,6 +96,46 @@ impl Bullet {
             mass, // Custom mass - can be negative!
             applied_force: Vec3::zeros(),
             visuals,
+            fractal_data: None,
+        }
+    }
+
+    /// Create a fractal bullet that can split into multiple children
+    pub fn new_fractal(
+        entity_id: EntityId,
+        pos: Vec3,
+        vel: Vec3,
+        ttl: f32,
+        damage: f32,
+        mass: f32,
+        visuals: BulletVisuals,
+        fractal_config: super::fractal::FractalConfig,
+        generation: usize,
+    ) -> Self {
+        let time_until_split = if generation == 0 {
+            fractal_config.split_delay
+        } else {
+            fractal_config.split_delay
+        };
+
+        Bullet {
+            entity_id,
+            pos,
+            vel,
+            ttl,
+            damage,
+            collision_radius: 0.1,
+            collision_mask: CollisionMask::from(EntityType::PlayerBullet),
+            marked_for_removal: false,
+            mass,
+            applied_force: Vec3::zeros(),
+            visuals,
+            fractal_data: Some(FractalBulletData {
+                config: fractal_config,
+                generation,
+                time_until_split,
+                has_split: false,
+            }),
         }
     }
 
@@ -95,6 +155,13 @@ impl Bullet {
 
         // Decrease time to live
         self.ttl -= dt;
+
+        // Update fractal split timer if this is a fractal bullet
+        if let Some(ref mut fractal_data) = self.fractal_data {
+            if !fractal_data.has_split && fractal_data.generation < fractal_data.config.max_depth {
+                fractal_data.time_until_split -= dt;
+            }
+        }
 
         // Apply orbital decay effects (gravitational wave radiation simulation)
         self.apply_orbital_decay(dt);
@@ -169,6 +236,73 @@ impl Bullet {
 
     pub fn set_velocity(&mut self, velocity: Vec3) {
         self.vel = velocity;
+    }
+
+    /// Check if this bullet should split now (for fractal bullets only)
+    pub fn should_split(&self, dt: f32) -> bool {
+        if let Some(ref fractal_data) = self.fractal_data {
+            if fractal_data.has_split || fractal_data.generation >= fractal_data.config.max_depth {
+                return false;
+            }
+            fractal_data.time_until_split <= dt
+        } else {
+            false
+        }
+    }
+
+    /// Mark this bullet as having split (for fractal bullets only)
+    pub fn mark_split(&mut self) {
+        if let Some(ref mut fractal_data) = self.fractal_data {
+            fractal_data.has_split = true;
+        }
+    }
+
+    /// Get fractal data (for fractal bullets only)
+    pub fn fractal_data(&self) -> Option<&FractalBulletData> {
+        self.fractal_data.as_ref()
+    }
+
+    /// Create a child fractal bullet from this parent
+    pub fn create_fractal_child(&self, entity_id: EntityId, split_direction: Vec3) -> Option<Bullet> {
+        if let Some(ref fractal_data) = self.fractal_data {
+            // Calculate new velocity using the 3D split direction
+            let parent_speed = self.vel.magnitude();
+            let new_velocity = split_direction.normalize() * parent_speed * fractal_data.config.velocity_inheritance;
+
+            // Offset child position slightly in the split direction to prevent immediate parent-child collision
+            let separation_distance = 0.3; // Small offset to ensure immediate separation
+            let child_position = self.pos + split_direction.normalize() * separation_distance;
+
+            // Child gets smaller visuals
+            let mut child_visuals = self.visuals.clone();
+            child_visuals.scale *= fractal_data.config.size_decay;
+
+            Some(Bullet::new_fractal(
+                entity_id,
+                child_position,
+                new_velocity,
+                self.ttl * 0.8,     // Children live shorter
+                self.damage * 0.7,  // Reduced damage per generation
+                self.mass * 0.8,    // Lighter children
+                child_visuals,
+                fractal_data.config.clone(),
+                fractal_data.generation + 1,
+            ))
+        } else {
+            None
+        }
+    }
+
+    /// Get the split directions for creating children (for fractal bullets only)
+    pub fn get_split_directions(&self) -> Vec<Vec3> {
+        if let Some(ref fractal_data) = self.fractal_data {
+            fractal_data.config.pattern.get_split_directions(
+                self.vel.normalize(),
+                fractal_data.generation
+            )
+        } else {
+            Vec::new()
+        }
     }
 }
 
