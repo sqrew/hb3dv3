@@ -1,5 +1,5 @@
 use crate::engine::{EntityId, Vec3};
-use crate::scene::bullet::{BulletVisuals, ProjectileType};
+use crate::scene::bullet::BulletVisuals;
 use rand::Rng;
 
 /// Different fractal splitting patterns
@@ -126,7 +126,7 @@ impl FractalPattern {
             // TRUE 3D PATTERNS - THIS IS WHERE IT GETS AMAZING!
             FractalPattern::Tetrahedron3D => {
                 // Tetrahedral geometry - 4 directions forming a perfect tetrahedron
-                let tet_angle = 109.47_f32.to_radians(); // Tetrahedral angle
+                let _tet_angle = 109.47_f32.to_radians(); // Tetrahedral angle
                 vec![
                     Vec3::new(1.0, 1.0, 1.0).normalize(),
                     Vec3::new(-1.0, -1.0, 1.0).normalize(),

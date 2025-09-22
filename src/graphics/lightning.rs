@@ -446,7 +446,7 @@ impl LightningBolt {
         let tendril_length = main_length * self.config.seeking_tendril_length;
 
         // Generate tendrils from random points along the main path
-        for i in 0..self.config.seeking_tendril_count {
+        for _i in 0..self.config.seeking_tendril_count {
             // Pick a random position along the main path to branch from
             let branch_point_t = rng.random_range(0.1..0.9);
             let branch_start = start + (end - start) * branch_point_t;

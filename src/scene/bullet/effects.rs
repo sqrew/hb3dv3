@@ -1,7 +1,6 @@
 use crate::{
     engine::{EntityId, Vec3},
     graphics::Color,
-    scene::explosion,
 };
 
 /// Trait for effects that trigger when a bullet hits a target

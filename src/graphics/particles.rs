@@ -8,9 +8,6 @@ const MAX_PARTICLES: u32 = 262144;
 /// Maximum spawn requests per frame
 const MAX_SPAWN_REQUESTS: u32 = 8192;
 
-/// Particles per collision effect
-const PARTICLES_PER_COLLISION: u32 = 256;
-
 /// GPU particle data structure
 #[repr(C)]
 #[derive(Debug, Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
@@ -57,7 +54,7 @@ pub struct GpuExplosion {
     pub position: [f32; 3],
     pub current_radius: f32,
     pub force_strength: f32,
-    pub falloff_type: u32,  // 0=Linear, 1=Quadratic, 2=Constant
+    pub falloff_type: u32, // 0=Linear, 1=Quadratic, 2=Constant
     pub _pad1: f32,
     pub _pad2: f32,
 }
@@ -464,17 +461,6 @@ impl ParticleSystem {
         }
     }
 
-    /// Add a particle spawn request at the given position with default values (backwards compatibility)
-    pub fn spawn_particles_simple(&mut self, position: Vec3) {
-        self.spawn_particles(
-            position,
-            Vec3::new(0.0, 1.0, 0.0), // Default upward velocity
-            PARTICLES_PER_COLLISION,
-            2.5, // Increased lifetime from 0.8 to 2.5 seconds
-            crate::graphics::Color::new(1.0, 0.6, 0.2, 1.0), // Orange sparks
-        );
-    }
-
     /// Set physics buffers for gravitational effects (recreates bind group)
     pub fn set_physics_buffers(
         &mut self,
@@ -659,17 +645,24 @@ impl ParticleSystem {
 
     /// Update explosion data for particle interactions
     pub fn set_explosion_data(&self, queue: &wgpu::Queue, explosions: &[GpuExplosion]) {
-        // Update explosion buffer
+        // Update explosion buffer - clamp to buffer capacity to prevent overrun
         if !explosions.is_empty() {
-            let data_bytes = bytemuck::cast_slice::<GpuExplosion, u8>(explosions);
+            const MAX_PARTICLE_EXPLOSIONS: usize = 64; // Match buffer allocation size
+            let clamped_explosions = if explosions.len() > MAX_PARTICLE_EXPLOSIONS {
+                &explosions[..MAX_PARTICLE_EXPLOSIONS]
+            } else {
+                explosions
+            };
+            let data_bytes = bytemuck::cast_slice::<GpuExplosion, u8>(clamped_explosions);
             queue.write_buffer(&self.explosion_buffer, 0, data_bytes);
         }
 
-        // Update explosion count
+        // Update explosion count - use clamped count
+        let clamped_count = explosions.len().min(64) as u32;
         queue.write_buffer(
             &self.explosion_count_buffer,
             0,
-            bytemuck::cast_slice(&[explosions.len() as u32]),
+            bytemuck::cast_slice(&[clamped_count]),
         );
     }
 

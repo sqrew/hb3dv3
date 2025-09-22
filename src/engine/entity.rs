@@ -197,9 +197,12 @@ impl<'a> EntityLookup<'a> {
                 self.get_bullet_entity_ids_by_type(EntityType::PlayerBullet)
             }
             EntityType::EnemyBullet => self.get_bullet_entity_ids_by_type(EntityType::EnemyBullet),
-            EntityType::LargeBody => {
-                self.large_body_manager.bodies().iter().map(|body| body.entity_id()).collect()
-            }
+            EntityType::LargeBody => self
+                .large_body_manager
+                .bodies()
+                .iter()
+                .map(|body| body.entity_id())
+                .collect(),
         }
     }
 

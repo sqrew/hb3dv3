@@ -8,12 +8,11 @@
 * ideas
 visual on bodies vs collision bounce size is off
 gravity visuals on large bodies
-arena and bounding
 make Dispatcher::handle_collision_events() match block BulletHitEnemy's SpawnParticle event look up the enemy and use it's color as the particles color
 use LineInstance to build arbitrary shapes
 
-
-
+make large_bodies have a spawn_random_body function
+fix resetting game spawning a bhole
 
 
 

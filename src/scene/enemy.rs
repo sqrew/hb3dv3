@@ -1,6 +1,6 @@
 use crate::engine::dispatcher::{EnemyEvent, EventType};
 use crate::engine::entity::{EntityId, EntityType};
-use crate::engine::{CollisionMask, GraphicsEvent, Vec3};
+use crate::engine::{CollisionMask, Vec3};
 use crate::graphics::{Color, Primitive, PrimitiveType};
 use crate::scene::GravityAffected;
 
@@ -117,7 +117,7 @@ impl EnemyManager {
         }
 
         // 2. Spherical Shell Formation (hollow sphere of enemies)
-        for i in 0..100 {
+        for _i in 0..100 {
             let theta = rand::rng().random_range(0.0..std::f32::consts::TAU);
             let phi = rand::rng().random_range(0.0..std::f32::consts::PI);
             let radius = 25.0;
@@ -307,7 +307,7 @@ impl EnemyManager {
         &mut self,
         entity_id: crate::engine::entity::EntityId,
         damage: f32,
-        source: crate::engine::entity::EntityId,
+        _source: crate::engine::entity::EntityId,
     ) -> bool {
         for enemy in &mut self.enemies {
             if enemy.entity_id() == entity_id {

@@ -31,7 +31,7 @@ fn fs_brightness_extract(input: VertexOutput) -> @location(0) vec4<f32> {
     
     // Extract bright areas using luminance threshold
     let luminance = dot(color.rgb, vec3<f32>(0.299, 0.587, 0.114));
-    let brightness_threshold = 0.2; // Even lower threshold for neon effect
+    let brightness_threshold = 0.01; // Very low threshold for wireframe graphics
     
     if (luminance > brightness_threshold) {
         // Sharp cutoff for crisp neon edges, less blur
@@ -104,10 +104,9 @@ fn fs_composition(input: VertexOutput) -> @location(0) vec4<f32> {
     
     // Combine original scene with sharpened bloom
     let final_color = original.rgb + sharpened_bloom * composition_uniforms.bloom_intensity;
-    
-    // Optional tone mapping for HDR-like effect
+
+    // Apply exposure boost without darkening tone mapping
     let exposed = final_color * composition_uniforms.exposure;
-    let tone_mapped = exposed / (exposed + vec3<f32>(1.0));
-    
-    return vec4<f32>(tone_mapped, original.a);
+
+    return vec4<f32>(exposed, original.a);
 }

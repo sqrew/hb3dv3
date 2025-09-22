@@ -1,5 +1,5 @@
 use crate::engine::EntityId;
-use crate::graphics::{Color, Primitive, Vec3};
+use crate::graphics::{Color, Primitive, PrimitiveType, Vec3};
 
 /// How the explosion force falls off with distance
 #[derive(Debug, Clone, Copy)]
@@ -202,8 +202,6 @@ impl ExplosionManager {
 
     /// Get render data for visual effects
     pub fn get_render_data(&self) -> Vec<Primitive> {
-        use crate::graphics::{Color, PrimitiveType};
-
         let mut primitives = Vec::new();
 
         for explosion in &self.explosions {

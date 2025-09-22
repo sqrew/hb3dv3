@@ -1,13 +1,13 @@
 // Bullet system modules
-pub mod visuals;
 pub mod effects;
-pub mod types;
-pub mod manager;
 pub mod fractal;
+pub mod manager;
+pub mod types;
+pub mod visuals;
 
 // Re-export main types for convenience
-pub use visuals::BulletVisuals;
-pub use effects::{OnHitEffect, OnExpireEffect, ChainLightningEffect, ExplosionEffect, ProjectileEffects, ChainLightningEvent};
-pub use types::{ProjectileType, Bullet, MetaBullet};
+pub use effects::{ChainLightningEffect, ChainLightningEvent, ProjectileEffects};
+pub use fractal::FractalConfig;
 pub use manager::BulletManager;
-pub use fractal::{FractalPattern, FractalConfig, FractalBullet, FractalSplitEvent};
+pub use types::{Bullet, MetaBullet, ProjectileType};
+pub use visuals::BulletVisuals;

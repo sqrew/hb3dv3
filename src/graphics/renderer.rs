@@ -3,9 +3,10 @@ use wgpu::util::DeviceExt;
 use winit::{dpi::PhysicalSize, window::Window};
 
 use crate::graphics::{
-    BloomRenderer, CameraUniform, CollisionCompute, Frustum, InstancedLineRenderer, LightningEffectManager, ParticleSystem,
-    Primitive, PrimitiveType, Projection, ThirdPersonCamera, Vertex, constants::*,
-    is_visible_sphere, line_batch::ReusableLineBatch, primitive_cache::PrimitiveCache, vertex::LineInstance,
+    BloomRenderer, CameraUniform, CollisionCompute, Frustum, InstancedLineRenderer,
+    LightningEffectManager, ParticleSystem, Primitive, PrimitiveType, Projection,
+    ThirdPersonCamera, Vertex, constants::*, is_visible_sphere, line_batch::ReusableLineBatch,
+    primitive_cache::PrimitiveCache, vertex::LineInstance,
 };
 use crate::ui::text_renderer::TextRenderer;
 
@@ -253,7 +254,13 @@ impl GraphicsEngine {
         let collision_compute = CollisionCompute::new(&device);
 
         // Create particle system (without physics buffers for now - they'll be set later)
-        let particles = ParticleSystem::new(&device, &camera_bind_group_layout, None, None, surface_format);
+        let particles = ParticleSystem::new(
+            &device,
+            &camera_bind_group_layout,
+            None,
+            None,
+            surface_format,
+        );
 
         // Create lightning effect manager
         let lightning_manager = LightningEffectManager::new();
@@ -270,7 +277,7 @@ impl GraphicsEngine {
                 _ => "Other present mode",
             }
         );
-        println!("- Bloom post-processing: DISABLED");
+        println!("- Bloom post-processing: ENABLED");
         println!("- Depth testing: ENABLED for proper Z-ordering");
 
         Ok(Self {
@@ -413,7 +420,7 @@ impl GraphicsEngine {
             let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("Scene Render Pass"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: &final_view,
+                    view: self.bloom_renderer.get_scene_texture_view(),
                     resolve_target: None,
                     ops: wgpu::Operations {
                         load: wgpu::LoadOp::Clear(wgpu::Color {
@@ -453,7 +460,8 @@ impl GraphicsEngine {
             self.text_renderer.render(&mut render_pass);
         }
 
-        // Step 2: Bloom post-processing disabled - rendering directly to final surface
+        // Step 2: Apply bloom post-processing and render to final surface
+        self.bloom_renderer.render_bloom(&mut encoder, &final_view);
 
         self.queue.submit(std::iter::once(encoder.finish()));
         output.present();
@@ -554,7 +562,8 @@ impl GraphicsEngine {
         // Generate all lines using optimized systems with full rotation support
         // Lines are now batched by primitive type for better cache locality
         // Use reusable buffer to avoid allocations that cause frame spikes
-        self.line_batch.finish_frame_into(&self.primitive_cache, &mut self.line_instances_buffer);
+        self.line_batch
+            .finish_frame_into(&self.primitive_cache, &mut self.line_instances_buffer);
 
         // Arena wireframes now use the standard rendering pipeline above
         // They are handled like any other entity with RenderComponent + ArenaMarkerComponent
@@ -571,11 +580,15 @@ impl GraphicsEngine {
         }
 
         // Update GPU buffers BEFORE starting the render pass to prevent stalls
-        self.line_renderer.update_buffers(&self.line_instances_buffer);
+        self.line_renderer
+            .update_buffers(&self.line_instances_buffer);
 
         // Always render - even empty to maintain consistent frame timing
-        self.line_renderer
-            .render_lines(render_pass, &self.camera_bind_group, &self.line_instances_buffer);
+        self.line_renderer.render_lines(
+            render_pass,
+            &self.camera_bind_group,
+            &self.line_instances_buffer,
+        );
     }
 
     /// Spawn particles with full collision event data
@@ -589,11 +602,6 @@ impl GraphicsEngine {
     ) {
         self.particles
             .spawn_particles(position, velocity, count, lifetime, color);
-    }
-
-    /// Spawn particles at the given position with default values (backwards compatibility)
-    pub fn spawn_particles_simple(&mut self, position: crate::graphics::Vec3) {
-        self.particles.spawn_particles_simple(position);
     }
 
     // Text rendering methods
@@ -631,12 +639,19 @@ impl GraphicsEngine {
     }
 
     /// Update particle system with explosion data for physics interactions
-    pub fn update_particle_explosions(&mut self, explosions: &[crate::scene::explosion::Explosion]) {
+    pub fn update_particle_explosions(
+        &mut self,
+        explosions: &[crate::scene::explosion::Explosion],
+    ) {
         // Convert scene explosions to GPU format
         let gpu_explosions: Vec<crate::graphics::particles::GpuExplosion> = explosions
             .iter()
             .map(|explosion| crate::graphics::particles::GpuExplosion {
-                position: [explosion.position.x, explosion.position.y, explosion.position.z],
+                position: [
+                    explosion.position.x,
+                    explosion.position.y,
+                    explosion.position.z,
+                ],
                 current_radius: explosion.current_radius,
                 force_strength: explosion.force_strength,
                 falloff_type: match explosion.falloff_type {
@@ -650,7 +665,8 @@ impl GraphicsEngine {
             .collect();
 
         // Update particle system with explosion data
-        self.particles.set_explosion_data(&self.queue, &gpu_explosions);
+        self.particles
+            .set_explosion_data(&self.queue, &gpu_explosions);
     }
 
     /// Update lightning effects (call before render)
@@ -659,7 +675,12 @@ impl GraphicsEngine {
     }
 
     /// Spawn a lightning bolt between two points
-    pub fn spawn_lightning(&mut self, start: crate::graphics::Vec3, end: crate::graphics::Vec3, config: Option<crate::graphics::LightningConfig>) {
+    pub fn spawn_lightning(
+        &mut self,
+        start: crate::graphics::Vec3,
+        end: crate::graphics::Vec3,
+        config: Option<crate::graphics::LightningConfig>,
+    ) {
         self.lightning_manager.spawn_lightning(start, end, config);
     }
 }

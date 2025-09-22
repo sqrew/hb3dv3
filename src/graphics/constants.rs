@@ -3,9 +3,6 @@
 //! This module contains constants used throughout the graphics system
 //! for primitive generation, rendering parameters, and visual effects.
 
-// Rendering performance thresholds
-pub const GPU_COLLISION_THRESHOLD: usize = 1024; // Minimum entities to use GPU collision
-
 // Primitive bounding radii (for frustum culling) - calculated from actual geometry
 pub const CUBE_BOUNDING_RADIUS: f32 = 0.866; // sqrt(3)/2 for cube diagonal ±0.5
 pub const SPHERE_BOUNDING_RADIUS: f32 = 0.5; // Unit sphere radius 0.5
@@ -39,16 +36,6 @@ pub const LINE_CYLINDER_SEGMENTS: u32 = 8; // Segments for instanced line render
 // Line rendering parameters
 pub const DEFAULT_LINE_THICKNESS: f32 = 0.10; // Default line thickness for wireframes
 pub const ARENA_LINE_THICKNESS: f32 = 2.0; // Thicker lines for arena boundaries
-
-// Camera constants
-pub const CAMERA_MIN_DISTANCE: f32 = 1.0;
-pub const CAMERA_MAX_DISTANCE: f32 = 100.0;
-pub const CAMERA_MIN_PITCH: f32 = -89.0;
-pub const CAMERA_MAX_PITCH: f32 = 89.0;
-pub const CAMERA_ZOOM_SPEED: f32 = 2.0;
-pub const CAMERA_SMOOTHING: f32 = 4.0;
-pub const CAMERA_ZOOM_MIN: f32 = 1.0;
-pub const CAMERA_ZOOM_MAX: f32 = 100.0;
 
 // Torus geometry constants
 pub const TORUS_MAJOR_RADIUS_RATIO: f32 = 0.8;

@@ -1,7 +1,6 @@
 pub mod text_renderer;
 
 use crate::graphics::Color;
-pub use text_renderer::*;
 
 #[derive(Debug, Clone, Copy)]
 pub enum HorizontalAlign {

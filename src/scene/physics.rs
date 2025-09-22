@@ -2,7 +2,7 @@ use crate::graphics::Vec3;
 use wgpu::util::DeviceExt;
 
 /// Maximum number of gravitational bodies in the system
-const MAX_GRAVITATIONAL_BODIES: u32 = 32;
+const MAX_GRAVITATIONAL_BODIES: u32 = 128;
 
 /// Maximum number of gravity-affected objects
 const MAX_AFFECTED_OBJECTS: u32 = 65536;
@@ -22,17 +22,17 @@ pub trait GravityAffected {
 #[derive(Debug, Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct GravitationalBody {
     pub position: [f32; 3],
-    pub _pad1: f32,                    // Explicit padding after vec3
-    pub velocity: [f32; 3], 
-    pub _pad2: f32,                    // Explicit padding after vec3
+    pub _pad1: f32, // Explicit padding after vec3
+    pub velocity: [f32; 3],
+    pub _pad2: f32, // Explicit padding after vec3
     pub radius: f32,
     pub mass: f32,
     pub angular_velocity: f32,
-    pub ergosphere_radius: f32,        // Radius of frame-dragging effect
-    pub frame_dragging_strength: f32,  // Strength of frame-dragging effect
-    pub _pad3: f32,                    // Padding
-    pub _pad4: f32,                    // Padding to 64-byte boundary  
-    pub _pad5: f32,                    // Final padding to 64-byte boundary
+    pub ergosphere_radius: f32,       // Radius of frame-dragging effect
+    pub frame_dragging_strength: f32, // Strength of frame-dragging effect
+    pub _pad3: f32,                   // Padding
+    pub _pad4: f32,                   // Padding to 64-byte boundary
+    pub _pad5: f32,                   // Final padding to 64-byte boundary
 }
 
 impl Default for GravitationalBody {
@@ -111,7 +111,7 @@ pub struct PhysicsManager {
 
     // CPU-side affected objects cache
     affected_objects_cache: Vec<GpuAffectedObject>,
-    
+
     // CPU-side explosions cache
     explosions_cache: Vec<GpuExplosion>,
 }
@@ -186,7 +186,9 @@ impl PhysicsManager {
         let body_count_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Body Count Buffer"),
             contents: bytemuck::cast_slice(&[0u32]),
-            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::STORAGE,
+            usage: wgpu::BufferUsages::UNIFORM
+                | wgpu::BufferUsages::COPY_DST
+                | wgpu::BufferUsages::STORAGE,
         });
 
         let affected_count_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -523,7 +525,11 @@ impl PhysicsManager {
             };
 
             self.explosions_cache.push(GpuExplosion {
-                position: [explosion.position.x, explosion.position.y, explosion.position.z],
+                position: [
+                    explosion.position.x,
+                    explosion.position.y,
+                    explosion.position.z,
+                ],
                 current_radius: explosion.current_radius,
                 force_strength: explosion.force_at_distance(0.0), // Use current max force
                 falloff_type,
@@ -669,8 +675,7 @@ impl PhysicsManager {
             // Apply the GPU-computed forces to our objects
             for (obj, gpu_obj) in affected_objects.iter_mut().zip(gpu_objects.iter()) {
                 let force = Vec3::new(gpu_obj.force[0], gpu_obj.force[1], gpu_obj.force[2]);
-                
-                
+
                 obj.apply_force(force);
             }
         }
@@ -862,8 +867,7 @@ impl PhysicsManager {
             // Apply the GPU-computed forces to our objects
             for (obj, gpu_obj) in affected_objects.iter_mut().zip(gpu_objects.iter()) {
                 let force = Vec3::new(gpu_obj.force[0], gpu_obj.force[1], gpu_obj.force[2]);
-                
-                
+
                 obj.apply_force(force);
             }
         }
@@ -1022,12 +1026,16 @@ impl PhysicsManager {
 
     /// Get the gravitational bodies buffer for use by other GPU systems (like particles)
     pub fn get_gravitational_bodies_buffer(&self) -> Option<&wgpu::Buffer> {
-        self.gpu_resources.as_ref().map(|gpu| &gpu.gravitational_bodies_buffer)
+        self.gpu_resources
+            .as_ref()
+            .map(|gpu| &gpu.gravitational_bodies_buffer)
     }
 
     /// Get the body count buffer for use by other GPU systems (like particles)
     pub fn get_body_count_buffer(&self) -> Option<&wgpu::Buffer> {
-        self.gpu_resources.as_ref().map(|gpu| &gpu.body_count_buffer)
+        self.gpu_resources
+            .as_ref()
+            .map(|gpu| &gpu.body_count_buffer)
     }
 
     /// Get the number of gravitational bodies for GPU buffer access

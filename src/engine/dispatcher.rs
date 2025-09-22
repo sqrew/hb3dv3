@@ -277,14 +277,7 @@ impl Dispatcher {
                 large_body_b_id: _,
                 impact_point,
             } => {
-                // Spawn dramatic explosion particles for large body collisions
-                graphics_events.push(GraphicsEvent::SpawnParticles {
-                    position: impact_point,
-                    velocity: Vec3::new(0.0, 0.0, 0.0), // Explosion spreads in all directions
-                    count: 300,
-                    lifetime: 30.0, // Increased lifetime for longer visibility
-                    color: Color::RED,
-                });
+                // PARTICLES CANNOT SPAWN HERE DUE TO FRAME SPIKING
 
                 // Queue a massive shockwave explosion event for physics effects
                 explosion_events.push(ExplosionEvent::Shockwave {
@@ -380,7 +373,7 @@ impl Dispatcher {
     fn handle_enemy_event(
         event: EnemyEvent,
         scheduler: &mut crate::engine::scheduler::Scheduler,
-        graphics_events: &mut Vec<GraphicsEvent>,
+        _graphics_events: &mut Vec<GraphicsEvent>,
     ) {
         match event {
             EnemyEvent::TakeDamage {
@@ -392,13 +385,13 @@ impl Dispatcher {
                     .enemies_mut()
                     .damage_enemy_with_event(enemy_id, amount, source);
             }
-            EnemyEvent::Die { enemy_id } => {
+            EnemyEvent::Die { enemy_id: _ } => {
                 // Death particles are now handled directly in EnemyManager when the event is generated
                 // This event is now just for notification/cleanup purposes
                 // The enemy is already marked as dead and will be removed by retain()
             }
             EnemyEvent::Spawn {
-                position,
+                position: _,
                 enemy_type: _,
             } => {
                 // Handle enemy spawning if needed

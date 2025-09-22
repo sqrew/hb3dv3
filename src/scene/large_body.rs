@@ -3,9 +3,9 @@ use crate::engine::Vec3;
 use crate::engine::entity::{EntityId, EntityType};
 use crate::graphics::{Color, Primitive, PrimitiveType};
 use crate::scene::PhysicsManager;
-use rand;
 
 /// Types of large gravitational bodies in the game
+#[allow(unused)]
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum LargeBodyType {
     /// Massive gravitational body with extreme pull
@@ -326,35 +326,11 @@ impl LargeBody {
     pub fn entity_id(&self) -> EntityId {
         self.entity_id
     }
-    pub fn body_type(&self) -> LargeBodyType {
-        self.body_type
-    }
     pub fn position(&self) -> Vec3 {
         self.position
     }
-    pub fn velocity(&self) -> Vec3 {
-        self.velocity
-    }
-    pub fn mass(&self) -> f32 {
-        self.mass
-    }
-    pub fn radius(&self) -> f32 {
-        self.radius
-    }
-    pub fn physics_index(&self) -> Option<usize> {
-        self.physics_index
-    }
     pub fn angular_velocity(&self) -> f32 {
         self.angular_velocity
-    }
-    pub fn rotation(&self) -> f32 {
-        self.rotation
-    }
-    pub fn ergosphere_radius(&self) -> f32 {
-        self.ergosphere_radius
-    }
-    pub fn frame_dragging_strength(&self) -> f32 {
-        self.frame_dragging_strength
     }
 
     // Setters
@@ -363,20 +339,6 @@ impl LargeBody {
     }
     pub fn set_velocity(&mut self, velocity: Vec3) {
         self.velocity = velocity;
-    }
-    pub fn set_mass(&mut self, mass: f32) {
-        self.mass = mass;
-    }
-    pub fn set_radius(&mut self, radius: f32) {
-        self.radius = radius;
-    }
-
-    pub fn set_collision_radius(&mut self, collision_radius: f32) {
-        self.collision_radius = collision_radius;
-    }
-
-    pub fn set_angular_velocity(&mut self, angular_velocity: f32) {
-        self.angular_velocity = angular_velocity;
     }
 
     // Collision methods
@@ -416,7 +378,6 @@ impl LargeBodyManager {
         let mut body = LargeBody::new(entity_id, body_type, position);
         body.register_with_physics(physics);
 
-        let physics_index = body.physics_index();
         self.bodies.push(body);
 
         entity_id
@@ -636,46 +597,8 @@ impl LargeBodyManager {
         &self.bodies
     }
 
-    /// Get mutable reference to all bodies
-    pub fn bodies_mut(&mut self) -> &mut [LargeBody] {
-        &mut self.bodies
-    }
-
-    /// Remove a body by entity ID
-    pub fn remove_body(&mut self, entity_id: EntityId) -> bool {
-        if let Some(pos) = self.bodies.iter().position(|b| b.entity_id() == entity_id) {
-            let removed = self.bodies.remove(pos);
-            println!(
-                "🗑️ Removed {} (entity: {})",
-                format!("{:?}", removed.body_type()).to_lowercase(),
-                entity_id.0
-            );
-            true
-        } else {
-            false
-        }
-    }
-
     /// Get body by entity ID
     pub fn get_body(&self, entity_id: EntityId) -> Option<&LargeBody> {
         self.bodies.iter().find(|b| b.entity_id() == entity_id)
-    }
-
-    /// Get mutable body by entity ID
-    pub fn get_body_mut(&mut self, entity_id: EntityId) -> Option<&mut LargeBody> {
-        self.bodies.iter_mut().find(|b| b.entity_id() == entity_id)
-    }
-
-    /// Clear all bodies
-    pub fn clear(&mut self) {
-        self.bodies.clear();
-    }
-
-    /// Get count of bodies by type
-    pub fn count_by_type(&self, body_type: LargeBodyType) -> usize {
-        self.bodies
-            .iter()
-            .filter(|b| b.body_type() == body_type)
-            .count()
     }
 }

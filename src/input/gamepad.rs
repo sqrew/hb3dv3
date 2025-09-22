@@ -174,7 +174,7 @@ impl GamepadManager {
         }
     }
 
-    pub fn update(&mut self, gilrs: &mut Gilrs, active_id: Option<GamepadId>) {
+    pub fn update(&mut self, _gilrs: &mut Gilrs, active_id: Option<GamepadId>) {
         self.active_gamepad = active_id;
 
         // Don't update gamepad names every frame - they're already set on connection
