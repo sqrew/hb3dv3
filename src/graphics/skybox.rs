@@ -4,8 +4,9 @@
 //! to create a mesmerizing background for the game world.
 
 use crate::graphics::{Color, Primitive, PrimitiveType, Vec3};
+use rand::Rng;
 
-/// Configuration for fractal animation
+/// Configuration for fractal animation and parameters
 #[derive(Debug, Clone)]
 pub struct FractalConfig {
     /// Maximum iterations for fractal calculation
@@ -20,6 +21,18 @@ pub struct FractalConfig {
     pub time: f32,
     /// Color palette selection (0-3 for different palettes)
     pub palette: u32,
+    /// Julia set parameter - real part
+    pub julia_c_real: f32,
+    /// Julia set parameter - imaginary part
+    pub julia_c_imag: f32,
+    /// Second Julia set parameter - real part
+    pub julia2_c_real: f32,
+    /// Second Julia set parameter - imaginary part
+    pub julia2_c_imag: f32,
+    /// Animation speed multiplier
+    pub animation_speed: f32,
+    /// Fractal mixing weights (4 values for different fractal types)
+    pub fractal_weights: [f32; 4],
 }
 
 impl Default for FractalConfig {
@@ -31,6 +44,58 @@ impl Default for FractalConfig {
             offset_y: 0.0,
             time: 0.0,
             palette: 0,
+            julia_c_real: -0.7,
+            julia_c_imag: 0.27015,
+            julia2_c_real: -0.4,
+            julia2_c_imag: 0.6,
+            animation_speed: 1.0,
+            fractal_weights: [0.4, 0.3, 0.2, 0.1], // Mandelbrot, Julia1, Burning Ship, Julia2
+        }
+    }
+}
+
+impl FractalConfig {
+    /// Generate a random fractal configuration for unique playthroughs
+    pub fn random() -> Self {
+        let mut rng = rand::rng();
+
+        // Generate interesting Julia set parameters
+        // These ranges are chosen to create visually appealing fractals
+        let julia_c_real = rng.random_range(-1.5..1.5);
+        let julia_c_imag = rng.random_range(-1.5..1.5);
+        let julia2_c_real = rng.random_range(-1.0..1.0);
+        let julia2_c_imag = rng.random_range(-1.0..1.0);
+
+        // Random animation speed (0.5x to 2.0x normal speed)
+        let animation_speed = rng.random_range(0.5..2.0);
+
+        // Random fractal mixing weights (normalized to sum to 1.0)
+        let w1: f32 = rng.random_range(0.1..0.6);
+        let w2: f32 = rng.random_range(0.1..0.5);
+        let w3: f32 = rng.random_range(0.1..0.4);
+        let w4: f32 = rng.random_range(0.1..0.3);
+        let total = w1 + w2 + w3 + w4;
+        let fractal_weights = [w1/total, w2/total, w3/total, w4/total];
+
+        // Random iteration count for different detail levels
+        let max_iterations = rng.random_range(48..96);
+
+        // Random palette selection
+        let palette = rng.random_range(0..4);
+
+        Self {
+            max_iterations,
+            zoom: 1.0,
+            offset_x: 0.0,
+            offset_y: 0.0,
+            time: 0.0,
+            palette,
+            julia_c_real,
+            julia_c_imag,
+            julia2_c_real,
+            julia2_c_imag,
+            animation_speed,
+            fractal_weights,
         }
     }
 }
@@ -42,6 +107,18 @@ pub struct SkyboxRenderer {
 
 impl SkyboxRenderer {
     pub fn new() -> Self {
+        Self {
+            config: FractalConfig::random(), // Use random fractals for unique playthroughs!
+        }
+    }
+
+    /// Create a skybox with a specific fractal configuration
+    pub fn with_config(config: FractalConfig) -> Self {
+        Self { config }
+    }
+
+    /// Create a skybox with default (non-random) fractals
+    pub fn with_default_fractals() -> Self {
         Self {
             config: FractalConfig::default(),
         }

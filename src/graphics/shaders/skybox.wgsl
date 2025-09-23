@@ -11,20 +11,26 @@ struct CameraUniform {
 @group(0) @binding(0)
 var<uniform> camera: CameraUniform;
 
-// Fractal configuration - TEMPORARILY REMOVED FOR DEBUGGING
-// struct FractalUniforms {
-//     max_iterations: u32,
-//     palette: u32,
-//     _padding1: u32,
-//     _padding2: u32,
-//     zoom: f32,
-//     offset_x: f32,
-//     offset_y: f32,
-//     time: f32,
-// }
+// Fractal configuration uniforms
+struct FractalUniforms {
+    max_iterations: u32,
+    palette: u32,
+    _padding1: u32,
+    _padding2: u32,
+    zoom: f32,
+    offset_x: f32,
+    offset_y: f32,
+    animation_speed: f32,
+    julia_c_real: f32,
+    julia_c_imag: f32,
+    julia2_c_real: f32,
+    julia2_c_imag: f32,
+    // Use vec4 instead of array for proper alignment
+    fractal_weights: vec4<f32>,
+}
 
-// @group(1) @binding(0)
-// var<uniform> fractal: FractalUniforms;
+@group(1) @binding(0)
+var<uniform> fractal: FractalUniforms;
 
 // Vertex input
 struct VertexInput {
@@ -78,11 +84,11 @@ fn complex_mag_squared(z: vec2<f32>) -> f32 {
     return z.x * z.x + z.y * z.y;
 }
 
-// Mandelbrot set calculation (simplified)
+// Mandelbrot set calculation using uniform parameters
 fn mandelbrot(c: vec2<f32>) -> f32 {
     var z = vec2<f32>(0.0, 0.0);
     var iterations = 0u;
-    let max_iterations = 64u;
+    let max_iterations = fractal.max_iterations;
 
     for (var i = 0u; i < max_iterations; i++) {
         let mag_sq = complex_mag_squared(z);
@@ -96,11 +102,11 @@ fn mandelbrot(c: vec2<f32>) -> f32 {
     return f32(iterations) / f32(max_iterations);
 }
 
-// Julia set calculation (simplified)
+// Julia set calculation using uniform parameters
 fn julia(z: vec2<f32>, c: vec2<f32>) -> f32 {
     var current_z = z;
     var iterations = 0u;
-    let max_iterations = 64u;
+    let max_iterations = fractal.max_iterations;
 
     for (var i = 0u; i < max_iterations; i++) {
         if (complex_mag_squared(current_z) > 4.0) {
@@ -113,11 +119,11 @@ fn julia(z: vec2<f32>, c: vec2<f32>) -> f32 {
     return f32(iterations) / f32(max_iterations);
 }
 
-// Burning ship fractal (simplified)
+// Burning ship fractal using uniform parameters
 fn burning_ship(c: vec2<f32>) -> f32 {
     var z = vec2<f32>(0.0, 0.0);
     var iterations = 0u;
-    let max_iterations = 64u;
+    let max_iterations = fractal.max_iterations;
 
     for (var i = 0u; i < max_iterations; i++) {
         if (complex_mag_squared(z) > 4.0) {
@@ -208,13 +214,14 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     // Map UV coordinates to complex plane with animated parameters
     let time = camera.time;
 
-    // More dynamic animation parameters with breathing movement
-    let zoom = 0.8 + 0.12 * sin(0.08 * time) + 0.08 * cos(0.05 * time); // Increased breathing effect
-    let offset_x = 0.25 * sin(0.12 * time) + 0.15 * cos(0.08 * time);
-    let offset_y = 0.2 * cos(0.1 * time) + 0.12 * sin(0.07 * time);
+    // Dynamic animation parameters using fractal uniforms
+    let base_animation_speed = fractal.animation_speed;
+    let zoom = fractal.zoom + 0.12 * sin(0.08 * time * base_animation_speed) + 0.08 * cos(0.05 * time * base_animation_speed);
+    let offset_x = fractal.offset_x + 0.25 * sin(0.12 * time * base_animation_speed) + 0.15 * cos(0.08 * time * base_animation_speed);
+    let offset_y = fractal.offset_y + 0.2 * cos(0.1 * time * base_animation_speed) + 0.12 * sin(0.07 * time * base_animation_speed);
 
-    // Faster rotation for more dynamic effect
-    let rotation = time * 0.02;
+    // Rotation speed controlled by animation speed
+    let rotation = time * 0.02 * base_animation_speed;
     let cos_rot = cos(rotation);
     let sin_rot = sin(rotation);
 
@@ -249,28 +256,29 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
         rotated_uv.y * detail_scale * zoom + offset_y * 2.0
     );
 
-    // Calculate fractals at different scales
+    // Calculate fractals at different scales using uniform parameters
     let mandel_val1 = mandelbrot(complex_coord1);
-    let julia_val1 = julia(complex_coord1, vec2<f32>(-0.7, 0.27015));
+    let julia_val1 = julia(complex_coord1, vec2<f32>(fractal.julia_c_real, fractal.julia_c_imag));
     let burning_val1 = burning_ship(complex_coord1 * 0.8);
 
-    // Finer detail layer
+    // Finer detail layer using second Julia set parameters
     let mandel_val2 = mandelbrot(complex_coord2);
-    let julia_val2 = julia(complex_coord2, vec2<f32>(-0.4, 0.6));
+    let julia_val2 = julia(complex_coord2, vec2<f32>(fractal.julia2_c_real, fractal.julia2_c_imag));
 
-    // Enhanced blending with more dynamic movement
-    let blend1 = 0.5 + 0.2 * sin(time * 0.04);
-    let blend2 = 0.5 + 0.15 * cos(time * 0.035);
-    let blend3 = 0.5 + 0.1 * sin(time * 0.05);
+    // Enhanced blending with dynamic movement and animation speed
+    let blend1 = 0.5 + 0.2 * sin(time * 0.04 * base_animation_speed);
+    let blend2 = 0.5 + 0.15 * cos(time * 0.035 * base_animation_speed);
+    let blend3 = 0.5 + 0.1 * sin(time * 0.05 * base_animation_speed);
 
-    // Mix large scale fractals
-    let mixed_large = mix(mix(mandel_val1, julia_val1, blend1), burning_val1, blend2 * 0.15);
+    // Use fractal weights from uniforms for mixing
+    let w = fractal.fractal_weights;
 
-    // Mix detail fractals
-    let mixed_detail = mix(mandel_val2, julia_val2, blend3);
+    // Weighted mixing of all fractal types
+    let mixed_large = mandel_val1 * w.x + julia_val1 * w.y + burning_val1 * w.z;
+    let mixed_detail = mandel_val2 * w.x + julia_val2 * w.y;
 
     // Combine large and detail scales for full sphere coverage
-    let final_mixed = mix(mixed_large, mixed_detail, 0.3);
+    let final_mixed = mix(mixed_large, mixed_detail, w.w);
 
     // Create high-contrast monochrome effect with enhanced edge detection
     // Apply stronger contrast enhancement to better show fractal depth

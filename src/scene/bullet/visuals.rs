@@ -62,4 +62,12 @@ impl BulletVisuals {
             scale: 2.0, // start large, each successive generation becomes smaller so the huge swarm will end up composed of mostly regular sized bullets
         }
     }
+
+    pub fn laser_cannon() -> Self {
+        Self {
+            primitive_type: crate::graphics::PrimitiveType::Sphere,
+            color: crate::graphics::Color::RED, // Bright red laser
+            scale: 1.0,                         // Small projectile (trail is the main visual)
+        }
+    }
 }

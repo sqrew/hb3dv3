@@ -3,6 +3,7 @@ use super::types::{Bullet, MetaBullet, ProjectileType};
 use crate::engine::dispatcher::{CollisionEvent, EventType};
 use crate::engine::{EntityId, Vec3};
 use crate::graphics::{Color, Primitive};
+use crate::graphics::vertex::LineInstance;
 use crate::scene::GravityAffected;
 // Note: FractalBullet and FractalSplitEvent no longer used - fractal data embedded in regular bullets
 
@@ -476,6 +477,28 @@ impl BulletManager {
                     0, // Generation 0 (parent)
                 ));
             }
+            ProjectileType::Laser {
+                damage,
+                velocity,
+                lifetime,
+                mass,
+                max_trail_length,
+                trail_fade_rate,
+                visuals,
+            } => {
+                // Create a laser bullet with trail rendering
+                self.bullets.push(Bullet::new_laser(
+                    entity_id,
+                    position,
+                    velocity,
+                    lifetime,
+                    damage,
+                    mass,
+                    visuals,
+                    max_trail_length,
+                    trail_fade_rate,
+                ));
+            }
         }
     }
 
@@ -519,5 +542,53 @@ impl BulletManager {
             .iter()
             .filter(|b| b.fractal_data().is_some())
             .count()
+    }
+
+    /// Get line instances for laser trail rendering
+    pub fn get_laser_trail_lines(&self) -> Vec<LineInstance> {
+        let mut line_instances = Vec::new();
+
+        for bullet in &self.bullets {
+            if let Some(trail_data) = bullet.trail_data() {
+                let trail_points = &trail_data.trail_points;
+
+                // Need at least 2 points to make a line
+                if trail_points.len() < 2 {
+                    continue;
+                }
+
+                // Create line segments between consecutive trail points
+                for i in 0..trail_points.len() - 1 {
+                    let start_pos = trail_points[i];
+                    let end_pos = trail_points[i + 1];
+
+                    // Calculate fade factor based on position in trail (newer = brighter)
+                    // i=0 is oldest (back), i=len-1 is newest (front)
+                    // We want: newest=1.0 (bright), oldest=faded
+                    let trail_progress = i as f32 / (trail_points.len() - 1) as f32;
+                    // Reverse the progress so newer segments are brighter
+                    let alpha = 1.0 - ((1.0 - trail_progress) * trail_data.trail_fade_rate);
+                    let alpha = alpha.max(0.1); // Minimum visibility
+
+                    // Use bullet's color with fading alpha
+                    let bullet_color = bullet.visuals().color;
+                    let line_color = [
+                        bullet_color.r,
+                        bullet_color.g,
+                        bullet_color.b,
+                        bullet_color.a * alpha,
+                    ];
+
+                    line_instances.push(LineInstance {
+                        start_pos: [start_pos.x, start_pos.y, start_pos.z],
+                        end_pos: [end_pos.x, end_pos.y, end_pos.z],
+                        thickness: 0.02, // Thin laser beam
+                        color: line_color,
+                    });
+                }
+            }
+        }
+
+        line_instances
     }
 }

@@ -1,8 +1,9 @@
-use crate::engine::{CollisionMask, EntityId, Vec3};
-use crate::engine::entity::EntityType;
-use crate::scene::GravityAffected;
+use super::effects::{OnExpireEffect, OnHitEffect, ProjectileEffects};
 use super::visuals::BulletVisuals;
-use super::effects::{OnHitEffect, OnExpireEffect, ProjectileEffects};
+use crate::engine::entity::EntityType;
+use crate::engine::{CollisionMask, EntityId, Vec3};
+use crate::scene::GravityAffected;
+use std::collections::VecDeque;
 
 /// Unified projectile type system - defines what kind of projectile to spawn
 #[derive(Debug, Clone)]
@@ -46,6 +47,16 @@ pub enum ProjectileType {
         fractal_config: super::fractal::FractalConfig,
         visuals: BulletVisuals,
     },
+    /// Laser projectile that leaves a visible trail and is affected by gravity
+    Laser {
+        damage: f32,
+        velocity: Vec3, // Very high speed (e.g., 5000.0)
+        lifetime: f32,
+        mass: f32,               // Very small mass (e.g., 1e-6)
+        max_trail_length: usize, // Number of trail points to keep
+        trail_fade_rate: f32,    // How quickly trail fades (0.0-1.0)
+        visuals: BulletVisuals,
+    },
 }
 
 /// Basic bullet struct for simple projectiles
@@ -63,6 +74,8 @@ pub struct Bullet {
     visuals: BulletVisuals,
     // Optional fractal metadata for bullets that can split
     fractal_data: Option<FractalBulletData>,
+    // Optional laser trail data
+    trail_data: Option<LaserTrailData>,
 }
 
 /// Fractal data that can be attached to regular bullets to enable splitting
@@ -72,6 +85,14 @@ pub struct FractalBulletData {
     pub generation: usize,
     pub time_until_split: f32,
     pub has_split: bool,
+}
+
+/// Laser trail data for rendering curved laser beams
+#[derive(Debug, Clone)]
+pub struct LaserTrailData {
+    pub trail_points: VecDeque<Vec3>,
+    pub max_trail_length: usize,
+    pub trail_fade_rate: f32,
 }
 
 impl Bullet {
@@ -97,6 +118,7 @@ impl Bullet {
             applied_force: Vec3::zeros(),
             visuals,
             fractal_data: None,
+            trail_data: None,
         }
     }
 
@@ -136,6 +158,43 @@ impl Bullet {
                 time_until_split,
                 has_split: false,
             }),
+            trail_data: None,
+        }
+    }
+
+    /// Create a laser bullet with trail rendering
+    pub fn new_laser(
+        entity_id: EntityId,
+        pos: Vec3,
+        vel: Vec3,
+        ttl: f32,
+        damage: f32,
+        mass: f32,
+        visuals: BulletVisuals,
+        max_trail_length: usize,
+        trail_fade_rate: f32,
+    ) -> Self {
+        let mut trail_points = VecDeque::new();
+        trail_points.push_back(pos); // Start with current position
+
+        Bullet {
+            entity_id,
+            pos,
+            vel,
+            ttl,
+            damage,
+            collision_radius: 0.1, // Smaller collision for lasers
+            collision_mask: CollisionMask::from(EntityType::PlayerBullet),
+            marked_for_removal: false,
+            mass,
+            applied_force: Vec3::zeros(),
+            visuals,
+            fractal_data: None,
+            trail_data: Some(LaserTrailData {
+                trail_points,
+                max_trail_length,
+                trail_fade_rate,
+            }),
         }
     }
 
@@ -160,6 +219,17 @@ impl Bullet {
         if let Some(ref mut fractal_data) = self.fractal_data {
             if !fractal_data.has_split && fractal_data.generation < fractal_data.config.max_depth {
                 fractal_data.time_until_split -= dt;
+            }
+        }
+
+        // Update laser trail if this is a laser bullet
+        if let Some(ref mut trail_data) = self.trail_data {
+            // Add current position to trail
+            trail_data.trail_points.push_back(self.pos);
+
+            // Remove old trail points if we exceed max length
+            while trail_data.trail_points.len() > trail_data.max_trail_length {
+                trail_data.trail_points.pop_front();
             }
         }
 
@@ -262,12 +332,28 @@ impl Bullet {
         self.fractal_data.as_ref()
     }
 
+    /// Get trail data (for laser bullets only)
+    pub fn trail_data(&self) -> Option<&LaserTrailData> {
+        self.trail_data.as_ref()
+    }
+
+    /// Check if this is a laser bullet
+    pub fn is_laser(&self) -> bool {
+        self.trail_data.is_some()
+    }
+
     /// Create a child fractal bullet from this parent
-    pub fn create_fractal_child(&self, entity_id: EntityId, split_direction: Vec3) -> Option<Bullet> {
+    pub fn create_fractal_child(
+        &self,
+        entity_id: EntityId,
+        split_direction: Vec3,
+    ) -> Option<Bullet> {
         if let Some(ref fractal_data) = self.fractal_data {
             // Calculate new velocity using the 3D split direction
             let parent_speed = self.vel.magnitude();
-            let new_velocity = split_direction.normalize() * parent_speed * fractal_data.config.velocity_inheritance;
+            let new_velocity = split_direction.normalize()
+                * parent_speed
+                * fractal_data.config.velocity_inheritance;
 
             // Offset child position slightly in the split direction to prevent immediate parent-child collision
             let separation_distance = 0.3; // Small offset to ensure immediate separation
@@ -281,9 +367,9 @@ impl Bullet {
                 entity_id,
                 child_position,
                 new_velocity,
-                self.ttl * 0.8,     // Children live shorter
-                self.damage * 0.7,  // Reduced damage per generation
-                self.mass * 0.8,    // Lighter children
+                self.ttl * 0.8,    // Children live shorter
+                self.damage * 0.7, // Reduced damage per generation
+                self.mass * 0.8,   // Lighter children
                 child_visuals,
                 fractal_data.config.clone(),
                 fractal_data.generation + 1,
@@ -296,10 +382,10 @@ impl Bullet {
     /// Get the split directions for creating children (for fractal bullets only)
     pub fn get_split_directions(&self) -> Vec<Vec3> {
         if let Some(ref fractal_data) = self.fractal_data {
-            fractal_data.config.pattern.get_split_directions(
-                self.vel.normalize(),
-                fractal_data.generation
-            )
+            fractal_data
+                .config
+                .pattern
+                .get_split_directions(self.vel.normalize(), fractal_data.generation)
         } else {
             Vec::new()
         }

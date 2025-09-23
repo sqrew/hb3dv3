@@ -338,8 +338,11 @@ impl ApplicationHandler for WindowManager {
                         println!("⚡ Lightning bolt spawned!");
                     }
 
-                    // Render the primitives
-                    if let Err(e) = graphics_engine.render(&primitives) {
+                    // Get laser trail lines for rendering
+                    let laser_trail_lines = self.engine.scheduler.get_laser_trail_lines();
+
+                    // Render the primitives with laser trails
+                    if let Err(e) = graphics_engine.render_with_laser_trails(&primitives, &laser_trail_lines) {
                         eprintln!("Render error: {}", e);
                     }
                 }

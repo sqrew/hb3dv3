@@ -10,6 +10,64 @@ use crate::graphics::{
 };
 use crate::ui::text_renderer::TextRenderer;
 
+/// Uniform buffer for fractal parameters
+#[repr(C)]
+#[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
+pub struct FractalUniform {
+    max_iterations: u32,
+    palette: u32,
+    _padding1: u32,
+    _padding2: u32,
+    zoom: f32,
+    offset_x: f32,
+    offset_y: f32,
+    animation_speed: f32,
+    julia_c_real: f32,
+    julia_c_imag: f32,
+    julia2_c_real: f32,
+    julia2_c_imag: f32,
+    // vec4 for proper 16-byte alignment in WGSL
+    fractal_weights: [f32; 4],
+}
+
+impl FractalUniform {
+    pub fn new() -> Self {
+        Self {
+            max_iterations: 64,
+            palette: 0,
+            _padding1: 0,
+            _padding2: 0,
+            zoom: 1.0,
+            offset_x: 0.0,
+            offset_y: 0.0,
+            animation_speed: 1.0,
+            julia_c_real: -0.7,
+            julia_c_imag: 0.27015,
+            julia2_c_real: -0.4,
+            julia2_c_imag: 0.6,
+            fractal_weights: [0.4, 0.3, 0.2, 0.1],
+        }
+    }
+
+    pub fn from_config(config: &crate::graphics::skybox::FractalConfig) -> Self {
+        Self {
+            max_iterations: config.max_iterations,
+            palette: config.palette,
+            _padding1: 0,
+            _padding2: 0,
+            zoom: config.zoom,
+            offset_x: config.offset_x,
+            offset_y: config.offset_y,
+            animation_speed: config.animation_speed,
+            julia_c_real: config.julia_c_real,
+            julia_c_imag: config.julia_c_imag,
+            julia2_c_real: config.julia2_c_real,
+            julia2_c_imag: config.julia2_c_imag,
+            fractal_weights: config.fractal_weights,
+        }
+    }
+}
+
 pub struct GraphicsEngine {
     surface: wgpu::Surface<'static>,
     device: Arc<wgpu::Device>,
@@ -29,6 +87,9 @@ pub struct GraphicsEngine {
     camera_buffer: wgpu::Buffer,
     camera_bind_group: wgpu::BindGroup,
     skybox_bind_group: wgpu::BindGroup,
+    fractal_uniform: FractalUniform,
+    fractal_buffer: wgpu::Buffer,
+    fractal_bind_group: wgpu::BindGroup,
     depth_texture: wgpu::Texture,
     depth_view: wgpu::TextureView,
     frame_count: u32,
@@ -135,6 +196,14 @@ impl GraphicsEngine {
         let camera_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Camera Buffer"),
             contents: bytemuck::cast_slice(&[camera_uniform]),
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+        });
+
+        // Create fractal uniform buffer
+        let fractal_uniform = FractalUniform::new();
+        let fractal_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Fractal Buffer"),
+            contents: bytemuck::cast_slice(&[fractal_uniform]),
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
         });
 
@@ -264,10 +333,34 @@ impl GraphicsEngine {
             label: Some("skybox_camera_bind_group"),
         });
 
+        // Create fractal bind group layout for group(1)
+        let fractal_bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            entries: &[wgpu::BindGroupLayoutEntry {
+                binding: 0,
+                visibility: wgpu::ShaderStages::FRAGMENT,
+                ty: wgpu::BindingType::Buffer {
+                    ty: wgpu::BufferBindingType::Uniform,
+                    has_dynamic_offset: false,
+                    min_binding_size: None,
+                },
+                count: None,
+            }],
+            label: Some("fractal_bind_group_layout"),
+        });
+
+        let fractal_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            layout: &fractal_bind_group_layout,
+            entries: &[wgpu::BindGroupEntry {
+                binding: 0,
+                resource: fractal_buffer.as_entire_binding(),
+            }],
+            label: Some("fractal_bind_group"),
+        });
+
         let skybox_pipeline_layout =
             device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: Some("Skybox Pipeline Layout"),
-                bind_group_layouts: &[&skybox_camera_bind_group_layout],
+                bind_group_layouts: &[&skybox_camera_bind_group_layout, &fractal_bind_group_layout],
                 push_constant_ranges: &[],
             });
 
@@ -387,6 +480,9 @@ impl GraphicsEngine {
             camera_buffer,
             camera_bind_group,
             skybox_bind_group,
+            fractal_uniform,
+            fractal_buffer,
+            fractal_bind_group,
             depth_texture,
             depth_view,
             frame_count: 0,
@@ -506,6 +602,14 @@ impl GraphicsEngine {
     }
 
     pub fn render(&mut self, primitives: &[Primitive]) -> Result<(), wgpu::SurfaceError> {
+        self.render_with_laser_trails(primitives, &[])
+    }
+
+    pub fn render_with_laser_trails(
+        &mut self,
+        primitives: &[Primitive],
+        laser_trail_lines: &[LineInstance]
+    ) -> Result<(), wgpu::SurfaceError> {
         self.frame_count = self.frame_count.wrapping_add(1);
         let output = self.surface.get_current_texture()?;
         let final_view = output
@@ -555,7 +659,7 @@ impl GraphicsEngine {
             self.render_skybox_filled(&mut render_pass);
 
             // Render wireframes using instanced line renderer (excluding skybox)
-            self.render_wireframes_instanced(&mut render_pass, primitives);
+            self.render_wireframes_instanced(&mut render_pass, primitives, laser_trail_lines);
 
             // Render particles
             self.particles
@@ -610,6 +714,7 @@ impl GraphicsEngine {
         &mut self,
         render_pass: &mut wgpu::RenderPass,
         primitives: &[Primitive],
+        laser_trail_lines: &[LineInstance],
     ) {
         // Start a new batch for this frame
         self.line_batch.start_frame();
@@ -663,6 +768,11 @@ impl GraphicsEngine {
             if !lightning_lines.is_empty() {
                 self.line_batch.add_line_instances(lightning_lines);
             }
+        }
+
+        // Add laser trail line instances
+        if !laser_trail_lines.is_empty() {
+            self.line_batch.add_line_instances(laser_trail_lines.to_vec());
         }
 
         // Generate all lines using optimized systems with full rotation support
@@ -782,6 +892,14 @@ impl GraphicsEngine {
 
     pub fn update_skybox(&mut self, delta_time: f32) {
         self.skybox_renderer.update(delta_time);
+
+        // Update fractal uniform buffer with current skybox configuration
+        self.fractal_uniform = FractalUniform::from_config(self.skybox_renderer.config());
+        self.queue.write_buffer(
+            &self.fractal_buffer,
+            0,
+            bytemuck::cast_slice(&[self.fractal_uniform]),
+        );
     }
 
     /// Spawn a lightning bolt between two points
@@ -863,9 +981,10 @@ impl GraphicsEngine {
             usage: wgpu::BufferUsages::INDEX,
         });
 
-        // Set skybox pipeline and bind group
+        // Set skybox pipeline and bind groups
         render_pass.set_pipeline(&self.skybox_pipeline);
-        render_pass.set_bind_group(0, &self.skybox_bind_group, &[]);
+        render_pass.set_bind_group(0, &self.skybox_bind_group, &[]); // Camera uniforms
+        render_pass.set_bind_group(1, &self.fractal_bind_group, &[]); // Fractal uniforms
 
         // Render the filled sphere
         render_pass.set_vertex_buffer(0, vertex_buffer.slice(..));

@@ -24,6 +24,7 @@ pub enum WeaponType {
     ChainLightning,
     SeekingExplosive,
     FractalCannon,
+    LaserCannon,
 }
 
 #[derive(Debug, Clone)]
@@ -113,12 +114,24 @@ impl WeaponStats {
     pub fn fractal_cannon() -> Self {
         Self {
             damage: 30.0,          // Base damage - multiplies with fractal generations
-            fire_rate: 2.0,        // Slower rate for spectacular fractal shots
+            fire_rate: 0.5,        // Slower rate for spectacular fractal shots
             bullet_speed: 150.0,   // Moderate speed for good fractal development
             bullet_lifetime: 60.0, // Long enough for deep fractals to unfold
             projectile_count: 1,   // Single fractal parent
             spread_angle: 0.0,     // Precise initial shot
             bullet_mass: 0.8,      // Light for fractal dynamics
+        }
+    }
+
+    pub fn laser_cannon() -> Self {
+        Self {
+            damage: 10.0,         // High damage laser
+            fire_rate: 300.0,     // Rapid fire
+            bullet_speed: 300.0,  // Speed of light (very fast)
+            bullet_lifetime: 2.0, // Short range for balance
+            projectile_count: 1,  // Single precise beam
+            spread_angle: 0.0,    // Perfect accuracy
+            bullet_mass: 0.01,    // Nearly massless (light)
         }
     }
 }
@@ -140,6 +153,7 @@ impl Weapon {
             WeaponType::ChainLightning => WeaponStats::chain_lightning(),
             WeaponType::SeekingExplosive => WeaponStats::seeking_explosive(),
             WeaponType::FractalCannon => WeaponStats::fractal_cannon(),
+            WeaponType::LaserCannon => WeaponStats::laser_cannon(),
         };
 
         Self {
@@ -245,6 +259,18 @@ impl Weapon {
                         visuals: BulletVisuals::fractal_cannon(),
                     }
                 }
+                WeaponType::LaserCannon => {
+                    // Create laser projectile with trail
+                    ProjectileType::Laser {
+                        damage: self.stats.damage,
+                        velocity: projectile_direction * self.stats.bullet_speed,
+                        lifetime: self.stats.bullet_lifetime,
+                        mass: self.stats.bullet_mass,
+                        max_trail_length: 100, // Long trail for curved laser effect
+                        trail_fade_rate: 0.1,  // Moderate fade
+                        visuals: BulletVisuals::laser_cannon(),
+                    }
+                }
                 _ => {
                     // Standard projectile - map weapon type to visuals
                     let visuals = match self.weapon_type {
@@ -316,6 +342,7 @@ impl WeaponManager {
             WeaponType::ChainLightning,
             WeaponType::SeekingExplosive,
             WeaponType::FractalCannon,
+            WeaponType::LaserCannon,
         ];
 
         Self {

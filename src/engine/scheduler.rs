@@ -190,6 +190,11 @@ impl Scheduler {
         primitives
     }
 
+    /// Get laser trail line instances for rendering
+    pub fn get_laser_trail_lines(&self) -> Vec<crate::graphics::vertex::LineInstance> {
+        self.bullets.get_laser_trail_lines()
+    }
+
     pub fn postrender(&self) {
         // Post-render phase - cleanup after rendering
     }
