@@ -284,12 +284,12 @@ impl ApplicationHandler for WindowManager {
                             (camera.angle_vertical - (mouse_dy * 0.005) as f32).clamp(-1.4, 1.4);
                     }
 
-                    // Update camera to follow player
-                    graphics_engine.update_camera(nalgebra::Point3::new(
-                        player_pos.x,
-                        player_pos.y,
-                        player_pos.z,
-                    ));
+                    // Update camera to follow player (with time for skybox animation)
+                    let total_time = self.engine.total_time();
+                    graphics_engine.update_camera_with_time(
+                        nalgebra::Point3::new(player_pos.x, player_pos.y, player_pos.z),
+                        total_time,
+                    );
 
                     // Update particle system (now with reduced GPU submission frequency)
                     graphics_engine.update_particles(delta_time);
@@ -300,6 +300,9 @@ impl ApplicationHandler for WindowManager {
 
                     // Update lightning effects
                     graphics_engine.update_lightning(delta_time);
+
+                    // Update skybox animation
+                    graphics_engine.update_skybox(delta_time);
 
                     // Add FPS counter UI (update only 10 times per second)
                     let current_fps = 1.0 / delta_time;

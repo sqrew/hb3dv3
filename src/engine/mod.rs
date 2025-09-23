@@ -221,4 +221,9 @@ impl Engine {
 
         println!("Game restarted successfully!");
     }
+
+    /// Get the total elapsed time since engine start
+    pub fn total_time(&self) -> f32 {
+        self.time.total_time()
+    }
 }

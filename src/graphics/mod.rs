@@ -22,6 +22,7 @@ pub mod particles;
 pub mod primitive_cache;
 pub mod primitives;
 pub mod renderer;
+pub mod skybox;
 pub mod vertex;
 
 // Re-export main types
@@ -36,5 +37,6 @@ pub use particles::ParticleSystem;
 pub use primitive_type::PrimitiveType;
 pub use render_data::Primitive;
 pub use renderer::GraphicsEngine;
+pub use skybox::SkyboxRenderer;
 pub use types::{Transform, Vec3};
 pub use vertex::Vertex;

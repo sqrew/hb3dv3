@@ -11,17 +11,26 @@ pub const NEW_CAMERA_ANGLE_VERTICAL: f32 = -0.3;
 #[derive(Debug, Copy, Clone, Pod, Zeroable)]
 pub struct CameraUniform {
     view_proj: [[f32; 4]; 4],
+    position: [f32; 3],
+    time: f32,
 }
 
 impl CameraUniform {
     pub fn new() -> Self {
         Self {
             view_proj: Matrix4::identity().into(),
+            position: [0.0, 0.0, 0.0],
+            time: 0.0,
         }
     }
 
     pub fn update_view_proj(&mut self, camera: &ThirdPersonCamera, projection: &Projection) {
         self.view_proj = (projection.calc_matrix() * camera.calc_matrix()).into();
+        self.position = [camera.position.x, camera.position.y, camera.position.z];
+    }
+
+    pub fn update_time(&mut self, time: f32) {
+        self.time = time;
     }
 }
 
