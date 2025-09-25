@@ -3,6 +3,7 @@ use super::visuals::BulletVisuals;
 use crate::engine::entity::EntityType;
 use crate::engine::{CollisionMask, EntityId, Vec3};
 use crate::scene::GravityAffected;
+use rand::Rng;
 use std::collections::VecDeque;
 
 /// Unified projectile type system - defines what kind of projectile to spawn
@@ -111,7 +112,7 @@ impl Bullet {
             vel,
             ttl,
             damage,
-            collision_radius: 0.1,
+            collision_radius: 0.5,
             collision_mask: CollisionMask::from(EntityType::PlayerBullet),
             marked_for_removal: false,
             mass, // Custom mass - can be negative!
@@ -146,7 +147,7 @@ impl Bullet {
             vel,
             ttl,
             damage,
-            collision_radius: 0.1,
+            collision_radius: 0.15,
             collision_mask: CollisionMask::from(EntityType::PlayerBullet),
             marked_for_removal: false,
             mass,
@@ -183,7 +184,7 @@ impl Bullet {
             vel,
             ttl,
             damage,
-            collision_radius: 0.1, // Smaller collision for lasers
+            collision_radius: 0.5,
             collision_mask: CollisionMask::from(EntityType::PlayerBullet),
             marked_for_removal: false,
             mass,
@@ -363,13 +364,21 @@ impl Bullet {
             let mut child_visuals = self.visuals.clone();
             child_visuals.scale *= fractal_data.config.size_decay;
 
+            // Randomize child lifetime to prevent simultaneous disappearance
+            // Base lifetime is 80% of parent, but randomly vary it by ±25%
+            let mut rng = rand::rng();
+            let base_child_lifetime = self.ttl * 0.8;
+            let lifetime_variation = 0.25; // ±25% variation
+            let random_factor = rng.random_range(1.0 - lifetime_variation..=1.0 + lifetime_variation);
+            let randomized_lifetime = base_child_lifetime * random_factor;
+
             Some(Bullet::new_fractal(
                 entity_id,
                 child_position,
                 new_velocity,
-                self.ttl * 0.8,    // Children live shorter
-                self.damage * 0.7, // Reduced damage per generation
-                self.mass * 0.8,   // Lighter children
+                randomized_lifetime,   // Randomized individual lifetime
+                self.damage * 0.7,     // Reduced damage per generation
+                self.mass * 0.8,       // Lighter children
                 child_visuals,
                 fractal_data.config.clone(),
                 fractal_data.generation + 1,
@@ -444,7 +453,7 @@ impl MetaBullet {
             vel,
             ttl,
             damage,
-            collision_radius: 0.15,
+            collision_radius: 0.5,
             collision_mask: CollisionMask::from(EntityType::PlayerBullet),
             marked_for_removal: false,
             mass,
@@ -478,7 +487,7 @@ impl MetaBullet {
             vel,
             ttl,
             damage,
-            collision_radius: 0.15,
+            collision_radius: 0.5,
             collision_mask: CollisionMask::from(EntityType::PlayerBullet),
             marked_for_removal: false,
             mass,

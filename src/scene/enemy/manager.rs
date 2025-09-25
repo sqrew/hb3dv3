@@ -1,80 +1,8 @@
-use crate::engine::dispatcher::{EnemyEvent, EventType};
-use crate::engine::entity::{EntityId, EntityType};
-use crate::engine::{CollisionMask, Vec3};
-use crate::graphics::{Color, Primitive, PrimitiveType};
-use crate::scene::GravityAffected;
-
-pub struct Enemy {
-    entity_id: EntityId,
-    pos: Vec3,
-    vel: Vec3,
-    health: f32,
-    collision_radius: f32,
-    collision_mask: CollisionMask,
-    mass: f32,
-    applied_force: Vec3,
-}
-
-impl Enemy {
-    pub fn new(entity_id: EntityId, pos: Vec3, vel: Vec3, health: f32) -> Self {
-        Enemy {
-            entity_id,
-            pos,
-            vel,
-            health,
-            collision_radius: 0.6,
-            collision_mask: CollisionMask::from(EntityType::Enemy),
-            mass: 25.0, // Enemy mass in kg
-            applied_force: Vec3::zeros(),
-        }
-    }
-
-    pub fn update(&mut self, dt: f32) {
-        // Apply gravitational forces (F = ma, so a = F/m)
-        let gravity_acceleration = self.applied_force / self.mass;
-
-        // Update velocity with both AI movement and gravity
-        self.vel += gravity_acceleration * dt;
-
-        // Update position
-        self.pos += self.vel * dt;
-
-        // Simple AI: bounce off boundaries (but allow gravity to override)
-        if self.pos.x.abs() > 15.0 && self.applied_force.magnitude() < 10.0 {
-            self.vel.x = -self.vel.x;
-        }
-        if self.pos.z.abs() > 15.0 && self.applied_force.magnitude() < 10.0 {
-            self.vel.z = -self.vel.z;
-        }
-
-        // Reset applied force for next frame
-        self.applied_force = Vec3::zeros();
-    }
-
-    pub fn position(&self) -> Vec3 {
-        self.pos
-    }
-
-    pub fn is_alive(&self) -> bool {
-        self.health > 0.0
-    }
-
-    pub fn entity_id(&self) -> EntityId {
-        self.entity_id
-    }
-
-    pub fn collision_radius(&self) -> f32 {
-        self.collision_radius
-    }
-
-    pub fn collision_mask(&self) -> CollisionMask {
-        self.collision_mask
-    }
-
-    pub fn take_damage(&mut self, damage: f32) {
-        self.health -= damage;
-    }
-}
+use super::entity::Enemy;
+use super::types::EnemyType;
+use crate::engine::Vec3;
+use crate::engine::dispatcher::{EnemyEvent, EventType, GraphicsEvent};
+use crate::graphics::{Color, Primitive};
 
 pub struct EnemyManager {
     enemies: Vec<Enemy>,
@@ -90,7 +18,7 @@ impl EnemyManager {
             event_queue: Vec::new(),
             spawn_timer: 0.0,
             // Spawn interval: how many enemies spawned per second
-            spawn_interval: 1.0, // Spawn every 2 seconds
+            spawn_interval: 0.5, // Spawn every second
         }
     }
 
@@ -113,7 +41,8 @@ impl EnemyManager {
 
             let enemy_entity =
                 entity_manager.create_entity(crate::engine::entity::EntityType::Enemy);
-            self.enemies.push(Enemy::new(enemy_entity, pos, vel, 50.0));
+            self.enemies
+                .push(Enemy::new(enemy_entity, pos, vel, EnemyType::random()));
         }
 
         // 2. Spherical Shell Formation (hollow sphere of enemies)
@@ -132,7 +61,8 @@ impl EnemyManager {
 
             let enemy_entity =
                 entity_manager.create_entity(crate::engine::entity::EntityType::Enemy);
-            self.enemies.push(Enemy::new(enemy_entity, pos, vel, 50.0));
+            self.enemies
+                .push(Enemy::new(enemy_entity, pos, vel, EnemyType::random()));
         }
 
         // 3. Linear Stream Formation (enemies in lines toward center)
@@ -154,7 +84,8 @@ impl EnemyManager {
 
                 let enemy_entity =
                     entity_manager.create_entity(crate::engine::entity::EntityType::Enemy);
-                self.enemies.push(Enemy::new(enemy_entity, pos, vel, 50.0));
+                self.enemies
+                    .push(Enemy::new(enemy_entity, pos, vel, EnemyType::random()));
             }
         }
 
@@ -176,7 +107,8 @@ impl EnemyManager {
 
                 let enemy_entity =
                     entity_manager.create_entity(crate::engine::entity::EntityType::Enemy);
-                self.enemies.push(Enemy::new(enemy_entity, pos, vel, 50.0));
+                self.enemies
+                    .push(Enemy::new(enemy_entity, pos, vel, EnemyType::random()));
             }
         }
 
@@ -197,7 +129,8 @@ impl EnemyManager {
 
             let enemy_entity =
                 entity_manager.create_entity(crate::engine::entity::EntityType::Enemy);
-            self.enemies.push(Enemy::new(enemy_entity, pos, vel, 50.0));
+            self.enemies
+                .push(Enemy::new(enemy_entity, pos, vel, EnemyType::random()));
         }
     }
 
@@ -208,7 +141,7 @@ impl EnemyManager {
         entity_manager: &mut crate::engine::entity::EntityManager,
     ) {
         for enemy in self.enemies.iter_mut() {
-            enemy.update(dt);
+            enemy.update(dt, player_pos);
         }
 
         // Check for dead enemies and generate death events with position before removing them
@@ -221,13 +154,10 @@ impl EnemyManager {
 
         // Generate death events with position for dead enemies
         for (enemy_id, position) in enemies_to_remove {
-            use crate::engine::dispatcher::{EnemyEvent, EventType};
             self.event_queue
                 .push(EventType::Enemy(EnemyEvent::Die { enemy_id }));
 
             // Also generate immediate death particles
-            use crate::engine::dispatcher::GraphicsEvent;
-            use crate::graphics::Color;
             self.event_queue
                 .push(EventType::Graphics(GraphicsEvent::SpawnParticles {
                     position,
@@ -251,7 +181,11 @@ impl EnemyManager {
     pub fn get_render_data(&self) -> Vec<Primitive> {
         self.enemies
             .iter()
-            .map(|enemy| Primitive::new(PrimitiveType::Cube, enemy.pos, Color::PINK))
+            .map(|enemy| {
+                let config = enemy.config();
+                Primitive::new(config.primitive_type, enemy.position(), config.color)
+                    .with_uniform_scale(config.visual_scale)
+            })
             .collect()
     }
 
@@ -311,11 +245,22 @@ impl EnemyManager {
     ) -> bool {
         for enemy in &mut self.enemies {
             if enemy.entity_id() == entity_id {
-                let old_health = enemy.health;
+                let old_health = enemy.health();
                 enemy.take_damage(damage);
 
                 // Check if enemy died
-                if enemy.health <= 0.0 && old_health > 0.0 {
+                if enemy.health() <= 0.0 && old_health > 0.0 {
+                    // Generate score event immediately while we still have access to the enemy
+                    let enemy_type = enemy.enemy_type();
+                    let enemy_pos = enemy.position();
+                    self.event_queue.push(EventType::Score(
+                        crate::engine::dispatcher::ScoreEvent::EnemyKilled {
+                            enemy_id: entity_id,
+                            enemy_type,
+                            position: enemy_pos,
+                        },
+                    ));
+
                     // Generate death event
                     self.event_queue.push(EventType::Enemy(EnemyEvent::Die {
                         enemy_id: entity_id,
@@ -337,7 +282,7 @@ impl EnemyManager {
     ) -> bool {
         for enemy in &mut self.enemies {
             if enemy.entity_id() == entity_id {
-                let old_health = enemy.health;
+                let old_health = enemy.health();
                 enemy.take_damage(damage);
 
                 // Generate damage event
@@ -349,7 +294,7 @@ impl EnemyManager {
                     }));
 
                 // Check if enemy died
-                if enemy.health <= 0.0 && old_health > 0.0 {
+                if enemy.health() <= 0.0 && old_health > 0.0 {
                     // Generate death event
                     self.event_queue.push(EventType::Enemy(EnemyEvent::Die {
                         enemy_id: entity_id,
@@ -366,7 +311,7 @@ impl EnemyManager {
     pub fn mark_enemy_for_removal(&mut self, entity_id: crate::engine::entity::EntityId) -> bool {
         for enemy in &mut self.enemies {
             if enemy.entity_id() == entity_id {
-                enemy.health = 0.0; // Mark as dead for cleanup
+                enemy.take_damage(9999.0); // Mark as dead for cleanup
                 return true;
             }
         }
@@ -396,7 +341,7 @@ impl EnemyManager {
     ) {
         use rand::Rng;
 
-        // Random distance from player (5-15 units away)
+        // Random distance from player (5-100 units away)
         let distance = rand::rng().random_range(5.0..=100.0);
 
         // Generate random point on sphere using spherical coordinates
@@ -416,22 +361,31 @@ impl EnemyManager {
             player_pos.z + offset_z,
         );
 
-        // Random initial velocity (slight movement in a random 3D direction)
-        let vel_magnitude = rand::rng().random_range(0.5..=2.0);
-        let vel_theta = rand::rng().random_range(0.0..std::f32::consts::TAU);
-        let vel_phi = rand::rng().random_range(0.0..std::f32::consts::PI);
-        let vel_sin_phi = vel_phi.sin();
+        // Initial velocity toward player with some randomness
+        let to_player = player_pos - spawn_pos;
+        let to_player_normalized = if to_player.magnitude() > 0.1 {
+            to_player.normalize()
+        } else {
+            Vec3::new(1.0, 0.0, 0.0) // Default direction if spawned too close
+        };
 
-        let spawn_vel = Vec3::new(
-            vel_sin_phi * vel_theta.cos() * vel_magnitude,
-            vel_phi.cos() * vel_magnitude,
-            vel_sin_phi * vel_theta.sin() * vel_magnitude,
-        );
+        // Base velocity toward player
+        let base_speed = rand::rng().random_range(2.0..=5.0);
+        let mut spawn_vel = to_player_normalized * base_speed;
+
+        // Add some randomness to prevent perfectly straight-line movement
+        spawn_vel.x += rand::rng().random_range(-1.0..1.0);
+        spawn_vel.y += rand::rng().random_range(-1.0..1.0);
+        spawn_vel.z += rand::rng().random_range(-1.0..1.0);
 
         // Create the enemy entity and add to manager
         let enemy_entity = entity_manager.create_entity(crate::engine::entity::EntityType::Enemy);
-        self.enemies
-            .push(Enemy::new(enemy_entity, spawn_pos, spawn_vel, 50.0));
+        self.enemies.push(Enemy::new(
+            enemy_entity,
+            spawn_pos,
+            spawn_vel,
+            EnemyType::random(),
+        ));
     }
 
     /// Get and clear enemy events
@@ -454,18 +408,23 @@ impl EnemyManager {
                 // Find enemy and spawn death particles before marking as dead
                 for enemy in &mut self.enemies {
                     if enemy.entity_id() == enemy_id {
+                        let enemy_pos = enemy.position();
+                        let _enemy_type = enemy.enemy_type();
+
                         // Spawn explosion particles at enemy death location
                         use crate::engine::dispatcher::{EventType, GraphicsEvent};
                         use crate::graphics::Color;
 
                         self.event_queue
                             .push(EventType::Graphics(GraphicsEvent::SpawnParticles {
-                                position: enemy.position(),
+                                position: enemy_pos,
                                 velocity: crate::engine::Vec3::new(0.0, 0.0, 0.0), // Upward explosion
                                 count: 100,          // Big explosion for enemy death
                                 lifetime: 2.0,       // Longer lasting death particles
                                 color: Color::GREEN, // Orange explosion color: use enemy.color eventually once its coded in
                             }));
+
+                        // Score event is now generated immediately upon death in damage_enemy_direct
 
                         enemy.take_damage(9999.0); // Ensure death
                         break;
@@ -481,23 +440,13 @@ impl EnemyManager {
                 // This should be properly integrated with EntityManager in the future
                 let temp_id = (self.enemies.len() as u32).wrapping_add(50000); // Large offset to avoid collisions
                 let enemy_entity = crate::engine::entity::EntityId(temp_id);
-                self.enemies
-                    .push(Enemy::new(enemy_entity, position, Vec3::zeros(), 50.0));
+                self.enemies.push(Enemy::new(
+                    enemy_entity,
+                    position,
+                    Vec3::zeros(),
+                    EnemyType::Drone,
+                ));
             }
         }
-    }
-}
-
-impl GravityAffected for Enemy {
-    fn position(&self) -> Vec3 {
-        self.pos
-    }
-
-    fn mass(&self) -> f32 {
-        self.mass
-    }
-
-    fn apply_force(&mut self, force: Vec3) {
-        self.applied_force += force;
     }
 }

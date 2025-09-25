@@ -16,6 +16,7 @@ pub enum EntityType {
     PlayerBullet,
     EnemyBullet,
     LargeBody,
+    Collectible,
 }
 
 pub struct EntityManager {
@@ -203,6 +204,11 @@ impl<'a> EntityLookup<'a> {
                 .iter()
                 .map(|body| body.entity_id())
                 .collect(),
+            EntityType::Collectible => {
+                // Note: Collectibles are handled by ScoreMultiplierManager which isn't available here
+                // This should be handled at a higher level where the ScoreMultiplierManager is accessible
+                Vec::new()
+            }
         }
     }
 
@@ -240,6 +246,9 @@ impl<'a> EntityLookup<'a> {
                 return Some(large_body.position());
             }
         }
+
+        // Note: Collectibles would be checked here if ScoreMultiplierManager was available
+        // This requires adding ScoreMultiplierManager to EntityLookup
 
         None
     }

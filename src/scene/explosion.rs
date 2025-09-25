@@ -249,7 +249,7 @@ impl ExplosionManager {
             let distance = (enemy.position() - explosion_position).magnitude();
             if distance <= damage_radius {
                 // Calculate damage falloff based on distance (closer = more damage)
-                let damage_falloff = if damage_radius > 0.0 {
+                let damage_falloff: f32 = if damage_radius > 0.0 {
                     1.0 - (distance / damage_radius)
                 } else {
                     1.0 // Full damage if radius is 0

@@ -280,9 +280,21 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     // Combine large and detail scales for full sphere coverage
     let final_mixed = mix(mixed_large, mixed_detail, w.w);
 
-    // Create high-contrast monochrome effect with enhanced edge detection
-    // Apply stronger contrast enhancement to better show fractal depth
-    let contrast_enhanced = pow(final_mixed, 0.5); // Stronger gamma correction for more dramatic contrast
+    // Create high-contrast monochrome effect with iteration-aware enhancement
+    // Higher iteration counts need stronger contrast to show fractal arms
+    let iteration_factor = f32(fractal.max_iterations) / 64.0; // Scale factor based on iteration count
+
+    // Adaptive gamma correction - higher iterations get more aggressive contrast
+    let gamma = mix(0.6, 0.3, clamp(iteration_factor - 1.0, 0.0, 1.0)); // More aggressive gamma for high iterations
+    let contrast_enhanced = pow(final_mixed, gamma);
+
+    // Iteration-aware contrast stretching to pull apart similar values
+    let stretch_factor = 1.0 + iteration_factor * 0.5; // More stretching for higher iterations
+    let stretched = pow(contrast_enhanced, stretch_factor);
+
+    // High-iteration edge sharpening using derivative-based detection
+    let iteration_scaled = final_mixed * iteration_factor;
+    let sharpened = stretched + sin(iteration_scaled * 3.14159 * 8.0) * 0.1 * iteration_factor;
 
     // Calculate fractal boundary detection for edge enhancement
     // Areas near the escape boundary (around 0.3-0.7 range) are the most interesting fractal edges
@@ -292,16 +304,34 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     // Use the contrast enhanced values directly so fractal patterns are bright
     // (Higher iteration counts = brighter, boundaries/escape areas = darker)
 
-    // Apply contrast stretching with edge enhancement
-    let stretched_intensity = pow(contrast_enhanced, 0.8); // Further enhance contrast
+    // Apply iteration-aware edge enhancement using the sharpened values
+    let stretched_intensity = sharpened;
 
-    // Boost intensity at fractal boundaries while preserving the base pattern
-    let edge_boosted = stretched_intensity + edge_intensity * 0.4; // Add edge brightness
-    let intensity = edge_boosted * 0.35; // Increased brightness for better visibility
+    // Enhanced edge detection with iteration-aware scaling
+    // Higher iterations reveal more detailed boundary structures
+    let iteration_edge_scale = 1.0 + iteration_factor * 0.8; // Scale edge detection with iterations
 
-    // Ultra high contrast palette - true black background
+    // Multi-frequency edge detection adapted for high iteration counts
+    let fine_edge = 1.0 - abs(final_mixed - 0.25) * (3.33 * iteration_edge_scale); // Fine detail edges
+    let coarse_edge = 1.0 - abs(final_mixed - 0.75) * (1.43 * iteration_edge_scale); // Coarse structure edges
+    let mid_edge = 1.0 - abs(final_mixed - 0.5) * (2.0 * iteration_edge_scale); // Mid-range structures
+    let combined_edge = max(max(pow(fine_edge, 2.0), pow(coarse_edge, 3.0)), pow(mid_edge, 2.5)) * (0.6 * iteration_factor);
+
+    // Iteration-scaled boundary detection for fractal arms
+    let boundary_1 = 1.0 - abs(final_mixed - 0.35) * (2.5 * iteration_edge_scale);
+    let boundary_2 = 1.0 - abs(final_mixed - 0.65) * (2.5 * iteration_edge_scale);
+    let enhanced_edge = max(pow(boundary_1, 2.5), pow(boundary_2, 2.5)) * (0.4 * iteration_factor);
+
+    // Combine all edge detection methods with iteration awareness
+    let total_edge_boost = combined_edge + enhanced_edge + edge_intensity * (0.3 * iteration_factor);
+
+    // Final intensity with iteration-aware boost
+    let edge_boosted = stretched_intensity + total_edge_boost;
+    let intensity = edge_boosted * 0.35; // Keep base brightness but with iteration-enhanced detail
+
+    // Ultra high contrast palette - true black background with gray highlights
     let base_color = vec3<f32>(0.0, 0.0, 0.0); // Pure black background
-    let highlight_color = vec3<f32>(0.35, 0.38, 0.42); // Brighter highlight for maximum contrast
+    let highlight_color = vec3<f32>(0.3, 0.32, 0.35); // Medium gray instead of bright white
 
     // Create high-contrast monochrome gradient
     let color = mix(base_color, highlight_color, intensity);

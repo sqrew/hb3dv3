@@ -3,7 +3,7 @@ use crate::graphics::{Primitive, Vec3};
 use crate::input::InputManager;
 use crate::scene::{
     BulletManager, EnemyManager, ExplosionManager, GravityAffected, LargeBodyManager,
-    LargeBodyType, PhysicsManager, PlayerManager,
+    LargeBodyType, PhysicsManager, PlayerManager, ScoreMultiplierManager,
 };
 
 pub struct Scheduler {
@@ -14,6 +14,7 @@ pub struct Scheduler {
     physics: PhysicsManager,
     large_bodies: LargeBodyManager,
     explosions: ExplosionManager,
+    scoring: ScoreMultiplierManager,
 }
 
 impl Scheduler {
@@ -24,7 +25,7 @@ impl Scheduler {
         let player_entity = entity_manager.create_entity(EntityType::Player);
 
         let mut enemies = EnemyManager::new();
-        enemies.spawn_initial_enemies(&mut entity_manager);
+        //enemies.spawn_initial_enemies(&mut entity_manager);
 
         let mut physics = PhysicsManager::new();
         let mut large_bodies = LargeBodyManager::new();
@@ -73,6 +74,7 @@ impl Scheduler {
             physics,
             large_bodies,
             explosions: ExplosionManager::new(),
+            scoring: ScoreMultiplierManager::new(),
         }
     }
 
@@ -147,6 +149,11 @@ impl Scheduler {
         }
         self.explosions.update(delta_time);
 
+        // Update scoring system and collectibles with player position for attraction
+        let player_pos = self.player.player().position();
+        self.scoring
+            .update(delta_time, player_pos, &mut self.entity_manager);
+
         // Update large bodies (these get their physics from the PhysicsManager N-body simulation)
         self.large_bodies.update(delta_time, &self.physics);
 
@@ -186,6 +193,7 @@ impl Scheduler {
         primitives.extend(self.bullets.get_render_data());
         primitives.extend(self.large_bodies.get_render_data());
         primitives.extend(self.explosions.get_render_data());
+        primitives.extend(self.scoring.get_render_data());
 
         primitives
     }
@@ -277,6 +285,21 @@ impl Scheduler {
     /// Get mutable access to the explosion manager
     pub fn explosions_mut(&mut self) -> &mut ExplosionManager {
         &mut self.explosions
+    }
+
+    /// Get read-only access to the scoring manager
+    pub fn scoring(&self) -> &ScoreMultiplierManager {
+        &self.scoring
+    }
+
+    /// Get mutable access to the scoring manager
+    pub fn scoring_mut(&mut self) -> &mut ScoreMultiplierManager {
+        &mut self.scoring
+    }
+
+    /// Get mutable access to the entity manager
+    pub fn entity_manager_mut(&mut self) -> &mut EntityManager {
+        &mut self.entity_manager
     }
 
     /// Initialize GPU physics resources (call after graphics context is available)
@@ -373,6 +396,9 @@ impl Scheduler {
         // Reset physics and large bodies to initial state
         self.physics = PhysicsManager::new();
         self.large_bodies = LargeBodyManager::new();
+
+        // Reset scoring system
+        self.scoring = ScoreMultiplierManager::new();
 
         // Recreate initial large bodies
         self.large_bodies.spawn_body(

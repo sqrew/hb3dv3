@@ -38,7 +38,7 @@ pub struct FractalConfig {
 impl Default for FractalConfig {
     fn default() -> Self {
         Self {
-            max_iterations: 64,
+            max_iterations: 128,
             zoom: 1.0,
             offset_x: 0.0,
             offset_y: 0.0,
@@ -75,10 +75,10 @@ impl FractalConfig {
         let w3: f32 = rng.random_range(0.1..0.4);
         let w4: f32 = rng.random_range(0.1..0.3);
         let total = w1 + w2 + w3 + w4;
-        let fractal_weights = [w1/total, w2/total, w3/total, w4/total];
+        let fractal_weights = [w1 / total, w2 / total, w3 / total, w4 / total];
 
         // Random iteration count for different detail levels
-        let max_iterations = rng.random_range(48..96);
+        let max_iterations = rng.random_range(64..192);
 
         // Random palette selection
         let palette = rng.random_range(0..4);

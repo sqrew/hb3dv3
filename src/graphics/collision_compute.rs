@@ -95,6 +95,21 @@ impl GpuEntity {
             _padding: 0,
         }
     }
+
+    pub fn from_collectible(collectible: &crate::scene::scoring::ScoreMultiplier) -> Self {
+        Self {
+            position: [
+                collectible.position().x,
+                collectible.position().y,
+                collectible.position().z,
+            ],
+            radius: collectible.collision_radius(),
+            entity_id: collectible.entity_id().id(),
+            entity_type: EntityType::Collectible as u32,
+            collision_mask: collectible.collision_mask().0,
+            _padding: 0,
+        }
+    }
 }
 
 /// Collision pair output from GPU
@@ -362,6 +377,7 @@ impl CollisionCompute {
         bullets: &[crate::scene::Bullet],
         metabullets: &[crate::scene::MetaBullet],
         large_bodies: &[crate::scene::LargeBody],
+        collectibles: &[crate::scene::scoring::ScoreMultiplier],
     ) {
         self.cpu_entities.clear();
 
@@ -388,6 +404,12 @@ impl CollisionCompute {
         for large_body in large_bodies {
             self.cpu_entities
                 .push(GpuEntity::from_large_body(large_body));
+        }
+
+        // Add collectibles
+        for collectible in collectibles {
+            self.cpu_entities
+                .push(GpuEntity::from_collectible(collectible));
         }
     }
 

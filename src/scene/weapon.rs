@@ -12,7 +12,7 @@ const CHAIN_LIGHTNING_DAMAGE_FALLOFF: f32 = 0.9; // Damage multiplier per jump (
 const SEEKING_EXPLOSIVE_SEEK_FORCE: f32 = 5000.0;
 const SEEKING_EXPLOSIVE_SEEK_RANGE: f32 = 1000.0;
 const SEEKING_EXPLOSIVE_EXPLOSION_RADIUS: f32 = 30.0;
-const SEEKING_EXPLOSIVE_EXPLOSION_FORCE: f32 = 5000.0;
+const SEEKING_EXPLOSIVE_EXPLOSION_FORCE: f32 = 20000.0;
 const SEEKING_EXPLOSIVE_EXPLOSION_DURATION: f32 = 0.5;
 
 #[derive(Debug, Clone)]
@@ -42,7 +42,7 @@ impl WeaponStats {
     pub fn basic_blaster() -> Self {
         Self {
             damage: 25.0,
-            fire_rate: 100.0,
+            fire_rate: 50.0,
             bullet_speed: 100.0,
             bullet_lifetime: 300.0,
             projectile_count: 1,
@@ -127,11 +127,11 @@ impl WeaponStats {
         Self {
             damage: 10.0,         // High damage laser
             fire_rate: 300.0,     // Rapid fire
-            bullet_speed: 300.0,  // Speed of light (very fast)
-            bullet_lifetime: 2.0, // Short range for balance
+            bullet_speed: 1000.0, //
+            bullet_lifetime: 3.0, // Short range for balance
             projectile_count: 1,  // Single precise beam
             spread_angle: 0.0,    // Perfect accuracy
-            bullet_mass: 0.01,    // Nearly massless (light)
+            bullet_mass: 0.01,    //
         }
     }
 }
@@ -266,8 +266,8 @@ impl Weapon {
                         velocity: projectile_direction * self.stats.bullet_speed,
                         lifetime: self.stats.bullet_lifetime,
                         mass: self.stats.bullet_mass,
-                        max_trail_length: 100, // Long trail for curved laser effect
-                        trail_fade_rate: 0.1,  // Moderate fade
+                        max_trail_length: 20, // Long trail for curved laser effect
+                        trail_fade_rate: 0.1, // Moderate fade
                         visuals: BulletVisuals::laser_cannon(),
                     }
                 }

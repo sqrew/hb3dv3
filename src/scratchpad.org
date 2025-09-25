@@ -14,6 +14,7 @@ use LineInstance to build arbitrary shapes
 make large_bodies have a spawn_random_body function
 fix resetting game spawning a bhole
 
+ui lower case text is top-aligned for some reason - this took forever to fix last time
 
 
 

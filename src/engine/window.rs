@@ -207,6 +207,7 @@ impl ApplicationHandler for WindowManager {
                         let bullets = self.engine.scheduler.bullets().bullets();
                         let metabullets = self.engine.scheduler.bullets().metabullets();
                         let large_bodies = self.engine.scheduler.large_bodies().bodies();
+                        let collectibles = self.engine.scheduler.scoring().system().multipliers();
 
                         graphics_engine.collision_compute().update_entities(
                             player,
@@ -214,6 +215,7 @@ impl ApplicationHandler for WindowManager {
                             bullets,
                             metabullets,
                             large_bodies,
+                            collectibles,
                         );
 
                         // Dispatch and read GPU collision results
@@ -322,6 +324,33 @@ impl ApplicationHandler for WindowManager {
                         crate::graphics::Color::YELLOW,             // Classic FPS counter color
                     );
 
+                    // Display score and multiplier
+                    let scoring_system = self.engine.scheduler.scoring().system();
+                    graphics_engine.add_text(
+                        &format!("Score: {}", scoring_system.score()),
+                        [10.0, 50.0],                               // Below FPS counter
+                        32,                                         // Same readable size
+                        crate::graphics::Color::WHITE,              // White for score
+                    );
+                    graphics_engine.add_text(
+                        &format!("Multiplier: {:.1}x", scoring_system.multiplier()),
+                        [10.0, 90.0],                               // Below score
+                        32,                                         // Same readable size
+                        crate::graphics::Color::GREEN,              // Green for multiplier
+                    );
+
+                    // Display game time with milliseconds
+                    let total_time = self.engine.total_time();
+                    let minutes = (total_time / 60.0) as u32;
+                    let seconds = (total_time % 60.0) as u32;
+                    let milliseconds = ((total_time % 1.0) * 1000.0) as u32;
+                    graphics_engine.add_text(
+                        &format!("Time: {:02}:{:02}.{:03}", minutes, seconds, milliseconds),
+                        [10.0, 130.0],                              // Below multiplier
+                        32,                                         // Same readable size
+                        crate::graphics::Color::CYAN,               // Cyan for time
+                    );
+
                     // Lightning test - press 'K' to spawn lightning bolts
                     if self
                         .input_manager
@@ -342,7 +371,9 @@ impl ApplicationHandler for WindowManager {
                     let laser_trail_lines = self.engine.scheduler.get_laser_trail_lines();
 
                     // Render the primitives with laser trails
-                    if let Err(e) = graphics_engine.render_with_laser_trails(&primitives, &laser_trail_lines) {
+                    if let Err(e) =
+                        graphics_engine.render_with_laser_trails(&primitives, &laser_trail_lines)
+                    {
                         eprintln!("Render error: {}", e);
                     }
                 }

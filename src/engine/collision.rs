@@ -41,8 +41,10 @@ impl CollisionMask {
 
 /// Default collision masks for each entity type
 impl CollisionMask {
-    /// Player collides with enemies only
-    pub const PLAYER: CollisionMask = CollisionMask(1 << EntityType::Enemy as u32);
+    /// Player collides with enemies and collectibles
+    pub const PLAYER: CollisionMask = CollisionMask(
+        (1 << EntityType::Enemy as u32) | (1 << EntityType::Collectible as u32)
+    );
 
     /// Enemies collide with player and player bullets
     pub const ENEMY: CollisionMask =
@@ -62,6 +64,9 @@ impl CollisionMask {
             | (1 << EntityType::PlayerBullet as u32)
             | (1 << EntityType::EnemyBullet as u32),
     );
+
+    /// Collectibles collide with player only
+    pub const COLLECTIBLE: CollisionMask = CollisionMask(1 << EntityType::Player as u32);
 }
 
 impl Default for CollisionMask {
@@ -78,6 +83,7 @@ impl From<EntityType> for CollisionMask {
             EntityType::PlayerBullet => CollisionMask::PLAYER_BULLET,
             EntityType::EnemyBullet => CollisionMask::ENEMY_BULLET,
             EntityType::LargeBody => CollisionMask::LARGE_BODY,
+            EntityType::Collectible => CollisionMask::COLLECTIBLE,
         }
     }
 }
@@ -307,6 +313,32 @@ impl CollisionManager {
                 ) => {
                     // Player takes damage from hitting large body
                     // Could add impact damage event here
+                }
+                // Player hits Collectible
+                (
+                    Some(crate::engine::entity::EntityType::Player),
+                    Some(crate::engine::entity::EntityType::Collectible),
+                ) => {
+                    self.event_queue
+                        .push(crate::engine::dispatcher::EventType::Collision(
+                            crate::engine::dispatcher::CollisionEvent::PlayerHitCollectible {
+                                player_id: entity_a,
+                                collectible_id: entity_b,
+                            },
+                        ));
+                }
+                // Collectible hits Player (reverse)
+                (
+                    Some(crate::engine::entity::EntityType::Collectible),
+                    Some(crate::engine::entity::EntityType::Player),
+                ) => {
+                    self.event_queue
+                        .push(crate::engine::dispatcher::EventType::Collision(
+                            crate::engine::dispatcher::CollisionEvent::PlayerHitCollectible {
+                                player_id: entity_b,
+                                collectible_id: entity_a,
+                            },
+                        ));
                 }
                 // PlayerBullet hits PlayerBullet (bullet-bullet collision)
                 (

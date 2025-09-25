@@ -30,6 +30,7 @@ impl Dispatcher {
         let bullet_events = scheduler.bullets_mut().drain_events();
         let large_body_events = scheduler.large_bodies_mut().drain_events();
         let collision_events = collision_manager.drain_events();
+        let scoring_events = scheduler.scoring_mut().drain_events();
 
         // Add all events to pending queue
         self.pending_events.extend(player_events);
@@ -37,6 +38,7 @@ impl Dispatcher {
         self.pending_events.extend(bullet_events);
         self.pending_events.extend(large_body_events);
         self.pending_events.extend(collision_events);
+        self.pending_events.extend(scoring_events);
     }
 
     /// Legacy method - collect events from pre-drained vectors (for backward compatibility)
@@ -82,6 +84,7 @@ impl Dispatcher {
         let mut audio_events = Vec::new();
         let mut debug_events = Vec::new();
         let mut chain_lightning_events = Vec::new();
+        let mut score_events = Vec::new();
 
         // Group events by type
         for event in events {
@@ -95,6 +98,7 @@ impl Dispatcher {
                 EventType::Audio(e) => audio_events.push(e),
                 EventType::Debug(e) => debug_events.push(e),
                 EventType::ChainLightning(e) => chain_lightning_events.push(e),
+                EventType::Score(e) => score_events.push(e),
             }
         }
 
@@ -124,30 +128,33 @@ impl Dispatcher {
             Self::handle_enemy_event(event, scheduler, &mut graphics_events_batch);
         }
 
-        // 4. Process weapon events
+        // 4. Process score events (after enemy events to ensure proper enemy death handling)
+        Self::handle_score_events_batch(score_events, scheduler, &mut graphics_events_batch);
+
+        // 5. Process weapon events
         for event in weapon_events {
             Self::handle_weapon_event(event, scheduler, &mut graphics_events_batch);
         }
 
-        // 5. Process explosion events
+        // 6. Process explosion events
         for event in explosion_events {
             Self::handle_explosion_event(event, scheduler, &mut graphics_events_batch);
         }
 
-        // 6. Process chain lightning events (after collisions and explosions)
+        // 7. Process chain lightning events (after collisions and explosions)
         Self::handle_chain_lightning_events_batch(
             chain_lightning_events,
             scheduler,
             &mut graphics_events_batch,
         );
 
-        // 7. Process graphics events (visual effects)
+        // 8. Process graphics events (visual effects)
         graphics_events.extend(graphics_events_batch);
 
-        // 8. Process audio events (sound effects)
+        // 9. Process audio events (sound effects)
         Self::handle_audio_events_batch(audio_events);
 
-        // 9. Process debug events
+        // 10. Process debug events
         Self::handle_debug_events_batch(debug_events);
     }
 
@@ -160,10 +167,11 @@ impl Dispatcher {
                 EventType::Explosion(_) => 2, // Process explosions after weapons
                 EventType::ChainLightning(_) => 3, // Process chain lightning after explosions
                 EventType::Enemy(_) => 4,
-                EventType::Player(_) => 5,
-                EventType::Graphics(_) => 6, // Graphics last
-                EventType::Audio(_) => 7,
-                EventType::Debug(_) => 8,
+                EventType::Score(_) => 5, // Process scoring after enemy events
+                EventType::Player(_) => 6,
+                EventType::Graphics(_) => 7, // Graphics last
+                EventType::Audio(_) => 8,
+                EventType::Debug(_) => 9,
             }
         });
     }
@@ -198,6 +206,8 @@ impl Dispatcher {
                 damage,
             } => {
                 scheduler.player_mut().player_mut().take_damage(damage);
+                // Reset score multiplier when player gets hit
+                scheduler.scoring_mut().system_mut().reset_multiplier();
                 // Could queue screen shake event
                 // or literally anything else for a player taking damage
             }
@@ -267,8 +277,8 @@ impl Dispatcher {
                 graphics_events.push(GraphicsEvent::SpawnParticles {
                     position: impact_point,
                     velocity: Vec3::new(0.0, 0.0, 0.0), // Sparks spread in all directions
-                    count: 3,                           // Increased from 5 for better visibility
-                    lifetime: 10.0,                     // Quick flash effect
+                    count: 1,
+                    lifetime: 3.0, // Quick flash effect
                     color: Color::WHITE,
                 });
             }
@@ -283,6 +293,32 @@ impl Dispatcher {
                 explosion_events.push(ExplosionEvent::Shockwave {
                     position: impact_point,
                 });
+            }
+            CollisionEvent::PlayerHitCollectible {
+                player_id: _,
+                collectible_id,
+            } => {
+                // Directly collect the multiplier through the scoring system
+                // Find the multiplier value first
+                let mut multiplier_value = 0.1; // Default value
+                for multiplier in scheduler.scoring().system().multipliers() {
+                    if multiplier.entity_id() == collectible_id {
+                        multiplier_value = multiplier.multiplier_value();
+                        break;
+                    }
+                }
+
+                // Collect the multiplier (this removes it and updates the score multiplier)
+                let collected = scheduler
+                    .scoring_mut()
+                    .system_mut()
+                    .collect_multiplier(multiplier_value, collectible_id);
+
+                if collected {
+                    scheduler
+                        .entity_manager_mut()
+                        .destroy_entity(collectible_id);
+                }
             }
         }
     }
@@ -375,28 +411,8 @@ impl Dispatcher {
         scheduler: &mut crate::engine::scheduler::Scheduler,
         _graphics_events: &mut Vec<GraphicsEvent>,
     ) {
-        match event {
-            EnemyEvent::TakeDamage {
-                enemy_id,
-                amount,
-                source,
-            } => {
-                scheduler
-                    .enemies_mut()
-                    .damage_enemy_with_event(enemy_id, amount, source);
-            }
-            EnemyEvent::Die { enemy_id: _ } => {
-                // Death particles are now handled directly in EnemyManager when the event is generated
-                // This event is now just for notification/cleanup purposes
-                // The enemy is already marked as dead and will be removed by retain()
-            }
-            EnemyEvent::Spawn {
-                position: _,
-                enemy_type: _,
-            } => {
-                // Handle enemy spawning if needed
-            }
-        }
+        // Delegate to the enemy manager's handle_event method which contains the score event generation logic
+        scheduler.enemies_mut().handle_event(event);
     }
 
     fn handle_audio_event(event: AudioEvent) {
@@ -563,6 +579,49 @@ impl Dispatcher {
             });
         }
     }
+
+    fn handle_score_events_batch(
+        events: Vec<ScoreEvent>,
+        scheduler: &mut crate::engine::scheduler::Scheduler,
+        _graphics_events: &mut Vec<GraphicsEvent>,
+    ) {
+        for event in events {
+            Self::handle_score_event(event, scheduler);
+        }
+    }
+
+    fn handle_score_event(event: ScoreEvent, scheduler: &mut crate::engine::scheduler::Scheduler) {
+        match event {
+            ScoreEvent::EnemyKilled {
+                enemy_id: _,
+                enemy_type,
+                position,
+            } => {
+                // Add points based on enemy type
+                let base_points = crate::scene::ScoringSystem::get_enemy_base_points(&enemy_type);
+                scheduler.scoring_mut().system_mut().add_score(base_points);
+
+                // Spawn multiplier collectible at enemy death location - split borrow to avoid double mutable borrow
+                let entity_manager_ptr = scheduler.entity_manager_mut() as *mut _;
+                unsafe {
+                    scheduler
+                        .scoring_mut()
+                        .system_mut()
+                        .spawn_multiplier(position, &mut *entity_manager_ptr);
+                }
+            }
+            ScoreEvent::MultiplierCollected {
+                multiplier_id,
+                multiplier_value,
+            } => {
+                // Collect the multiplier
+                scheduler
+                    .scoring_mut()
+                    .system_mut()
+                    .collect_multiplier(multiplier_value, multiplier_id);
+            }
+        }
+    }
 }
 
 /// Main event type hierarchy
@@ -577,6 +636,7 @@ pub enum EventType {
     Audio(AudioEvent),
     Debug(DebugEvent),
     ChainLightning(ChainLightningEvent),
+    Score(ScoreEvent),
 }
 
 /// Player-specific events
@@ -638,6 +698,10 @@ pub enum CollisionEvent {
         large_body_a_id: EntityId,
         large_body_b_id: EntityId,
         impact_point: Vec3,
+    },
+    PlayerHitCollectible {
+        player_id: EntityId,
+        collectible_id: EntityId,
     },
 }
 
@@ -718,4 +782,18 @@ pub enum AudioEvent {
 #[derive(Clone, Debug)]
 pub enum DebugEvent {
     Log(String),
+}
+
+/// Scoring events
+#[derive(Clone, Debug)]
+pub enum ScoreEvent {
+    EnemyKilled {
+        enemy_id: EntityId,
+        enemy_type: crate::scene::enemy::EnemyType,
+        position: Vec3,
+    },
+    MultiplierCollected {
+        multiplier_id: EntityId,
+        multiplier_value: f32,
+    },
 }
