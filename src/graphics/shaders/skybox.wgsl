@@ -244,18 +244,43 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
         base_coord.x * sin_rot + base_coord.y * cos_rot
     );
 
-    // Multiple fractal scales with larger fractals
+    // Perspective distortion - make fractals feel wrapped around a sphere
+    let distance_from_center = length(world_pos);
+    let normalized_world_pos = normalize(world_pos);
+
+    // Create spherical mapping distortion
+    let sphere_phi = atan2(normalized_world_pos.z, normalized_world_pos.x);
+    let sphere_theta = acos(clamp(normalized_world_pos.y, -1.0, 1.0));
+
+    // Convert spherical coordinates to distorted UV
+    let sphere_u = sphere_phi / (2.0 * 3.14159) + 0.5;
+    let sphere_v = sphere_theta / 3.14159;
+
+    // Blend between flat projection and spherical mapping based on distance
+    let sphere_blend = smoothstep(0.5, 2.0, distance_from_center);
+    let sphere_coord = vec2<f32>(sphere_u * 4.0 - 2.0, sphere_v * 4.0 - 2.0);
+
+    // Create perspective-aware coordinates
+    let perspective_coord = mix(rotated_uv, sphere_coord, sphere_blend * 0.3);
+
+    // Add subtle fish-eye distortion for depth
+    let distort_strength = 0.15 * sphere_blend;
+    let coord_distance = length(perspective_coord);
+    let distortion_factor = 1.0 + distort_strength * coord_distance * coord_distance;
+    let distorted_coord = perspective_coord * distortion_factor;
+
+    // Multiple fractal scales with larger fractals (now using distorted coordinates)
     let base_scale = 1.2; // Reduced from 2.0 to make fractals bigger
     let complex_coord1 = vec2<f32>(
-        rotated_uv.x * base_scale * zoom + offset_x,
-        rotated_uv.y * base_scale * zoom + offset_y
+        distorted_coord.x * base_scale * zoom + offset_x,
+        distorted_coord.y * base_scale * zoom + offset_y
     );
 
-    // Add a second scale for finer detail
+    // Add a second scale for finer detail (also using distorted coordinates)
     let detail_scale = 3.5; // Reduced from 6.0 to make detail layer bigger too
     let complex_coord2 = vec2<f32>(
-        rotated_uv.x * detail_scale * zoom + offset_x * 2.0,
-        rotated_uv.y * detail_scale * zoom + offset_y * 2.0
+        distorted_coord.x * detail_scale * zoom + offset_x * 2.0,
+        distorted_coord.y * detail_scale * zoom + offset_y * 2.0
     );
 
     // Enhanced morphing Julia set parameters - slowly evolve over time
@@ -276,9 +301,6 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     let mandel_val1 = mandelbrot(complex_coord1);
     let julia_val1 = julia(complex_coord1, julia_morph_c1);
     let burning_val1 = burning_ship(complex_coord1 * 0.8);
-
-    // Additional fractal type with morphing parameters
-    let tricorn_val1 = tricorn(complex_coord1 * 1.1);
 
     // Finer detail layer using morphing Julia set parameters
     let mandel_val2 = mandelbrot(complex_coord2);
@@ -315,12 +337,9 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
         w_morph.w
     );
 
-    // Enhanced mixing with tricorn influence
-    let tricorn_influence = 0.15 * (0.5 + 0.5 * sin(time * morph_speed * 1.4));
-
-    // Mix 2D fractals
+    // Mix 2D fractals (Mandelbrot, Julia, Burning Ship)
     let mixed_large = mandel_val1 * w_normalized.x + julia_val1 * w_normalized.y +
-                     burning_val1 * w_normalized.z + tricorn_val1 * tricorn_influence;
+                     burning_val1 * w_normalized.z;
 
     let mixed_detail = mandel_val2 * w_normalized.x + julia_val2 * w_normalized.y;
 
@@ -558,7 +577,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     );
 
     // Additional edge highlight sparkles (very subtle)
-    let edge_highlight = total_edge_glow * 0.04 * abs(sin(time * 3.5));
+    let edge_highlight = total_edge_glow * 0.08 * abs(sin(time * 3.5));
 
     let final_color = color + sparkle_color * total_sparkle + bright_lavender * edge_highlight;
 
