@@ -373,20 +373,12 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     // Combine all edge detection methods with iteration awareness
     let total_edge_boost = combined_edge + enhanced_edge + edge_intensity * (0.3 * iteration_factor);
 
-    // Final intensity with iteration-aware boost
+    // Final intensity with iteration-aware boost (reduced for muted pastels)
     let edge_boosted = stretched_intensity + total_edge_boost;
-    let intensity = edge_boosted * 0.35; // Keep base brightness but with iteration-enhanced detail
+    let intensity = edge_boosted * 0.25; // Reduced base brightness for muted pastels
 
     // Enhanced color palette with pastel hues for better visibility
     let base_color = vec3<f32>(0.0, 0.0, 0.0); // Pure black background
-
-    // Create more visible iteration ranges for coloring
-    let color_iteration_factor = 1.0 - final_mixed; // Invert: high iterations = low final_mixed value
-
-    // Define three iteration bands for different color treatments
-    let deep_areas = pow(max(0.0, color_iteration_factor - 0.6), 1.5); // Deepest 40%
-    let mid_areas = pow(max(0.0, color_iteration_factor - 0.3) * (1.0 - step(0.6, color_iteration_factor)), 1.2); // Mid range
-    let edge_areas = pow(max(0.0, color_iteration_factor - 0.1) * (1.0 - step(0.3, color_iteration_factor)), 1.0); // Outer edges
 
     // Lighter pastel color palette - emphasizing deep iterations with brighter colors
     let bright_lavender = vec3<f32>(0.45, 0.35, 0.55); // Bright lavender for deep areas
@@ -396,6 +388,11 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     let mid_sage = vec3<f32>(0.25, 0.35, 0.22); // Medium sage green for mid areas
     let mid_steel = vec3<f32>(0.25, 0.30, 0.35); // Medium steel blue for mid areas
     let soft_gray = vec3<f32>(0.15, 0.15, 0.17); // Soft gray for edge areas
+
+    // Cosmic filament colors - ethereal and thread-like
+    let filament_cyan = vec3<f32>(0.20, 0.35, 0.40); // Cosmic cyan threads
+    let filament_violet = vec3<f32>(0.35, 0.20, 0.45); // Ethereal violet threads
+    let filament_gold = vec3<f32>(0.45, 0.35, 0.15); // Golden cosmic threads
 
     // Color selection based on fractal position and time for smooth transitions
     let fractal_phase = final_mixed * 8.0 + time * 0.1;
@@ -433,8 +430,87 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
         edge_color = mix(soft_gray, mid_sage * 0.5, abs(color_wave1));
     }
 
+    // Filament color selection - flowing through different hues
+    var filament_color: vec3<f32>;
+    let filament_phase = time * 0.05 + world_pos.x * 0.3 + world_pos.y * 0.4 + world_pos.z * 0.2;
+    let filament_wave = sin(filament_phase);
+
+    if (filament_wave > 0.33) {
+        filament_color = mix(filament_cyan, filament_violet, abs(color_wave2));
+    } else if (filament_wave > -0.33) {
+        filament_color = mix(filament_violet, filament_gold, abs(color_wave3));
+    } else {
+        filament_color = mix(filament_gold, filament_cyan, abs(color_wave1));
+    }
+
+    // Neural filament network - chaotic, tendrily cosmic connective fibers
+    // Multi-scale noise for organic chaos
+    let filament_coord = world_pos * 0.8;
+
+    // Primary chaotic noise layers with different frequencies
+    let noise1 = sin(filament_coord.x * 3.2 + time * 0.05) * cos(filament_coord.y * 2.8 + time * 0.07) * sin(filament_coord.z * 4.1 + time * 0.03);
+    let noise2 = cos(filament_coord.x * 6.7 + time * 0.08) * sin(filament_coord.y * 5.3 + time * 0.04) * cos(filament_coord.z * 7.9 + time * 0.06);
+    let noise3 = sin(filament_coord.x * 12.1 + time * 0.12) * cos(filament_coord.y * 9.8 + time * 0.09) * sin(filament_coord.z * 11.3 + time * 0.11);
+
+    // Create chaotic directional flows with turbulence
+    let chaos_flow1 = vec3<f32>(
+        noise1 + 0.5 * noise2 + 0.25 * noise3,
+        noise2 + 0.5 * noise3 + 0.25 * noise1,
+        noise3 + 0.5 * noise1 + 0.25 * noise2
+    );
+
+    let chaos_flow2 = vec3<f32>(
+        cos(filament_coord.x * 4.7 + time * 0.06) + 0.3 * sin(filament_coord.y * 8.2),
+        sin(filament_coord.y * 5.9 + time * 0.08) + 0.3 * cos(filament_coord.z * 7.4),
+        cos(filament_coord.z * 6.3 + time * 0.04) + 0.3 * sin(filament_coord.x * 9.1)
+    );
+
+    // Neural fiber patterns - irregular, branching tendrils
+    let fiber_density1 = length(chaos_flow1 - normalize(filament_coord));
+    let fiber_density2 = length(chaos_flow2 - normalize(filament_coord.zyx));
+    let fiber_density3 = length(mix(chaos_flow1, chaos_flow2, 0.6) - normalize(filament_coord.yxz));
+
+    // Highly variable thickness for organic feel
+    let thickness_chaos1 = 0.08 + 0.15 * abs(noise1) + 0.05 * abs(noise3);
+    let thickness_chaos2 = 0.06 + 0.12 * abs(noise2) + 0.08 * abs(noise1);
+    let thickness_chaos3 = 0.10 + 0.18 * abs(noise3) + 0.06 * abs(noise2);
+
+    // Branching intensity with sharp falloffs for fiber-like appearance
+    let branch_intensity1 = pow(max(0.0, 1.0 - fiber_density1 / thickness_chaos1), 3.5);
+    let branch_intensity2 = pow(max(0.0, 1.0 - fiber_density2 / thickness_chaos2), 4.2);
+    let branch_intensity3 = pow(max(0.0, 1.0 - fiber_density3 / thickness_chaos3), 3.8);
+
+    // Add secondary tendrils that branch off main fibers
+    let secondary_chaos = sin(filament_coord.x * 15.7) * cos(filament_coord.y * 18.3) * sin(filament_coord.z * 14.2);
+    let tertiary_chaos = cos(filament_coord.x * 22.1) * sin(filament_coord.y * 25.8) * cos(filament_coord.z * 19.6);
+
+    let tendril_factor = pow(max(0.0, abs(secondary_chaos) - 0.7), 2.0) *
+                        pow(max(0.0, abs(tertiary_chaos) - 0.6), 2.5);
+
+    // Combine all chaotic neural elements
+    let neural_base = max(branch_intensity1, max(branch_intensity2 * 0.7, branch_intensity3 * 0.5));
+    let combined_filaments = neural_base + tendril_factor * 0.4;
+
+    // Filaments are stronger in void regions (where fractals are weak)
+    let void_regions = 1.0 - smoothstep(0.15, 0.4, final_mixed);
+    let filament_strength = combined_filaments * void_regions * 0.3;
+
+    // Blend filaments with fractal base
+    let fractal_with_filaments = final_mixed + filament_strength;
+
+    // Create iteration ranges for coloring (now using filament-enhanced fractal)
+    let color_iteration_factor = 1.0 - fractal_with_filaments; // Invert: high iterations = low fractal_with_filaments value
+
+    // Define three iteration bands for different color treatments
+    let deep_areas = pow(max(0.0, color_iteration_factor - 0.6), 1.5); // Deepest 40%
+    let mid_areas = pow(max(0.0, color_iteration_factor - 0.3) * (1.0 - step(0.6, color_iteration_factor)), 1.2); // Mid range
+    let edge_areas = pow(max(0.0, color_iteration_factor - 0.1) * (1.0 - step(0.3, color_iteration_factor)), 1.0); // Outer edges
+
+    // Filament-specific coloring - subtle cosmic threads
+    let filament_areas = filament_strength * 2.0; // Enhance visibility
+
     // Enhanced edge detection for subtle glow effects
-    let edge_detection1 = 1.0 - abs(final_mixed - 0.5) * 2.0; // Primary edge detection
+    let edge_detection1 = 1.0 - abs(fractal_with_filaments - 0.5) * 2.0; // Primary edge detection
     let edge_detection2 = 1.0 - abs(final_mixed - 0.3) * 3.33; // Secondary edge detection
     let edge_detection3 = 1.0 - abs(final_mixed - 0.7) * 1.43; // Tertiary edge detection
 
@@ -447,16 +523,19 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     let edge_pulse = 0.7 + 0.2 * sin(time * 1.8);
     let total_edge_glow = (soft_edge_glow + sharp_edge_glow + subtle_edge_glow) * edge_pulse;
 
-    // Apply colors to different iteration bands with subtle edge glow enhancement
-    let colored_deep = deep_color * (deep_areas * 3.5 + total_edge_glow * 0.3); // Gentle glow on deep areas
-    let colored_mid = mid_color * (mid_areas * 1.2 + total_edge_glow * 0.2); // Subtle glow on mid areas
-    let colored_edge = edge_color * (edge_areas * 0.6 + total_edge_glow * 0.5); // More visible glow on edges
+    // Apply colors to different iteration bands with subtle edge glow enhancement (muted pastels)
+    let colored_deep = deep_color * (deep_areas * 2.0 + total_edge_glow * 0.3); // Muted deep areas
+    let colored_mid = mid_color * (mid_areas * 0.9 + total_edge_glow * 0.2); // Subtle mid areas
+    let colored_edge = edge_color * (edge_areas * 0.7 + total_edge_glow * 0.4); // Gentle edge areas
 
-    // Combine all colored areas
-    let total_colored_areas = colored_deep + colored_mid + colored_edge;
+    // Apply filament coloring - ethereal cosmic threads
+    let colored_filaments = filament_color * filament_areas * 1.5; // Enhanced filament visibility
 
-    // Base gray for remaining areas, heavily reduced where deep colors are applied
-    let color_coverage = clamp(deep_areas * 1.5 + mid_areas * 0.7 + edge_areas * 0.4, 0.0, 1.0);
+    // Combine all colored areas including filaments
+    let total_colored_areas = colored_deep + colored_mid + colored_edge + colored_filaments;
+
+    // Base gray for remaining areas, heavily reduced where deep colors and filaments are applied
+    let color_coverage = clamp(deep_areas * 1.5 + mid_areas * 0.7 + edge_areas * 0.4 + filament_areas * 0.8, 0.0, 1.0);
     let gray_intensity = intensity * (1.0 - color_coverage * 0.85); // Stronger reduction
     let gray_component = vec3<f32>(0.12, 0.12, 0.14) * gray_intensity; // Darker gray
 
@@ -464,9 +543,9 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     let color = mix(base_color, gray_component, gray_intensity) + total_colored_areas;
 
     // Enhanced edge-focused sparkle shimmer
-    let sparkle_base = 0.018 * sin(contrast_enhanced * 28.0 + time * 1.1);
+    let sparkle_base = 0.020 * sin(contrast_enhanced * 28.0 + time * 1.1);
     let edge_sparkle = 0.035 * sin(total_edge_glow * 15.0 + time * 2.2); // Sparkles follow edges
-    let boundary_sparkle = 0.028 * cos(edge_intensity * 20.0 + time * 1.6); // Sparkles on fractal boundaries
+    let boundary_sparkle = 0.030 * cos(edge_intensity * 20.0 + time * 1.6); // Sparkles on fractal boundaries
 
     // Combine sparkle effects - strongest on edges
     let total_sparkle = sparkle_base + edge_sparkle * total_edge_glow + boundary_sparkle * edge_intensity;
