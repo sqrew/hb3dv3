@@ -331,7 +331,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
 
     // Ultra high contrast palette - true black background with gray highlights
     let base_color = vec3<f32>(0.0, 0.0, 0.0); // Pure black background
-    let highlight_color = vec3<f32>(0.3, 0.32, 0.35); // Medium gray instead of bright white
+    let highlight_color = vec3<f32>(0.22, 0.22, 0.22); // Medium gray instead of bright white
 
     // Create high-contrast monochrome gradient
     let color = mix(base_color, highlight_color, intensity);

@@ -22,29 +22,29 @@ impl EnemyType {
     pub fn config(&self) -> EnemyConfig {
         match self {
             EnemyType::Heavy => EnemyConfig {
-                health: 100.0,           // Tankier than base
-                speed: 50.0,             // Slower but steady
-                mass: 50.0,              // Heavy mass for physics
-                collision_radius: 0.8,   // Larger collision radius
-                visual_scale: 1.2,       // Bigger visual representation
+                health: 100.0,         // Tankier than base
+                speed: 50.0,           // Slower but steady
+                mass: 50.0,            // Heavy mass for physics
+                collision_radius: 0.8, // Larger collision radius
+                visual_scale: 1.2,     // Bigger visual representation
                 primitive_type: PrimitiveType::Cylinder,
                 color: Color::PURPLE,
             },
             EnemyType::Chaser => EnemyConfig {
-                health: 30.0,            // Glass cannon
-                speed: 150.0,            // Fast and agile
-                mass: 15.0,              // Light for quick movement
-                collision_radius: 0.5,   // Smaller, harder to hit
-                visual_scale: 0.9,       // Slightly smaller
+                health: 30.0,          // Glass cannon
+                speed: 150.0,          // Fast and agile
+                mass: 15.0,            // Light for quick movement
+                collision_radius: 0.5, // Smaller, harder to hit
+                visual_scale: 0.9,     // Slightly smaller
                 primitive_type: PrimitiveType::Octahedron,
                 color: Color::CYAN,
             },
             EnemyType::Drone => EnemyConfig {
-                health: 50.0,            // Balanced
-                speed: 100.0,            // Balanced speed
-                mass: 25.0,              // Balanced mass
-                collision_radius: 0.6,   // Standard collision radius
-                visual_scale: 1.0,       // Standard size
+                health: 50.0,          // Balanced
+                speed: 100.0,          // Balanced speed
+                mass: 25.0,            // Balanced mass
+                collision_radius: 0.6, // Standard collision radius
+                visual_scale: 1.0,     // Standard size
                 primitive_type: PrimitiveType::Cube,
                 color: Color::PINK,
             },
