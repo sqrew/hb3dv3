@@ -17,6 +17,12 @@ fix resetting game spawning a bhole
 ui lower case text is top-aligned for some reason - this took forever to fix last time
 
 
+SKYBOX:
+parallaxing?
+3d depth somehow?
+fractal morphing?
+
+
 
 
 
@@ -43,27 +49,10 @@ ui lower case text is top-aligned for some reason - this took forever to fix las
 
 
 
-
-
-  Orbital Mechanics Weaponry
-
-  Slingshot Bullets: Bullets that gain speed when passing close to large bodies
-  Orbital Mines: Weapons that enter stable orbit around planets/stars
-  Gravity Wells: Deployable devices that create temporary gravitational fields
-  Implementation: Extend bullet physics with orbital velocity calculations
-
-
   Tidal Forces & Destruction
   Roche Limit: Objects get torn apart when too close to massive bodies
   Tidal Heating: Objects glow and take damage near massive bodies
   Implementation: Add tidal force calculation to compute shaders, progressive destruction particles
-
-
-  Gravitational Wave Generation
-
-  Binary Systems: Two massive bodies orbiting create ripple effects
-  Wave Propagation: Distortions spread outward affecting other objects
-  Implementation: Generate periodic force waves from accelerating masses
 
 
 
@@ -74,15 +63,7 @@ ui lower case text is top-aligned for some reason - this took forever to fix las
   - Gravitational Lensing - Projectiles and light bend around massive objects, creating curved bullet trajectories near black holes
   - Accretion Disks - Swirling matter spirals into black holes/neutron stars with realistic orbital decay
   - Tidal Forces - Large objects get visibly stretched/deformed when approaching massive bodies
-  - Shock Waves - Expanding spherical force fields from explosions that push entities outward
 
   Gameplay-Enhancing:
   - Magnetic Fields - Charged projectiles follow curved helical paths around magnetized bodies
-  - Solar Wind - Constant outward force from stars that affects small objects and creates "gravity wells" you can surf
   - Roche Limit Effects - Large asteroids break apart into debris fields when they get too close to planets
-  - Lagrange Points - Gravitational equilibrium zones where you can park safely between massive bodies
-
-  Emergent Complexity:
-  - Gravitational Waves - Massive accelerating objects create expanding ripples that temporarily alter gravity fields
-  - Dark Matter Halos - Invisible mass clouds that only affect gravity, creating mysterious force regions
-  - Frame Dragging - Rotating black holes drag spacetime, creating spiral gravity effects

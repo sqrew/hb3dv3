@@ -84,6 +84,7 @@ fn complex_mag_squared(z: vec2<f32>) -> f32 {
     return z.x * z.x + z.y * z.y;
 }
 
+
 // Mandelbrot set calculation using uniform parameters
 fn mandelbrot(c: vec2<f32>) -> f32 {
     var z = vec2<f32>(0.0, 0.0);
@@ -155,6 +156,7 @@ fn tricorn(c: vec2<f32>) -> f32 {
 
     return f32(iterations) / f32(max_iterations);
 }
+
 
 // Color palette functions
 fn palette_electric(t: f32) -> vec3<f32> {
@@ -256,29 +258,75 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
         rotated_uv.y * detail_scale * zoom + offset_y * 2.0
     );
 
-    // Calculate fractals at different scales using uniform parameters
+    // Enhanced morphing Julia set parameters - slowly evolve over time
+    let morph_speed = base_animation_speed * 0.08; // Very slow morphing for subtle evolution
+
+    // Create morphing Julia parameters using multiple frequency waves
+    let julia_morph_c1 = vec2<f32>(
+        fractal.julia_c_real + 0.15 * sin(time * morph_speed * 0.7) + 0.08 * cos(time * morph_speed * 1.3),
+        fractal.julia_c_imag + 0.12 * cos(time * morph_speed * 0.9) + 0.06 * sin(time * morph_speed * 1.1)
+    );
+
+    let julia_morph_c2 = vec2<f32>(
+        fractal.julia2_c_real + 0.18 * cos(time * morph_speed * 0.6) + 0.09 * sin(time * morph_speed * 1.5),
+        fractal.julia2_c_imag + 0.14 * sin(time * morph_speed * 0.8) + 0.07 * cos(time * morph_speed * 1.2)
+    );
+
+    // Calculate fractals at different scales with morphing parameters
     let mandel_val1 = mandelbrot(complex_coord1);
-    let julia_val1 = julia(complex_coord1, vec2<f32>(fractal.julia_c_real, fractal.julia_c_imag));
+    let julia_val1 = julia(complex_coord1, julia_morph_c1);
     let burning_val1 = burning_ship(complex_coord1 * 0.8);
 
-    // Finer detail layer using second Julia set parameters
+    // Additional fractal type with morphing parameters
+    let tricorn_val1 = tricorn(complex_coord1 * 1.1);
+
+    // Finer detail layer using morphing Julia set parameters
     let mandel_val2 = mandelbrot(complex_coord2);
-    let julia_val2 = julia(complex_coord2, vec2<f32>(fractal.julia2_c_real, fractal.julia2_c_imag));
+    let julia_val2 = julia(complex_coord2, julia_morph_c2);
+
 
     // Enhanced blending with dynamic movement and animation speed
     let blend1 = 0.5 + 0.2 * sin(time * 0.04 * base_animation_speed);
     let blend2 = 0.5 + 0.15 * cos(time * 0.035 * base_animation_speed);
     let blend3 = 0.5 + 0.1 * sin(time * 0.05 * base_animation_speed);
 
-    // Use fractal weights from uniforms for mixing
-    let w = fractal.fractal_weights;
+    // Dynamic fractal weight morphing - slowly shift emphasis between fractal types
+    let weight_morph_speed = morph_speed * 0.5; // Even slower weight changes
+    let w_base = fractal.fractal_weights;
 
-    // Weighted mixing of all fractal types
-    let mixed_large = mandel_val1 * w.x + julia_val1 * w.y + burning_val1 * w.z;
-    let mixed_detail = mandel_val2 * w.x + julia_val2 * w.y;
+    // Create morphing weights that smoothly transition between different fractal dominance
+    let weight_phase1 = time * weight_morph_speed;
+    let weight_phase2 = time * weight_morph_speed * 0.7 + 1.57; // 90 degree phase offset
+    let weight_phase3 = time * weight_morph_speed * 1.3 + 3.14; // 180 degree phase offset
 
-    // Combine large and detail scales for full sphere coverage
-    let final_mixed = mix(mixed_large, mixed_detail, w.w);
+    let w_morph = vec4<f32>(
+        w_base.x * (0.8 + 0.4 * sin(weight_phase1)), // Mandelbrot weight morphing
+        w_base.y * (0.8 + 0.4 * sin(weight_phase2)), // Julia weight morphing
+        w_base.z * (0.8 + 0.4 * sin(weight_phase3)), // Burning ship weight morphing
+        w_base.w * (0.9 + 0.2 * cos(weight_phase1))  // Detail weight morphing (more stable)
+    );
+
+    // Normalize morphed weights to maintain total intensity
+    let total_weight = w_morph.x + w_morph.y + w_morph.z;
+    let w_normalized = vec4<f32>(
+        w_morph.x / total_weight,
+        w_morph.y / total_weight,
+        w_morph.z / total_weight,
+        w_morph.w
+    );
+
+    // Enhanced mixing with tricorn influence
+    let tricorn_influence = 0.15 * (0.5 + 0.5 * sin(time * morph_speed * 1.4));
+
+    // Mix 2D fractals
+    let mixed_large = mandel_val1 * w_normalized.x + julia_val1 * w_normalized.y +
+                     burning_val1 * w_normalized.z + tricorn_val1 * tricorn_influence;
+
+    let mixed_detail = mandel_val2 * w_normalized.x + julia_val2 * w_normalized.y;
+
+    // Combine large and detail scales with morphing balance
+    let detail_morph = w_normalized.w * (0.8 + 0.3 * cos(time * morph_speed * 0.9));
+    let final_mixed = mix(mixed_large, mixed_detail, detail_morph);
 
     // Create high-contrast monochrome effect with iteration-aware enhancement
     // Higher iteration counts need stronger contrast to show fractal arms
@@ -329,16 +377,111 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     let edge_boosted = stretched_intensity + total_edge_boost;
     let intensity = edge_boosted * 0.35; // Keep base brightness but with iteration-enhanced detail
 
-    // Ultra high contrast palette - true black background with gray highlights
+    // Enhanced color palette with pastel hues for better visibility
     let base_color = vec3<f32>(0.0, 0.0, 0.0); // Pure black background
-    let highlight_color = vec3<f32>(0.22, 0.22, 0.22); // Medium gray instead of bright white
 
-    // Create high-contrast monochrome gradient
-    let color = mix(base_color, highlight_color, intensity);
+    // Create more visible iteration ranges for coloring
+    let color_iteration_factor = 1.0 - final_mixed; // Invert: high iterations = low final_mixed value
 
-    // Reduced shimmer for darker atmosphere
-    let sparkle = 0.015 * sin(contrast_enhanced * 30.0 + time * 1.0);
-    let final_color = color + vec3<f32>(sparkle, sparkle, sparkle);
+    // Define three iteration bands for different color treatments
+    let deep_areas = pow(max(0.0, color_iteration_factor - 0.6), 1.5); // Deepest 40%
+    let mid_areas = pow(max(0.0, color_iteration_factor - 0.3) * (1.0 - step(0.6, color_iteration_factor)), 1.2); // Mid range
+    let edge_areas = pow(max(0.0, color_iteration_factor - 0.1) * (1.0 - step(0.3, color_iteration_factor)), 1.0); // Outer edges
+
+    // Lighter pastel color palette - emphasizing deep iterations with brighter colors
+    let bright_lavender = vec3<f32>(0.45, 0.35, 0.55); // Bright lavender for deep areas
+    let bright_blue = vec3<f32>(0.30, 0.40, 0.65); // Bright blue for deep areas
+    let bright_mint = vec3<f32>(0.35, 0.55, 0.45); // Bright mint green for deep areas
+    let bright_rose = vec3<f32>(0.55, 0.35, 0.40); // Bright dusty rose for deep areas
+    let mid_sage = vec3<f32>(0.25, 0.35, 0.22); // Medium sage green for mid areas
+    let mid_steel = vec3<f32>(0.25, 0.30, 0.35); // Medium steel blue for mid areas
+    let soft_gray = vec3<f32>(0.15, 0.15, 0.17); // Soft gray for edge areas
+
+    // Color selection based on fractal position and time for smooth transitions
+    let fractal_phase = final_mixed * 8.0 + time * 0.1;
+    let color_wave1 = sin(fractal_phase);
+    let color_wave2 = cos(fractal_phase * 1.4 + time * 0.07);
+    let color_wave3 = sin(fractal_phase * 0.7 + time * 0.12);
+
+    // Select colors based on waves for smooth gradients
+    var deep_color: vec3<f32>;
+    var mid_color: vec3<f32>;
+    var edge_color: vec3<f32>;
+
+    // Deep areas get the brightest, most prominent colors
+    if (color_wave1 > 0.33) {
+        deep_color = mix(bright_lavender, bright_blue, abs(color_wave2));
+    } else if (color_wave1 > -0.33) {
+        deep_color = mix(bright_blue, bright_mint, abs(color_wave2));
+    } else {
+        deep_color = mix(bright_mint, bright_rose, abs(color_wave2));
+    }
+
+    // Mid areas get medium brightness colors
+    if (color_wave2 > 0.33) {
+        mid_color = mix(mid_sage, mid_steel, abs(color_wave3));
+    } else if (color_wave2 > -0.33) {
+        mid_color = mix(mid_steel, bright_lavender * 0.6, abs(color_wave3));
+    } else {
+        mid_color = mix(bright_rose * 0.6, mid_sage, abs(color_wave3));
+    }
+
+    // Edge areas get the most subtle colors
+    if (color_wave3 > 0.0) {
+        edge_color = mix(soft_gray, mid_steel * 0.5, abs(color_wave1));
+    } else {
+        edge_color = mix(soft_gray, mid_sage * 0.5, abs(color_wave1));
+    }
+
+    // Enhanced edge detection for subtle glow effects
+    let edge_detection1 = 1.0 - abs(final_mixed - 0.5) * 2.0; // Primary edge detection
+    let edge_detection2 = 1.0 - abs(final_mixed - 0.3) * 3.33; // Secondary edge detection
+    let edge_detection3 = 1.0 - abs(final_mixed - 0.7) * 1.43; // Tertiary edge detection
+
+    // Create soft glow boundaries (subtle, not overwhelming)
+    let soft_edge_glow = pow(max(0.0, edge_detection1), 2.2) * 0.25;
+    let sharp_edge_glow = pow(max(0.0, edge_detection2), 3.5) * 0.15;
+    let subtle_edge_glow = pow(max(0.0, edge_detection3), 2.8) * 0.1;
+
+    // Gentle pulsing effect for edge glow (very subtle)
+    let edge_pulse = 0.7 + 0.2 * sin(time * 1.8);
+    let total_edge_glow = (soft_edge_glow + sharp_edge_glow + subtle_edge_glow) * edge_pulse;
+
+    // Apply colors to different iteration bands with subtle edge glow enhancement
+    let colored_deep = deep_color * (deep_areas * 3.5 + total_edge_glow * 0.3); // Gentle glow on deep areas
+    let colored_mid = mid_color * (mid_areas * 1.2 + total_edge_glow * 0.2); // Subtle glow on mid areas
+    let colored_edge = edge_color * (edge_areas * 0.6 + total_edge_glow * 0.5); // More visible glow on edges
+
+    // Combine all colored areas
+    let total_colored_areas = colored_deep + colored_mid + colored_edge;
+
+    // Base gray for remaining areas, heavily reduced where deep colors are applied
+    let color_coverage = clamp(deep_areas * 1.5 + mid_areas * 0.7 + edge_areas * 0.4, 0.0, 1.0);
+    let gray_intensity = intensity * (1.0 - color_coverage * 0.85); // Stronger reduction
+    let gray_component = vec3<f32>(0.12, 0.12, 0.14) * gray_intensity; // Darker gray
+
+    // Final color mixing
+    let color = mix(base_color, gray_component, gray_intensity) + total_colored_areas;
+
+    // Enhanced edge-focused sparkle shimmer
+    let sparkle_base = 0.018 * sin(contrast_enhanced * 28.0 + time * 1.1);
+    let edge_sparkle = 0.035 * sin(total_edge_glow * 15.0 + time * 2.2); // Sparkles follow edges
+    let boundary_sparkle = 0.028 * cos(edge_intensity * 20.0 + time * 1.6); // Sparkles on fractal boundaries
+
+    // Combine sparkle effects - strongest on edges
+    let total_sparkle = sparkle_base + edge_sparkle * total_edge_glow + boundary_sparkle * edge_intensity;
+
+    // Sparkle color that matches the area colors
+    let sparkle_color = mix(
+        vec3<f32>(0.85, 0.9, 0.95), // Base white sparkle
+        (deep_color + mid_color + edge_color) * 0.4, // Tinted by area colors
+        total_edge_glow + edge_intensity * 0.5 // More color on edges
+    );
+
+    // Additional edge highlight sparkles (very subtle)
+    let edge_highlight = total_edge_glow * 0.04 * abs(sin(time * 3.5));
+
+    let final_color = color + sparkle_color * total_sparkle + bright_lavender * edge_highlight;
 
     return vec4<f32>(final_color, 1.0);
 }

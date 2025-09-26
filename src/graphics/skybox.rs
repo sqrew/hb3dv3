@@ -78,7 +78,7 @@ impl FractalConfig {
         let fractal_weights = [w1 / total, w2 / total, w3 / total, w4 / total];
 
         // Random iteration count for different detail levels
-        let max_iterations = rng.random_range(64..192);
+        let max_iterations = rng.random_range(64..128);
 
         // Random palette selection
         let palette = rng.random_range(0..4);
