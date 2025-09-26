@@ -84,6 +84,17 @@ fn complex_mag_squared(z: vec2<f32>) -> f32 {
     return z.x * z.x + z.y * z.y;
 }
 
+// Complex division: a / b = (a * conjugate(b)) / |b|^2
+fn complex_div(a: vec2<f32>, b: vec2<f32>) -> vec2<f32> {
+    let b_mag_sq = complex_mag_squared(b);
+    if (b_mag_sq < 0.0001) {
+        return vec2<f32>(0.0, 0.0); // Avoid division by zero
+    }
+    let b_conj = vec2<f32>(b.x, -b.y); // Complex conjugate
+    let numerator = complex_mult(a, b_conj);
+    return numerator / b_mag_sq;
+}
+
 
 // Mandelbrot set calculation using uniform parameters
 fn mandelbrot(c: vec2<f32>) -> f32 {
@@ -155,6 +166,86 @@ fn tricorn(c: vec2<f32>) -> f32 {
     }
 
     return f32(iterations) / f32(max_iterations);
+}
+
+// Newton fractal functions - showing convergence basins for polynomial roots
+// Complex polynomial evaluation: f(z) = z^3 + a*z^2 + b*z + c
+fn complex_poly3(z: vec2<f32>, a: vec2<f32>, b: vec2<f32>, c: vec2<f32>) -> vec2<f32> {
+    let z2 = complex_mult(z, z);
+    let z3 = complex_mult(z2, z);
+    return z3 + complex_mult(a, z2) + complex_mult(b, z) + c;
+}
+
+// Derivative: f'(z) = 3*z^2 + 2*a*z + b
+fn complex_poly3_derivative(z: vec2<f32>, a: vec2<f32>, b: vec2<f32>) -> vec2<f32> {
+    let z2 = complex_mult(z, z);
+    return vec2<f32>(3.0, 0.0) * z2 + vec2<f32>(2.0, 0.0) * complex_mult(a, z) + b;
+}
+
+// Newton method iteration: z_new = z - f(z)/f'(z)
+fn newton_iteration(z: vec2<f32>, a: vec2<f32>, b: vec2<f32>, c: vec2<f32>) -> vec2<f32> {
+    let f_z = complex_poly3(z, a, b, c);
+    let df_z = complex_poly3_derivative(z, a, b);
+
+    // Avoid division by zero
+    if (complex_mag_squared(df_z) < 0.0001) {
+        return z;
+    }
+
+    return z - complex_div(f_z, df_z);
+}
+
+// Newton fractal - returns convergence basin information
+fn newton_fractal(start_z: vec2<f32>, a: vec2<f32>, b: vec2<f32>, c: vec2<f32>) -> f32 {
+    var z = start_z;
+    var iterations = 0u;
+    let max_iterations = 48u; // Higher iterations for sharper Newton boundaries
+
+    for (var i = 0u; i < max_iterations; i++) {
+        let z_new = newton_iteration(z, a, b, c);
+
+        // Check for convergence (tighter threshold for sharper boundaries)
+        if (complex_mag_squared(z_new - z) < 0.0001) {
+            break;
+        }
+
+        z = z_new;
+        iterations++;
+
+        // Prevent divergence
+        if (complex_mag_squared(z) > 100.0) {
+            break;
+        }
+    }
+
+    // Return normalized convergence info
+    // The final z value determines which root basin we're in
+    let basin_id = atan2(z.y, z.x) / (2.0 * 3.14159) + 0.5; // Convert to 0-1 range
+    return fract(basin_id + f32(iterations) * 0.1); // Add iteration info for visual variety
+}
+
+// Flowing Newton fractal with morphing polynomial coefficients
+fn flowing_newton_fractal(coord: vec2<f32>, time_factor: f32) -> f32 {
+    // Morphing polynomial coefficients create flowing convergence basins
+    let flow_speed = time_factor * 0.3;
+
+    // Dynamic coefficients that flow and change
+    let a = vec2<f32>(
+        0.5 + 0.3 * sin(flow_speed * 0.7 + coord.x * 2.0),
+        0.2 + 0.4 * cos(flow_speed * 0.9 + coord.y * 1.8)
+    );
+
+    let b = vec2<f32>(
+        -0.8 + 0.6 * cos(flow_speed * 1.1 + coord.x * 1.5),
+        0.3 + 0.5 * sin(flow_speed * 0.8 + coord.y * 2.2)
+    );
+
+    let c = vec2<f32>(
+        0.1 + 0.2 * sin(flow_speed * 1.3 + coord.x * 0.8),
+        -0.4 + 0.3 * cos(flow_speed * 0.6 + coord.y * 1.2)
+    );
+
+    return newton_fractal(coord, a, b, c);
 }
 
 
@@ -302,9 +393,156 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     let julia_val1 = julia(complex_coord1, julia_morph_c1);
     let burning_val1 = burning_ship(complex_coord1 * 0.8);
 
+    // Add Newton fractals with flowing convergence basins
+    let newton_val1 = flowing_newton_fractal(complex_coord1 * 0.7, time * morph_speed);
+    let newton_val2 = flowing_newton_fractal(complex_coord1 * 1.3, time * morph_speed * 1.4);
+
     // Finer detail layer using morphing Julia set parameters
     let mandel_val2 = mandelbrot(complex_coord2);
     let julia_val2 = julia(complex_coord2, julia_morph_c2);
+
+    // DYNAMIC FRACTAL TRANSFORMATION SYSTEM - Flowing, branching, metamorphosis
+    // Create transformation zones that flow across the space
+    let transform_time = time * morph_speed * 2.0; // Faster transformation waves
+
+    // Multiple flowing transformation waves with different patterns
+    let transform_wave1 = sin(complex_coord1.x * 3.0 + transform_time * 0.7) * cos(complex_coord1.y * 2.8 + transform_time * 0.5);
+    let transform_wave2 = cos(complex_coord1.x * 4.2 + transform_time * 0.9) * sin(complex_coord1.y * 3.6 + transform_time * 0.6);
+    let transform_wave3 = sin(complex_coord1.x * 2.1 + transform_time * 1.1) * cos(complex_coord1.y * 4.3 + transform_time * 0.8);
+
+    // Create branching transformation fields
+    let branch_field = normalize(vec2<f32>(transform_wave1, transform_wave2));
+    let branch_strength = abs(transform_wave3) * smoothstep(0.55, 0.65, abs(transform_wave1 + transform_wave2));
+
+    // METAMORPHOSIS ZONES - Where fractals transform into each other
+    let metamorphosis_phase = 0.5 + 0.5 * sin(transform_time * 0.4 + length(complex_coord1) * 2.0);
+
+    // MULTI-JUNCTURE TRANSFORMATION NETWORK - Dynamic non-linear fractal evolution!
+    // Create spatial influence zones for different transformation types
+    let spatial_x = complex_coord1.x * 2.0 + time * 0.1;
+    let spatial_y = complex_coord1.y * 1.8 + time * 0.08;
+    let spatial_influence = sin(spatial_x) * cos(spatial_y) + 0.5 * cos(spatial_x * 1.3) * sin(spatial_y * 0.7);
+
+    // Time-varying transformation probabilities (each fractal can go to ANY other fractal!)
+    let time_phase1 = time * morph_speed * 0.8 + spatial_influence;
+    let time_phase2 = time * morph_speed * 1.2 + spatial_influence * 0.7;
+    let time_phase3 = time * morph_speed * 0.6 + spatial_influence * 1.3;
+
+    // MANDELBROT JUNCTURES - Can transform to Julia, Newton, OR Burning Ship
+    let mandel_to_julia_prob = 0.5 + 0.5 * sin(time_phase1 + transform_wave1 * 0.4);
+    let mandel_to_newton_prob = 0.5 + 0.5 * cos(time_phase2 + transform_wave2 * 0.3);
+    let mandel_to_burning_prob = 0.5 + 0.5 * sin(time_phase3 + transform_wave3 * 0.5);
+
+    // JULIA JUNCTURES - Can transform to Mandelbrot, Burning Ship, OR Newton
+    let julia_to_mandel_prob = 0.5 + 0.5 * cos(time_phase1 + transform_wave2 * 0.3);
+    let julia_to_burning_prob = 0.5 + 0.5 * sin(time_phase2 + transform_wave3 * 0.4);
+    let julia_to_newton_prob = 0.5 + 0.5 * cos(time_phase3 + transform_wave1 * 0.3);
+
+    // BURNING SHIP JUNCTURES - Can transform to Newton, Mandelbrot, OR Julia
+    let burning_to_newton_prob = 0.5 + 0.5 * sin(time_phase1 + transform_wave3 * 0.4);
+    let burning_to_mandel_prob = 0.5 + 0.5 * cos(time_phase2 + transform_wave1 * 0.3);
+    let burning_to_julia_prob = 0.5 + 0.5 * sin(time_phase3 + transform_wave2 * 0.5);
+
+    // NEWTON JUNCTURES - Can transform to Mandelbrot, Julia, OR Burning Ship
+    let newton_to_mandel_prob = 0.5 + 0.5 * cos(time_phase1 + transform_wave1 * 0.3);
+    let newton_to_julia_prob = 0.5 + 0.5 * sin(time_phase2 + transform_wave2 * 0.4);
+    let newton_to_burning_prob = 0.5 + 0.5 * cos(time_phase3 + transform_wave3 * 0.3);
+
+    // Create sharp transition thresholds for each juncture
+    let mandel_to_julia = smoothstep(0.48, 0.52, metamorphosis_phase + mandel_to_julia_prob * 0.3);
+    let mandel_to_newton = smoothstep(0.45, 0.49, metamorphosis_phase + mandel_to_newton_prob * 0.3);
+    let mandel_to_burning = smoothstep(0.51, 0.55, metamorphosis_phase + mandel_to_burning_prob * 0.3);
+
+    let julia_to_mandel = smoothstep(0.47, 0.51, metamorphosis_phase + julia_to_mandel_prob * 0.3);
+    let julia_to_burning = smoothstep(0.49, 0.53, metamorphosis_phase + julia_to_burning_prob * 0.3);
+    let julia_to_newton = smoothstep(0.46, 0.50, metamorphosis_phase + julia_to_newton_prob * 0.3);
+
+    let burning_to_newton = smoothstep(0.50, 0.54, metamorphosis_phase + burning_to_newton_prob * 0.3);
+    let burning_to_mandel = smoothstep(0.48, 0.52, metamorphosis_phase + burning_to_mandel_prob * 0.3);
+    let burning_to_julia = smoothstep(0.46, 0.50, metamorphosis_phase + burning_to_julia_prob * 0.3);
+
+    let newton_to_mandel = smoothstep(0.49, 0.53, metamorphosis_phase + newton_to_mandel_prob * 0.3);
+    let newton_to_julia = smoothstep(0.47, 0.51, metamorphosis_phase + newton_to_julia_prob * 0.3);
+    let newton_to_burning = smoothstep(0.51, 0.55, metamorphosis_phase + newton_to_burning_prob * 0.3);
+
+    // BRANCHING INFINITY EFFECTS - Fractals split and multiply
+    let branch_coords = complex_coord1 + branch_field * branch_strength * 0.3;
+    let split_coords = complex_coord1 * (1.0 + branch_strength * 0.5);
+
+    // Calculate branched versions of fractals
+    let mandel_branch = mandelbrot(branch_coords);
+    let julia_branch = julia(split_coords, julia_morph_c1 + vec2<f32>(transform_wave1, transform_wave2) * 0.1);
+    let burning_branch = burning_ship(branch_coords * 0.9);
+    let newton_branch = flowing_newton_fractal(branch_coords * 1.1, transform_time + length(branch_coords));
+
+    // MULTI-JUNCTURE TRANSFORMATION - Dynamic metamorphosis using probability network!
+    // Each fractal can transform to any other fractal based on spatial zones and time
+    let transformed_mandel = mix(
+        mandel_val1,
+        mix(
+            mix(julia_branch, newton_branch, mandel_to_julia / (mandel_to_julia + mandel_to_newton + 0.001)),
+            burning_branch,
+            mandel_to_burning
+        ),
+        branch_strength
+    );
+
+    let transformed_julia = mix(
+        julia_val1,
+        mix(
+            mix(mandel_branch, burning_branch, julia_to_mandel / (julia_to_mandel + julia_to_burning + 0.001)),
+            newton_branch,
+            julia_to_newton
+        ),
+        branch_strength
+    );
+
+    let transformed_burning = mix(
+        burning_val1,
+        mix(
+            mix(newton_branch, mandel_branch, burning_to_newton / (burning_to_newton + burning_to_mandel + 0.001)),
+            julia_branch,
+            burning_to_julia
+        ),
+        branch_strength
+    );
+
+    // Newton fractal multi-juncture transformation
+    let transformed_newton = mix(
+        newton_val1,
+        mix(
+            mix(mandel_branch, julia_branch, newton_to_mandel / (newton_to_mandel + newton_to_julia + 0.001)),
+            burning_branch,
+            newton_to_burning
+        ),
+        branch_strength
+    );
+
+    // SUDDEN METAMORPHOSIS - Instant transformations in certain regions
+    let sudden_transform_threshold = 0.7 + 0.2 * sin(transform_time * 1.3);
+    let sudden_zones = step(sudden_transform_threshold, abs(transform_wave1 * transform_wave2));
+
+    // Apply sudden transformations using multi-juncture probability network!
+    // Each fractal can suddenly transform to its highest probability destination
+    let final_mandel = mix(transformed_mandel,
+        select(select(julia_branch, newton_branch, mandel_to_newton > mandel_to_julia),
+               burning_branch, mandel_to_burning > max(mandel_to_julia, mandel_to_newton)),
+        sudden_zones * max(max(mandel_to_julia, mandel_to_newton), mandel_to_burning));
+
+    let final_julia = mix(transformed_julia,
+        select(select(mandel_branch, burning_branch, julia_to_burning > julia_to_mandel),
+               newton_branch, julia_to_newton > max(julia_to_mandel, julia_to_burning)),
+        sudden_zones * max(max(julia_to_mandel, julia_to_burning), julia_to_newton));
+
+    let final_burning = mix(transformed_burning,
+        select(select(newton_branch, mandel_branch, burning_to_mandel > burning_to_newton),
+               julia_branch, burning_to_julia > max(burning_to_newton, burning_to_mandel)),
+        sudden_zones * max(max(burning_to_newton, burning_to_mandel), burning_to_julia));
+
+    let final_newton = mix(transformed_newton,
+        select(select(mandel_branch, julia_branch, newton_to_julia > newton_to_mandel),
+               burning_branch, newton_to_burning > max(newton_to_mandel, newton_to_julia)),
+        sudden_zones * max(max(newton_to_mandel, newton_to_julia), newton_to_burning));
 
 
     // Enhanced blending with dynamic movement and animation speed
@@ -337,11 +575,15 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
         w_morph.w
     );
 
-    // Mix 2D fractals (Mandelbrot, Julia, Burning Ship)
-    let mixed_large = mandel_val1 * w_normalized.x + julia_val1 * w_normalized.y +
-                     burning_val1 * w_normalized.z;
+    // Mix 2D fractals using TRANSFORMED fractals (flowing, branching, metamorphosis) + NEWTON!
+    // Add Newton fractal as a dynamic fourth component
+    let newton_weight = 0.2 * (0.5 + 0.5 * sin(time * morph_speed * 0.4 + length(complex_coord1)));
 
-    let mixed_detail = mandel_val2 * w_normalized.x + julia_val2 * w_normalized.y;
+    let mixed_large = final_mandel * w_normalized.x + final_julia * w_normalized.y +
+                     final_burning * w_normalized.z + final_newton * newton_weight;
+
+    let mixed_detail = mandel_val2 * w_normalized.x + julia_val2 * w_normalized.y +
+                      newton_val2 * newton_weight * 0.7;
 
     // Combine large and detail scales with morphing balance
     let detail_morph = w_normalized.w * (0.8 + 0.3 * cos(time * morph_speed * 0.9));
@@ -416,8 +658,8 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     // Color selection based on fractal position and time for smooth transitions
     let fractal_phase = final_mixed * 8.0 + time * 0.1;
     let color_wave1 = sin(fractal_phase);
-    let color_wave2 = cos(fractal_phase * 1.4 + time * 0.07);
-    let color_wave3 = sin(fractal_phase * 0.7 + time * 0.12);
+    let color_wave2 = cos(fractal_phase * 1.4 + time * 0.049); // 0.07 * 0.7
+    let color_wave3 = sin(fractal_phase * 0.7 + time * 0.084); // 0.12 * 0.7
 
     // Select colors based on waves for smooth gradients
     var deep_color: vec3<f32>;
@@ -528,33 +770,96 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     // Filament-specific coloring - subtle cosmic threads
     let filament_areas = filament_strength * 2.0; // Enhance visibility
 
-    // Enhanced edge detection for subtle glow effects
-    let edge_detection1 = 1.0 - abs(fractal_with_filaments - 0.5) * 2.0; // Primary edge detection
-    let edge_detection2 = 1.0 - abs(final_mixed - 0.3) * 3.33; // Secondary edge detection
-    let edge_detection3 = 1.0 - abs(final_mixed - 0.7) * 1.43; // Tertiary edge detection
+    // SHARP edge detection for crisp fractal boundary beauty
+    let edge_detection1 = 1.0 - abs(fractal_with_filaments - 0.5) * 4.0; // Much sharper primary detection
+    let edge_detection2 = 1.0 - abs(final_mixed - 0.2) * 8.0; // Detect shallow iteration boundaries
+    let edge_detection3 = 1.0 - abs(final_mixed - 0.8) * 6.0; // Detect deep iteration boundaries
+    let edge_detection4 = 1.0 - abs(final_mixed - 0.6) * 10.0; // Ultra-sharp mid-boundary detection
 
-    // Create soft glow boundaries (subtle, not overwhelming)
-    let soft_edge_glow = pow(max(0.0, edge_detection1), 2.2) * 0.25;
-    let sharp_edge_glow = pow(max(0.0, edge_detection2), 3.5) * 0.15;
-    let subtle_edge_glow = pow(max(0.0, edge_detection3), 2.8) * 0.1;
+    // Create CRISP glow boundaries that highlight fractal tendrils
+    let soft_edge_glow = pow(max(0.0, edge_detection1), 4.0) * 0.15;
+    let sharp_edge_glow = pow(max(0.0, edge_detection2), 6.0) * 0.2;
+    let deep_edge_glow = pow(max(0.0, edge_detection3), 5.0) * 0.18;
+    let ultra_edge_glow = pow(max(0.0, edge_detection4), 8.0) * 0.12;
 
     // Gentle pulsing effect for edge glow (very subtle)
     let edge_pulse = 0.7 + 0.2 * sin(time * 1.8);
-    let total_edge_glow = (soft_edge_glow + sharp_edge_glow + subtle_edge_glow) * edge_pulse;
+    let total_edge_glow = (soft_edge_glow + sharp_edge_glow + deep_edge_glow + ultra_edge_glow) * edge_pulse;
 
-    // Apply colors to different iteration bands with subtle edge glow enhancement (muted pastels)
-    let colored_deep = deep_color * (deep_areas * 2.0 + total_edge_glow * 0.3); // Muted deep areas
-    let colored_mid = mid_color * (mid_areas * 0.9 + total_edge_glow * 0.2); // Subtle mid areas
-    let colored_edge = edge_color * (edge_areas * 0.7 + total_edge_glow * 0.4); // Gentle edge areas
+    // FRACTAL INTERFERENCE PATTERNS - Mathematical wave physics where fractal universes collide!
+    // Calculate fractal "purity" - how dominant each type is at this location
+    let mandel_purity = final_mandel / (final_mandel + final_julia + final_burning + final_newton + 0.001);
+    let julia_purity = final_julia / (final_mandel + final_julia + final_burning + final_newton + 0.001);
+    let burning_purity = final_burning / (final_mandel + final_julia + final_burning + final_newton + 0.001);
+    let newton_purity = final_newton / (final_mandel + final_julia + final_burning + final_newton + 0.001);
+
+    // Detect interference zones - where multiple fractals have significant presence (softened)
+    let mandel_julia_interference = mandel_purity * julia_purity * 2.5; // Reduced for muted pastels
+    let julia_burning_interference = julia_purity * burning_purity * 2.5;
+    let burning_newton_interference = burning_purity * newton_purity * 2.5;
+    let newton_mandel_interference = newton_purity * mandel_purity * 2.5;
+
+    // Create wave interference patterns using mathematical wave equations
+    let interference_frequency = 15.0; // Wave frequency for standing patterns
+    let interference_distance = length(complex_coord1);
+
+    // Standing wave patterns in interference zones (slowed by 30%)
+    let wave_phase1 = interference_frequency * interference_distance + time * 1.4; // 2.0 * 0.7
+    let wave_phase2 = interference_frequency * interference_distance * 1.4 + time * 1.19; // 1.7 * 0.7
+    let wave_phase3 = interference_frequency * interference_distance * 0.8 + time * 1.61; // 2.3 * 0.7
+    let wave_phase4 = interference_frequency * interference_distance * 1.2 + time * 1.33; // 1.9 * 0.7
+
+    // Mathematical wave interference - creates geometric patterns
+    let standing_wave1 = sin(wave_phase1) * cos(wave_phase1 * 0.7) * mandel_julia_interference;
+    let standing_wave2 = cos(wave_phase2) * sin(wave_phase2 * 1.3) * julia_burning_interference;
+    let standing_wave3 = sin(wave_phase3) * cos(wave_phase3 * 0.9) * burning_newton_interference;
+    let standing_wave4 = cos(wave_phase4) * sin(wave_phase4 * 1.1) * newton_mandel_interference;
+
+    // Golden ratio spiral interference - emerges at high-energy interference nodes
+    let golden_ratio = 1.618033988749895;
+    let spiral_angle = atan2(complex_coord1.y, complex_coord1.x);
+    let spiral_radius = length(complex_coord1);
+    let golden_spiral_phase = spiral_angle * golden_ratio + log(spiral_radius + 0.1) * golden_ratio + time * 0.35; // 0.5 * 0.7
+
+    // Golden spiral emerges where multiple interferences combine (softened)
+    let interference_energy = abs(standing_wave1) + abs(standing_wave2) + abs(standing_wave3) + abs(standing_wave4);
+    let golden_spiral_intensity = sin(golden_spiral_phase) * cos(golden_spiral_phase * golden_ratio) *
+                                 smoothstep(0.3, 0.8, interference_energy) * 0.08; // Reduced intensity
+
+    // Combine all interference patterns
+    let total_interference = standing_wave1 + standing_wave2 + standing_wave3 + standing_wave4 + golden_spiral_intensity;
+
+    // Apply interference to edge glow for geometric enhancement (softened)
+    let interference_enhanced_glow = total_edge_glow + abs(total_interference) * 0.15; // Reduced enhancement
+
+    // Apply colors to different iteration bands with interference-enhanced glow (muted pastels)
+    let colored_deep = deep_color * (deep_areas * 2.0 + interference_enhanced_glow * 0.3); // Muted deep areas
+    let colored_mid = mid_color * (mid_areas * 0.9 + interference_enhanced_glow * 0.2); // Subtle mid areas
+    let colored_edge = edge_color * (edge_areas * 0.7 + interference_enhanced_glow * 0.4); // Gentle edge areas
 
     // Apply filament coloring - ethereal cosmic threads
     let colored_filaments = filament_color * filament_areas * 1.5; // Enhanced filament visibility
 
-    // Combine all colored areas including filaments
-    let total_colored_areas = colored_deep + colored_mid + colored_edge + colored_filaments;
+    // INTERFERENCE PATTERN COLORING - Geometric wave patterns
+    // Create specific colors for interference phenomena
+    let interference_cyan = vec3<f32>(0.15, 0.25, 0.35); // Cool interference waves
+    let interference_gold = vec3<f32>(0.35, 0.25, 0.10); // Warm interference nodes
+    let golden_spiral_color = vec3<f32>(0.40, 0.30, 0.15); // Golden ratio spirals
 
-    // Base gray for remaining areas, heavily reduced where deep colors and filaments are applied
-    let color_coverage = clamp(deep_areas * 1.5 + mid_areas * 0.7 + edge_areas * 0.4 + filament_areas * 0.8, 0.0, 1.0);
+    // Color interference patterns based on their mathematical nature (muted)
+    let wave_interference_color = mix(interference_cyan, interference_gold,
+                                    0.5 + 0.5 * sin(time * 2.1 + total_interference * 8.0)); // 3.0 * 0.7
+    let golden_interference_color = golden_spiral_color * abs(golden_spiral_intensity) * 2.0; // Reduced intensity
+
+    // Combine interference colors (softened for pastels)
+    let colored_interference = wave_interference_color * abs(total_interference) * 0.8 + golden_interference_color;
+
+    // Combine all colored areas including filaments and interference patterns
+    let total_colored_areas = colored_deep + colored_mid + colored_edge + colored_filaments + colored_interference;
+
+    // Base gray for remaining areas, softly reduced where deep colors, filaments, and interference are applied
+    let interference_coverage = abs(total_interference) * 0.4; // Reduced interference impact
+    let color_coverage = clamp(deep_areas * 1.5 + mid_areas * 0.7 + edge_areas * 0.4 + filament_areas * 0.8 + interference_coverage, 0.0, 1.0);
     let gray_intensity = intensity * (1.0 - color_coverage * 0.85); // Stronger reduction
     let gray_component = vec3<f32>(0.12, 0.12, 0.14) * gray_intensity; // Darker gray
 
