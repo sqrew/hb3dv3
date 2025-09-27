@@ -34,6 +34,7 @@ The application follows a layered entity-component-like architecture with distin
 - **ThirdPersonCamera**: Orbital camera system with manual and auto-rotation modes
 - **Line Rendering**: Specialized instanced line renderer for wireframe primitives
 - **Lightning Effects**: Advanced electrical discharge system with fractal branching and seeking tendrils
+- **Advanced Skybox System**: Multi-fractal rendering with dynamic transformation networks and wave interference
 - **Primitive System**: Supports various 3D primitive types (cubes, spheres, etc.)
 - **Advanced Features**: Bloom renderer, frustum culling, and primitive caching
 - **Shaders**: Custom WGSL shaders for various rendering techniques
@@ -129,8 +130,28 @@ The engine supports advanced rendering features including bloom effects, frustum
 - **Performance Optimized**: GPU-efficient line rendering with configurable complexity levels
 - **Test Integration**: Press 'K' to spawn lightning bolts for testing and demonstration
 
+### Advanced Skybox System
+- **Multi-Fractal Rendering**: Real-time rendering of Mandelbrot, Julia, Burning Ship, and Newton fractals
+- **Multi-Juncture Transformation Network**: Non-linear fractal metamorphosis preventing predictable cyclic patterns
+  - 12 dynamic transformation pathways (each fractal can transform to any of the other 3)
+  - Probability-based transitions with spatial influence zones and time-varying weights
+  - Sharp transition thresholds using smoothstep functions for crisp mathematical boundaries
+- **Wave Interference Patterns**: Mathematical standing wave systems creating geometric enhancement
+  - Golden ratio spiral emergence at high-energy interference nodes
+  - Spatial frequency modulation with distance-based phase calculations
+  - 30% slower pulsing timing for contemplative viewing experience
+- **Muted Pastel Aesthetics**: Carefully tuned brightness and intensity for serene visual experience
+  - Softened wave interference (reduced from 4.0 to 2.5 amplification)
+  - Reduced golden spiral intensity (0.15 to 0.08) for subtle geometric patterns
+  - Gentle color enhancement preserving mathematical beauty while maintaining calm atmosphere
+- **Neural Filament Networks**: Ethereal cosmic threads connecting fractal boundary regions
+- **Spherical Perspective Distortion**: 3D fractal projection with proper depth and curvature
+- **Sharp Boundary Enhancement**: Crisp edge definition for precise mathematical visualization
+- **Performance Optimized**: Complex real-time fractal mathematics running at 60+ FPS
+
 ### Performance Characteristics
 - **Scalable Architecture**: Maintains 75+ FPS even with hundreds of entities and complex physics
 - **Batch Processing**: Collision detection, physics updates, and particle spawning performed in batches
 - **GPU Utilization**: Heavy computational work offloaded to GPU for maximum performance
 - **Lightning Performance**: Efficient line instancing supports complex lightning with 60+ segments and multiple branches
+- **Fractal Performance**: Real-time multi-fractal skybox with interference patterns at optimal frame rates

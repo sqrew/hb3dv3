@@ -261,7 +261,7 @@ fn palette_cosmic(t: f32) -> vec3<f32> {
     let purple = vec3<f32>(0.5, 0.0, 1.0);
     let blue = vec3<f32>(0.0, 0.5, 1.0);
     let cyan = vec3<f32>(0.0, 1.0, 1.0);
-    let white = vec3<f32>(1.0, 1.0, 1.0);
+    let white = vec3<f32>(0.85, 0.9, 0.95); // Softer white to prevent wash-out
 
     if (t < 0.33) {
         return mix(purple, blue, t * 3.0);
@@ -291,7 +291,7 @@ fn palette_ocean(t: f32) -> vec3<f32> {
     let deep_blue = vec3<f32>(0.0, 0.1, 0.3);
     let blue = vec3<f32>(0.0, 0.3, 0.7);
     let light_blue = vec3<f32>(0.2, 0.7, 1.0);
-    let white = vec3<f32>(0.9, 0.95, 1.0);
+    let white = vec3<f32>(0.75, 0.8, 0.85); // Softer white to prevent wash-out
 
     if (t < 0.33) {
         return mix(deep_blue, blue, t * 3.0);
@@ -787,7 +787,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     let total_edge_glow = (soft_edge_glow + sharp_edge_glow + deep_edge_glow + ultra_edge_glow) * edge_pulse;
 
     // FRACTAL INTERFERENCE PATTERNS - Mathematical wave physics where fractal universes collide!
-    // Calculate fractal "purity" - how dominant each type is at this location
+    // Calculate fractal purity - how dominant each type is at this location
     let mandel_purity = final_mandel / (final_mandel + final_julia + final_burning + final_newton + 0.001);
     let julia_purity = final_julia / (final_mandel + final_julia + final_burning + final_newton + 0.001);
     let burning_purity = final_burning / (final_mandel + final_julia + final_burning + final_newton + 0.001);
@@ -833,7 +833,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     let interference_enhanced_glow = total_edge_glow + abs(total_interference) * 0.15; // Reduced enhancement
 
     // Apply colors to different iteration bands with interference-enhanced glow (muted pastels)
-    let colored_deep = deep_color * (deep_areas * 2.0 + interference_enhanced_glow * 0.3); // Muted deep areas
+    let colored_deep = deep_color * (deep_areas * 1.5 + interference_enhanced_glow * 0.3); // Reduced multiplier to prevent white-out
     let colored_mid = mid_color * (mid_areas * 0.9 + interference_enhanced_glow * 0.2); // Subtle mid areas
     let colored_edge = edge_color * (edge_areas * 0.7 + interference_enhanced_glow * 0.4); // Gentle edge areas
 
@@ -874,9 +874,9 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     // Combine sparkle effects - strongest on edges
     let total_sparkle = sparkle_base + edge_sparkle * total_edge_glow + boundary_sparkle * edge_intensity;
 
-    // Sparkle color that matches the area colors
+    // Sparkle color that matches the area colors (softened to prevent white-out)
     let sparkle_color = mix(
-        vec3<f32>(0.85, 0.9, 0.95), // Base white sparkle
+        vec3<f32>(0.55, 0.6, 0.65), // Softer base sparkle (was too bright white)
         (deep_color + mid_color + edge_color) * 0.4, // Tinted by area colors
         total_edge_glow + edge_intensity * 0.5 // More color on edges
     );
@@ -884,7 +884,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     // Additional edge highlight sparkles (very subtle)
     let edge_highlight = total_edge_glow * 0.08 * abs(sin(time * 3.5));
 
-    let final_color = color + sparkle_color * total_sparkle + bright_lavender * edge_highlight;
+    let final_color = color + sparkle_color * total_sparkle + bright_lavender * edge_highlight * 0.6; // Reduced edge highlight
 
     return vec4<f32>(final_color, 1.0);
 }
