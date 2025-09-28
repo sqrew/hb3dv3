@@ -29,11 +29,11 @@ impl ScoreMultiplier {
             pos,
             vel,
             multiplier_value,
-            collision_radius: 1.0,
+            collision_radius: 3.0,
             collision_mask: CollisionMask::from(EntityType::Collectible),
             lifetime: 30.0, // 30 second lifetime
             max_lifetime: 30.0,
-            mass: 1.0, // Light mass for gentle floating
+            mass: 1000.0, // Light mass for gentle floating
             applied_force: Vec3::zeros(),
         }
     }
@@ -47,7 +47,7 @@ impl ScoreMultiplier {
         let distance = to_player.magnitude();
 
         // Apply attraction when player is within attraction range (15 units)
-        let attraction_range = 150.0;
+        let attraction_range = 200.0;
         if distance > 0.1 && distance < attraction_range {
             // Stronger attraction when closer, using inverse square falloff
             let attraction_strength = (attraction_range - distance) / attraction_range;
@@ -192,11 +192,6 @@ impl ScoringSystem {
     pub fn add_score(&mut self, base_points: u64) {
         let points_to_add = (base_points as f32 * self.multiplier) as u64;
         self.score += points_to_add;
-
-        println!(
-            "Score: +{} (x{:.1}) = {} total",
-            base_points, self.multiplier, self.score
-        );
     }
 
     pub fn collect_multiplier(&mut self, multiplier_value: f32, entity_id: EntityId) -> bool {
@@ -220,11 +215,6 @@ impl ScoringSystem {
                     lifetime: 2.0,
                     color: Color::GREEN,
                 }));
-
-            println!(
-                "Collected multiplier +{:.1}x! Total multiplier: {:.1}x",
-                multiplier_value, self.multiplier
-            );
             true
         } else {
             false
@@ -291,7 +281,6 @@ impl ScoringSystem {
     pub fn reset_multiplier(&mut self) {
         self.multiplier = self.base_multiplier;
         self.multiplier_decay_timer = 0.0; // Reset decay timer
-        println!("Score multiplier reset to {:.1}x due to player damage!", self.multiplier);
     }
 
     pub fn drain_events(&mut self) -> Vec<EventType> {

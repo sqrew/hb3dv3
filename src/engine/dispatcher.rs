@@ -104,16 +104,14 @@ impl Dispatcher {
 
         // Process batches - order matters for dependencies
         // 1. Process collision events first (they generate other events)
-        // Process each collision event individually
+        // Process collision events with batching for performance
         let mut collision_explosion_events = Vec::new();
-        for event in collision_events {
-            Self::handle_collision_event(
-                event,
-                scheduler,
-                graphics_events,
-                &mut collision_explosion_events,
-            );
-        }
+        Self::handle_collision_events_batch(
+            collision_events,
+            scheduler,
+            graphics_events,
+            &mut collision_explosion_events,
+        );
 
         // Add collision-generated explosion events to the main batch
         explosion_events.extend(collision_explosion_events);
@@ -174,6 +172,50 @@ impl Dispatcher {
                 EventType::Debug(_) => 9,
             }
         });
+    }
+
+    fn handle_collision_events_batch(
+        events: Vec<CollisionEvent>,
+        scheduler: &mut crate::engine::scheduler::Scheduler,
+        graphics_events: &mut Vec<GraphicsEvent>,
+        explosion_events: &mut Vec<ExplosionEvent>,
+    ) {
+        // Batch bullet-bullet collisions for performance optimization
+        let mut bullet_bullet_impacts = Vec::new();
+        const MAX_BULLET_BULLET_PARTICLES_PER_FRAME: usize = 50; // Throttle to prevent spam
+
+        for event in events {
+            match event {
+                CollisionEvent::BulletHitBullet { impact_point, .. } => {
+                    // Collect impact points for batching
+                    if bullet_bullet_impacts.len() < MAX_BULLET_BULLET_PARTICLES_PER_FRAME {
+                        bullet_bullet_impacts.push(impact_point);
+                    }
+                    // Skip individual processing for bullet-bullet - handle below
+                    continue;
+                }
+                _ => {
+                    // Process other collision types individually
+                    Self::handle_collision_event(event, scheduler, graphics_events, explosion_events);
+                }
+            }
+        }
+
+        // Process batched bullet-bullet collisions with single spawn request
+        if !bullet_bullet_impacts.is_empty() {
+            // Use first impact point as representative position for batch spawn
+            let batch_position = bullet_bullet_impacts[0];
+            let batch_count = bullet_bullet_impacts.len().min(MAX_BULLET_BULLET_PARTICLES_PER_FRAME);
+
+            // Single optimized particle spawn for all bullet-bullet collisions
+            graphics_events.push(GraphicsEvent::SpawnParticles {
+                position: batch_position,
+                velocity: Vec3::new(0.0, 0.0, 0.0), // Sparks spread in all directions
+                count: batch_count as u32, // One particle per collision, capped
+                lifetime: 3.0, // Quick flash effect
+                color: Color::WHITE,
+            });
+        }
     }
 
     fn handle_collision_event(
@@ -273,7 +315,9 @@ impl Dispatcher {
                 bullet_b_id: _,
                 impact_point,
             } => {
-                // Spawn spark particles for bullet-bullet collisions
+                // NOTE: Bullet-bullet collisions are now handled in batch in handle_collision_events_batch()
+                // This individual handler should not be reached for bullet-bullet collisions
+                // But keeping for safety in case batch handler is bypassed
                 graphics_events.push(GraphicsEvent::SpawnParticles {
                     position: impact_point,
                     velocity: Vec3::new(0.0, 0.0, 0.0), // Sparks spread in all directions

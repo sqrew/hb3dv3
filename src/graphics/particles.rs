@@ -450,6 +450,16 @@ impl ParticleSystem {
         color: crate::graphics::Color,
     ) {
         if self.spawn_queue.len() < MAX_SPAWN_REQUESTS as usize {
+            // Optimization: For small particle counts (like bullet-bullet collisions),
+            // try to merge with nearby existing requests to reduce GPU batches
+            if count <= 10 && lifetime <= 5.0 {
+                if let Some(existing) = self.find_nearby_spawn_request(position, color, lifetime) {
+                    // Merge with existing request
+                    existing.count = (existing.count + count).min(50); // Cap merged count
+                    return;
+                }
+            }
+
             self.spawn_queue.push(SpawnRequest {
                 position: [position.x, position.y, position.z],
                 count,
@@ -459,6 +469,42 @@ impl ParticleSystem {
                 _padding: [0.0; 4],
             });
         }
+    }
+
+    /// Find a nearby spawn request that can be merged with
+    fn find_nearby_spawn_request(
+        &mut self,
+        position: Vec3,
+        color: crate::graphics::Color,
+        lifetime: f32,
+    ) -> Option<&mut SpawnRequest> {
+        const MERGE_DISTANCE_SQ: f32 = 4.0; // 2 units merge radius
+        const COLOR_TOLERANCE: f32 = 0.1;
+        const LIFETIME_TOLERANCE: f32 = 1.0;
+
+        for request in &mut self.spawn_queue {
+            // Check position proximity
+            let dx = request.position[0] - position.x;
+            let dy = request.position[1] - position.y;
+            let dz = request.position[2] - position.z;
+            let dist_sq = dx * dx + dy * dy + dz * dz;
+
+            if dist_sq <= MERGE_DISTANCE_SQ {
+                // Check color similarity
+                let dr = (request.color[0] - color.r).abs();
+                let dg = (request.color[1] - color.g).abs();
+                let db = (request.color[2] - color.b).abs();
+
+                if dr <= COLOR_TOLERANCE && dg <= COLOR_TOLERANCE && db <= COLOR_TOLERANCE {
+                    // Check lifetime similarity
+                    let dl = (request.lifetime - lifetime).abs();
+                    if dl <= LIFETIME_TOLERANCE && request.count < 40 {
+                        return Some(request);
+                    }
+                }
+            }
+        }
+        None
     }
 
     /// Set physics buffers for gravitational effects (recreates bind group)

@@ -113,7 +113,7 @@ impl WeaponStats {
 
     pub fn fractal_cannon() -> Self {
         Self {
-            damage: 30.0,          // Base damage - multiplies with fractal generations
+            damage: 50.0,          // Base damage - multiplies with fractal generations
             fire_rate: 0.5,        // Slower rate for spectacular fractal shots
             bullet_speed: 150.0,   // Moderate speed for good fractal development
             bullet_lifetime: 60.0, // Long enough for deep fractals to unfold

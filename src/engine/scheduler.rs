@@ -43,7 +43,7 @@ impl Scheduler {
             &mut entity_manager,
         );
         // large_bodies.spawn_body(
-        //     LargeBodyType::BlackHole,
+        //     LargeBodyType::BlackHoleLarge,
         //     Vec3::new(50.0, 10.0, 50.0),
         //     &mut physics,
         //     &mut entity_manager,
@@ -66,6 +66,7 @@ impl Scheduler {
         //     &mut physics,
         //     &mut entity_manager,
         // );
+
         Scheduler {
             entity_manager,
             player: PlayerManager::new(player_entity),

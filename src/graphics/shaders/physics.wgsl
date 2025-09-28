@@ -169,8 +169,8 @@ fn update_gravitational_bodies(@builtin(global_invocation_id) global_id: vec3<u3
         let distance_squared = dot(displacement, displacement);
         let distance = sqrt(distance_squared);
         
-        // Check for collision (overlapping bodies)
-        let collision_distance = current_body.radius + other_body.radius;
+        // Check for collision (overlapping bodies) - reduced collision distance for closer visual contact
+        let collision_distance = (current_body.radius + other_body.radius) * 0.9;
         if (distance < collision_distance && distance > 0.001) {
             // Collision detected - apply elastic collision response
             let collision_normal = displacement / distance;

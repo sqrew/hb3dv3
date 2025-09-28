@@ -461,9 +461,9 @@ impl CollisionManager {
                 let distance_vec = body_a.position() - body_b.position();
                 let distance = distance_vec.magnitude();
 
-                // Check if they're colliding (using collision radii + buffer to trigger before physics bounce)
+                // Check if they're colliding (using collision radii with reduced buffer)
                 let collision_distance = body_a.collision_radius() + body_b.collision_radius();
-                let detection_distance = collision_distance * 1.5; // No buffer - exact collision radius
+                let detection_distance = collision_distance * 0.9; // Reduced buffer - trigger when closer to visual contact
 
                 if distance < detection_distance && distance > 0.001 {
                     // Calculate impact point (surface contact point)

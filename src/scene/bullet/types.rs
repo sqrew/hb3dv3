@@ -147,7 +147,7 @@ impl Bullet {
             vel,
             ttl,
             damage,
-            collision_radius: 0.15,
+            collision_radius: 0.5,
             collision_mask: CollisionMask::from(EntityType::PlayerBullet),
             marked_for_removal: false,
             mass,
@@ -356,8 +356,23 @@ impl Bullet {
                 * parent_speed
                 * fractal_data.config.velocity_inheritance;
 
-            // Offset child position slightly in the split direction to prevent immediate parent-child collision
-            let separation_distance = 0.3; // Small offset to ensure immediate separation
+            // Offset child position in the split direction to prevent immediate collisions
+            // Use dynamic separation based on pattern complexity to prevent immediate sibling collisions
+            let base_separation = 1.2; // Base separation distance
+            let pattern_multiplier = match fractal_data.config.pattern {
+                super::fractal::FractalPattern::BinaryTree
+                | super::fractal::FractalPattern::DragonCurve
+                | super::fractal::FractalPattern::FibonacciSpiral => 1.0, // 2-way splits
+                super::fractal::FractalPattern::SierpinskiTriangle
+                | super::fractal::FractalPattern::HelixSpiral3D => 1.2, // 3-way splits
+                super::fractal::FractalPattern::KochSnowflake
+                | super::fractal::FractalPattern::Tetrahedron3D => 1.5, // 4-way splits
+                super::fractal::FractalPattern::Octahedron3D => 2.0, // 6-way splits
+                super::fractal::FractalPattern::Cube3D
+                | super::fractal::FractalPattern::SphereExplosion3D => 2.5, // 8+ way splits
+                super::fractal::FractalPattern::Icosahedron3D => 3.0, // 12-way splits - maximum separation
+            };
+            let separation_distance = base_separation * pattern_multiplier;
             let child_position = self.pos + split_direction.normalize() * separation_distance;
 
             // Child gets smaller visuals
@@ -369,16 +384,17 @@ impl Bullet {
             let mut rng = rand::rng();
             let base_child_lifetime = self.ttl * 0.8;
             let lifetime_variation = 0.25; // ±25% variation
-            let random_factor = rng.random_range(1.0 - lifetime_variation..=1.0 + lifetime_variation);
+            let random_factor =
+                rng.random_range(1.0 - lifetime_variation..=1.0 + lifetime_variation);
             let randomized_lifetime = base_child_lifetime * random_factor;
 
             Some(Bullet::new_fractal(
                 entity_id,
                 child_position,
                 new_velocity,
-                randomized_lifetime,   // Randomized individual lifetime
-                self.damage * 0.7,     // Reduced damage per generation
-                self.mass * 0.8,       // Lighter children
+                randomized_lifetime, // Randomized individual lifetime
+                self.damage * 0.7,   // Reduced damage per generation
+                self.mass * 0.8,     // Lighter children
                 child_visuals,
                 fractal_data.config.clone(),
                 fractal_data.generation + 1,

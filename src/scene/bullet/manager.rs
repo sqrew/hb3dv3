@@ -2,8 +2,8 @@ use super::effects::{ExplosionEffect, OnExpireEffect};
 use super::types::{Bullet, MetaBullet, ProjectileType};
 use crate::engine::dispatcher::{CollisionEvent, EventType};
 use crate::engine::{EntityId, Vec3};
-use crate::graphics::{Color, Primitive};
 use crate::graphics::vertex::LineInstance;
+use crate::graphics::{Color, Primitive};
 use crate::scene::GravityAffected;
 // Note: FractalBullet and FractalSplitEvent no longer used - fractal data embedded in regular bullets
 
@@ -13,6 +13,10 @@ pub struct BulletManager {
     metabullets: Vec<MetaBullet>,
     event_queue: Vec<EventType>,
     next_entity_id: u32, // For generating entity IDs for fractal children
+
+    // Performance optimization: Spread fractal splits across frames
+    fractal_split_batch_size: usize, // Max bullets to process for splits per frame
+    pending_split_indices: Vec<usize>, // Bullets waiting to split (indices into bullets vec)
 }
 
 impl BulletManager {
@@ -22,6 +26,10 @@ impl BulletManager {
             metabullets: Vec::new(),
             event_queue: Vec::new(),
             next_entity_id: 1000000, // Start fractal child IDs from 1M to avoid conflicts
+
+            // Performance tuning: Process 75 fractal splits per frame for smooth performance
+            fractal_split_batch_size: 10000,
+            pending_split_indices: Vec::new(),
         }
     }
 
@@ -502,37 +510,78 @@ impl BulletManager {
         }
     }
 
-    /// Update fractal bullets and handle splitting
+    /// Update fractal bullets and handle splitting with batch processing for performance
     fn handle_fractal_splitting(&mut self, dt: f32) -> Vec<crate::engine::entity::EntityId> {
-        let mut new_bullets_to_spawn = Vec::new();
-        let mut new_entity_ids = Vec::new();
+        // STEP 1: Find all bullets ready to split and add new ones to pending queue
+        self.pending_split_indices
+            .retain(|&index| index < self.bullets.len()); // Clean up invalid indices
 
-        // Check each regular bullet for fractal splitting
-        for bullet in &mut self.bullets {
-            if bullet.should_split(dt) {
-                // Generate children based on fractal pattern
-                let split_directions = bullet.get_split_directions();
-
-                for direction in split_directions {
-                    let child_entity_id = EntityId(self.next_entity_id);
-                    self.next_entity_id += 1;
-
-                    // Create child fractal bullet
-                    if let Some(child) = bullet.create_fractal_child(child_entity_id, direction) {
-                        new_bullets_to_spawn.push(child);
-                        new_entity_ids.push(child_entity_id); // Collect entity ID for registration
-                    }
-                }
-
-                // Mark parent as having split
-                bullet.mark_split();
+        for (index, bullet) in self.bullets.iter().enumerate() {
+            if bullet.should_split(dt) && !self.pending_split_indices.contains(&index) {
+                self.pending_split_indices.push(index);
             }
         }
 
-        // Add all the new fractal children
+        // STEP 2: Process only a batch of splits this frame for smooth performance
+        let splits_to_process = self
+            .fractal_split_batch_size
+            .min(self.pending_split_indices.len());
+        if splits_to_process == 0 {
+            return Vec::new();
+        }
+
+        // Pre-allocate vectors for better performance
+        let estimated_children = splits_to_process * 8; // Conservative estimate for vector sizing
+        let mut new_bullets_to_spawn = Vec::with_capacity(estimated_children);
+        let mut new_entity_ids = Vec::with_capacity(estimated_children);
+
+        // Process the batch of splits
+        let split_indices: Vec<usize> = self
+            .pending_split_indices
+            .drain(..splits_to_process)
+            .collect();
+
+        for &index in &split_indices {
+            if let Some(bullet) = self.bullets.get_mut(index) {
+                if bullet.should_split(dt) {
+                    // Generate children based on fractal pattern
+                    let split_directions = bullet.get_split_directions();
+
+                    // Pre-allocate entity IDs in batch for this bullet's children
+                    let child_count = split_directions.len();
+                    let entity_id_start = self.next_entity_id;
+                    self.next_entity_id += child_count as u32;
+
+                    // Create all children for this bullet
+                    for (i, direction) in split_directions.into_iter().enumerate() {
+                        let child_entity_id = EntityId(entity_id_start + i as u32);
+
+                        if let Some(child) = bullet.create_fractal_child(child_entity_id, direction)
+                        {
+                            new_bullets_to_spawn.push(child);
+                            new_entity_ids.push(child_entity_id);
+                        }
+                    }
+
+                    // Mark parent as having split
+                    bullet.mark_split();
+                }
+            }
+        }
+
+        // STEP 3: Add all new bullets in one batch operation
         self.bullets.extend(new_bullets_to_spawn);
 
-        // Return entity IDs that need to be registered
+        // Debug info for monitoring performance
+        if !new_entity_ids.is_empty() {
+            println!(
+                "🌸 Fractal batch: {} bullets split into {} children ({} pending)",
+                splits_to_process,
+                new_entity_ids.len(),
+                self.pending_split_indices.len()
+            );
+        }
+
         new_entity_ids
     }
 
@@ -542,6 +591,20 @@ impl BulletManager {
             .iter()
             .filter(|b| b.fractal_data().is_some())
             .count()
+    }
+
+    /// Get pending split count for performance monitoring
+    pub fn pending_split_count(&self) -> usize {
+        self.pending_split_indices.len()
+    }
+
+    /// Adjust fractal split batch size for performance tuning
+    pub fn set_fractal_batch_size(&mut self, size: usize) {
+        self.fractal_split_batch_size = size.max(1); // At least 1 to prevent deadlock
+        println!(
+            "🔧 Fractal batch size set to: {}",
+            self.fractal_split_batch_size
+        );
     }
 
     /// Get line instances for laser trail rendering
