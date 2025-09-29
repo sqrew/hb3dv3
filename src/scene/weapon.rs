@@ -18,7 +18,6 @@ const SEEKING_EXPLOSIVE_EXPLOSION_DURATION: f32 = 0.5;
 #[derive(Debug, Clone)]
 pub enum WeaponType {
     BasicBlaster,
-    RapidFire,
     Shotgun,
     AntiGravityCannon,
     ChainLightning,
@@ -48,18 +47,6 @@ impl WeaponStats {
             projectile_count: 1,
             spread_angle: 0.0,
             bullet_mass: 0.5, // Standard positive mass
-        }
-    }
-
-    pub fn rapid_fire() -> Self {
-        Self {
-            damage: 15.0,
-            fire_rate: 8.0,
-            bullet_speed: 25.0,
-            bullet_lifetime: 2.5,
-            projectile_count: 1,
-            spread_angle: 0.0,
-            bullet_mass: 0.3, // Lighter bullets for rapid fire
         }
     }
 
@@ -115,7 +102,7 @@ impl WeaponStats {
         Self {
             damage: 50.0,          // Base damage - multiplies with fractal generations
             fire_rate: 0.5,        // Slower rate for spectacular fractal shots
-            bullet_speed: 150.0,   // Moderate speed for good fractal development
+            bullet_speed: 35.0,    // Moderate speed for good fractal development
             bullet_lifetime: 60.0, // Long enough for deep fractals to unfold
             projectile_count: 1,   // Single fractal parent
             spread_angle: 0.0,     // Precise initial shot
@@ -147,7 +134,6 @@ impl Weapon {
     pub fn new(weapon_type: WeaponType) -> Self {
         let stats = match weapon_type {
             WeaponType::BasicBlaster => WeaponStats::basic_blaster(),
-            WeaponType::RapidFire => WeaponStats::rapid_fire(),
             WeaponType::Shotgun => WeaponStats::shotgun(),
             WeaponType::AntiGravityCannon => WeaponStats::anti_gravity_cannon(),
             WeaponType::ChainLightning => WeaponStats::chain_lightning(),
@@ -275,7 +261,6 @@ impl Weapon {
                     // Standard projectile - map weapon type to visuals
                     let visuals = match self.weapon_type {
                         WeaponType::BasicBlaster => BulletVisuals::basic_blaster(),
-                        WeaponType::RapidFire => BulletVisuals::rapid_fire(),
                         WeaponType::Shotgun => BulletVisuals::shotgun(),
                         WeaponType::AntiGravityCannon => BulletVisuals::anti_gravity(),
                         _ => BulletVisuals::basic_blaster(), // Fallback
@@ -336,7 +321,6 @@ impl WeaponManager {
     pub fn new() -> Self {
         let available_weapons = vec![
             WeaponType::BasicBlaster,
-            // WeaponType::RapidFire,
             // WeaponType::Shotgun,
             // WeaponType::AntiGravityCannon,
             WeaponType::ChainLightning,

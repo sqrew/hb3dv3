@@ -295,13 +295,13 @@ impl FractalConfig {
                 rng.random_range(5..=8) // 2-way splits can handle deeper recursion
             }
             FractalPattern::SierpinskiTriangle | FractalPattern::HelixSpiral3D => {
-                rng.random_range(5..=8) // 3-way splits need some limiting
+                rng.random_range(5..=7) // 3-way splits need some limiting
             }
             FractalPattern::KochSnowflake | FractalPattern::Tetrahedron3D => {
-                rng.random_range(4..=6) // 4-way splits - moderate depth
+                rng.random_range(4..=5) // 4-way splits - moderate depth
             }
             FractalPattern::Octahedron3D => {
-                rng.random_range(3..=5) // 6-way splits - more conservative
+                rng.random_range(3..=4) // 6-way splits - more conservative
             }
             FractalPattern::Cube3D | FractalPattern::SphereExplosion3D => {
                 rng.random_range(3..=3) // 8+ way splits - very conservative for performance

@@ -20,6 +20,12 @@ ui lower case text is top-aligned for some reason - this took forever to fix las
 look into increasing sizes of large bodies, maybe make large versions of each so they feel more impactful
 
 
+enemeis:
+gates, snakes, blobs, chargers, shield guys, matryoshka
+
+wepaon:
+gravity orb to collect bullets/enemies
+one that fires 2d geometric patterns that fly away from player: flowers, triangles/squares, cool shapes
 
 
 

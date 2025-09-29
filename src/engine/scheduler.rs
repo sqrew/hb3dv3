@@ -326,8 +326,9 @@ impl Scheduler {
             all_objects.push(enemy);
         }
 
-        // Add all bullets
-        for bullet in self.bullets.bullets_mut().iter_mut() {
+        // Add all active bullets
+        let active_bullets = self.bullets.collect_active_bullets_mut_unsafe();
+        for bullet in active_bullets {
             all_objects.push(bullet);
         }
 

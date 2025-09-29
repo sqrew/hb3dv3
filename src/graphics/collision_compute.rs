@@ -389,15 +389,19 @@ impl CollisionCompute {
             self.cpu_entities.push(GpuEntity::from_enemy(enemy));
         }
 
-        // Add bullets
+        // Add bullets (only active ones)
         for bullet in bullets {
-            self.cpu_entities.push(GpuEntity::from_bullet(bullet));
+            if bullet.active() {
+                self.cpu_entities.push(GpuEntity::from_bullet(bullet));
+            }
         }
 
-        // Add metabullets
+        // Add metabullets (only active ones)
         for metabullet in metabullets {
-            self.cpu_entities
-                .push(GpuEntity::from_metabullet(metabullet));
+            if metabullet.active() {
+                self.cpu_entities
+                    .push(GpuEntity::from_metabullet(metabullet));
+            }
         }
 
         // Add large bodies

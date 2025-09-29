@@ -1,4 +1,5 @@
 use super::effects::{ExplosionEffect, OnExpireEffect};
+use super::pool::BulletPool;
 use super::types::{Bullet, MetaBullet, ProjectileType};
 use crate::engine::dispatcher::{CollisionEvent, EventType};
 use crate::engine::{EntityId, Vec3};
@@ -7,28 +8,29 @@ use crate::graphics::{Color, Primitive};
 use crate::scene::GravityAffected;
 // Note: FractalBullet and FractalSplitEvent no longer used - fractal data embedded in regular bullets
 
-/// Manages all bullets in the game
+/// Manages all bullets in the game using a high-performance object pool
 pub struct BulletManager {
-    bullets: Vec<Bullet>,
-    metabullets: Vec<MetaBullet>,
+    pool: BulletPool, // Object pool for bullets and metabullets
     event_queue: Vec<EventType>,
     next_entity_id: u32, // For generating entity IDs for fractal children
 
     // Performance optimization: Spread fractal splits across frames
     fractal_split_batch_size: usize, // Max bullets to process for splits per frame
-    pending_split_indices: Vec<usize>, // Bullets waiting to split (indices into bullets vec)
+    pending_split_indices: Vec<usize>, // Bullets waiting to split (indices into pool)
 }
 
 impl BulletManager {
     pub fn new() -> Self {
+        // Initialize with high-capacity pools for performance
+        let pool = BulletPool::new(128000, 1000); // 2000 bullets, 500 metabullets
+
         BulletManager {
-            bullets: Vec::new(),
-            metabullets: Vec::new(),
+            pool,
             event_queue: Vec::new(),
             next_entity_id: 1000000, // Start fractal child IDs from 1M to avoid conflicts
 
-            // Performance tuning: Process 75 fractal splits per frame for smooth performance
-            fractal_split_batch_size: 10000,
+            // Performance tuning: Process more fractal splits per frame with pooling
+            fractal_split_batch_size: 1000,
             pending_split_indices: Vec::new(),
         }
     }
@@ -43,53 +45,63 @@ impl BulletManager {
         dt: f32,
         enemy_positions: &[Vec3],
     ) -> Vec<crate::engine::entity::EntityId> {
-        // Update all bullets
-        for bullet in self.bullets.iter_mut() {
-            bullet.update(dt);
+        // Update all active bullets using pool indices
+        let bullet_indices = self.pool.active_bullet_indices().to_vec();
+        for index in bullet_indices {
+            if let Some(bullet) = self.pool.get_bullet_mut(index) {
+                if bullet.active() {
+                    bullet.update(dt);
+                }
+            }
         }
 
-        // Update metabullets with seeking behavior
-        for metabullet in self.metabullets.iter_mut() {
-            // Apply seeking forces if this metabullet has seeking enabled
-            if metabullet.seeking() && !enemy_positions.is_empty() {
-                Self::apply_seeking_force(metabullet, enemy_positions, dt);
+        // Update metabullets with seeking behavior using pool indices
+        let metabullet_indices = self.pool.active_metabullet_indices().to_vec();
+        for index in metabullet_indices {
+            if let Some(metabullet) = self.pool.get_metabullet_mut(index) {
+                if metabullet.active() {
+                    // Apply seeking forces if this metabullet has seeking enabled
+                    if metabullet.seeking() && !enemy_positions.is_empty() {
+                        Self::apply_seeking_force(metabullet, enemy_positions, dt);
+                    }
+                    metabullet.update(dt);
+                }
             }
-            metabullet.update(dt);
         }
 
         // Handle fractal splitting for regular bullets and collect new entity IDs
         let new_fractal_entities = self.handle_fractal_splitting(dt);
 
         // Check for expired metabullets and trigger their OnExpireEffects
-        let mut expired_metabullets = Vec::new();
-        for (index, metabullet) in self.metabullets.iter().enumerate() {
-            if !metabullet.is_alive() {
-                if let Some(ref on_expire_effects) = metabullet.on_expire() {
-                    for effect in on_expire_effects.iter() {
-                        let explosion_events = effect.on_expire(metabullet.position());
-                        // Add explosion events to the event queue
-                        for explosion_event in explosion_events {
-                            self.event_queue
-                                .push(crate::engine::dispatcher::EventType::Explosion(
-                                    explosion_event,
-                                ));
+        // Need to collect indices first to avoid borrowing conflicts
+        let metabullet_check_indices = self.pool.active_metabullet_indices().to_vec();
+        for index in metabullet_check_indices {
+            if let Some(metabullet) = self.pool.get_metabullet(index) {
+                if !metabullet.is_alive() {
+                    if let Some(ref on_expire_effects) = metabullet.on_expire() {
+                        for effect in on_expire_effects.iter() {
+                            let explosion_events = effect.on_expire(metabullet.position());
+                            // Add explosion events to the event queue
+                            for explosion_event in explosion_events {
+                                self.event_queue.push(
+                                    crate::engine::dispatcher::EventType::Explosion(
+                                        explosion_event,
+                                    ),
+                                );
+                            }
                         }
                     }
                 }
-                expired_metabullets.push(index);
             }
         }
 
-        // Remove expired bullets
-        self.bullets.retain(|b| b.is_alive());
-
-        // Remove expired metabullets (in reverse order to maintain indices)
-        for &index in expired_metabullets.iter().rev() {
-            self.metabullets.remove(index);
-        }
+        // Clean up dead bullets using pool cleanup (automatically returns them to pool)
+        let dead_entity_ids = self.pool.cleanup_dead_bullets();
 
         // Return new fractal entity IDs for registration
-        new_fractal_entities
+        let mut all_new_entities = new_fractal_entities;
+        all_new_entities.extend(dead_entity_ids);
+        all_new_entities
     }
 
     /// Apply seeking force to a metabullet towards the nearest enemy
@@ -124,134 +136,143 @@ impl BulletManager {
     pub fn get_render_data(&self) -> Vec<Primitive> {
         let mut renderable: Vec<Primitive> = Vec::new();
 
-        // Render regular bullets with their custom visuals
-        let bullets: Vec<Primitive> = self
-            .bullets
-            .iter()
-            .map(|bullet| {
-                let visuals = bullet.visuals();
-                Primitive::new(visuals.primitive_type, bullet.position(), visuals.color)
-                    .with_uniform_scale(visuals.scale)
-            })
-            .collect();
+        // Render active bullets with their custom visuals
+        for &index in self.pool.active_bullet_indices() {
+            if let Some(bullet) = self.pool.get_bullet(index) {
+                if bullet.active() {
+                    let visuals = bullet.visuals();
+                    let primitive =
+                        Primitive::new(visuals.primitive_type, bullet.position(), visuals.color)
+                            .with_uniform_scale(visuals.scale);
+                    renderable.push(primitive);
+                }
+            }
+        }
 
-        // Render metabullets with their custom visuals
-        let metabullets: Vec<Primitive> = self
-            .metabullets
-            .iter()
-            .map(|bullet| {
-                let visuals = bullet.visuals();
-                Primitive::new(visuals.primitive_type, bullet.position(), visuals.color)
-                    .with_uniform_scale(visuals.scale)
-            })
-            .collect();
+        // Render active metabullets with their custom visuals
+        for &index in self.pool.active_metabullet_indices() {
+            if let Some(metabullet) = self.pool.get_metabullet(index) {
+                if metabullet.active() {
+                    let visuals = metabullet.visuals();
+                    let primitive = Primitive::new(
+                        visuals.primitive_type,
+                        metabullet.position(),
+                        visuals.color,
+                    )
+                    .with_uniform_scale(visuals.scale);
+                    renderable.push(primitive);
+                }
+            }
+        }
 
-        renderable.extend(bullets);
-        renderable.extend(metabullets);
         renderable
     }
 
-    pub fn bullets(&self) -> &[Bullet] {
-        &self.bullets
+    pub fn bullets(&self) -> Vec<&Bullet> {
+        self.pool.active_bullets()
     }
 
-    pub fn bullets_mut(&mut self) -> &mut [Bullet] {
-        &mut self.bullets
+    pub fn bullets_mut(&mut self) -> Vec<&mut Bullet> {
+        self.pool.active_bullets_mut()
     }
 
-    pub fn metabullets(&self) -> &[MetaBullet] {
-        &self.metabullets
+    pub fn metabullets(&self) -> Vec<&MetaBullet> {
+        self.pool.active_metabullets()
+    }
+
+    /// Get bullets as slice for external systems (WARNING: includes inactive bullets)
+    /// Use with caution - external systems must check bullet.active()
+    pub fn bullets_slice(&self) -> &[Bullet] {
+        self.pool.bullets_slice()
+    }
+
+    /// Get metabullets as slice for external systems (WARNING: includes inactive metabullets)
+    /// Use with caution - external systems must check metabullet.active()
+    pub fn metabullets_slice(&self) -> &[MetaBullet] {
+        self.pool.metabullets_slice()
+    }
+
+    /// Get pool reference for direct access (avoid when possible)
+    pub fn pool(&self) -> &BulletPool {
+        &self.pool
+    }
+
+    /// Get mutable pool reference for direct access (avoid when possible)
+    pub fn pool_mut(&mut self) -> &mut BulletPool {
+        &mut self.pool
+    }
+
+    /// Collect active bullets for physics (UNSAFE but necessary for physics system)
+    pub fn collect_active_bullets_mut_unsafe(&mut self) -> Vec<&mut Bullet> {
+        unsafe { self.pool.collect_active_bullets_mut_unsafe() }
     }
 
     pub fn remove_bullet(&mut self, index: usize) -> bool {
-        if index < self.bullets.len() {
-            self.bullets.remove(index);
-            true
-        } else {
-            false
-        }
+        self.pool.release_bullet(index);
+        true
     }
 
     pub fn remove_metabullet(&mut self, index: usize) -> bool {
-        if index < self.metabullets.len() {
-            self.metabullets.remove(index);
-            true
-        } else {
-            false
-        }
+        self.pool.release_metabullet(index);
+        true
     }
 
     pub fn bullet_count(&self) -> usize {
-        self.bullets.len()
+        self.pool.active_bullet_indices().len()
     }
 
     pub fn metabullet_count(&self) -> usize {
-        self.metabullets.len()
+        self.pool.active_metabullet_indices().len()
     }
 
     /// Clean up dead bullets and return their entity IDs for destruction
     pub fn cleanup_dead_bullets(&mut self) -> Vec<crate::engine::entity::EntityId> {
-        let mut destroyed_entities = Vec::new();
-
-        // Clean up regular bullets
-        let mut i = 0;
-        while i < self.bullets.len() {
-            if !self.bullets[i].is_alive() {
-                destroyed_entities.push(self.bullets[i].entity_id());
-                self.bullets.remove(i);
-            } else {
-                i += 1;
-            }
-        }
-
-        // Clean up metabullets
-        let mut i = 0;
-        while i < self.metabullets.len() {
-            if !self.metabullets[i].is_alive() {
-                destroyed_entities.push(self.metabullets[i].entity_id());
-                self.metabullets.remove(i);
-            } else {
-                i += 1;
-            }
-        }
-
-        // Note: Fractal bullets are now regular bullets and handled above
-
-        destroyed_entities
+        // Pool handles cleanup automatically and returns entity IDs
+        self.pool.cleanup_dead_bullets()
     }
 
     /// Find a bullet by entity ID and get its damage
     pub fn get_bullet_damage(&self, entity_id: crate::engine::entity::EntityId) -> Option<f32> {
-        // Check regular bullets
-        for bullet in &self.bullets {
-            if bullet.entity_id() == entity_id {
-                return Some(bullet.damage());
+        // Check active bullets in pool
+        for &index in self.pool.active_bullet_indices() {
+            if let Some(bullet) = self.pool.get_bullet(index) {
+                if bullet.active() && bullet.entity_id() == entity_id {
+                    return Some(bullet.damage());
+                }
             }
         }
-        // Check metabullets
-        for metabullet in &self.metabullets {
-            if metabullet.entity_id() == entity_id {
-                return Some(metabullet.damage());
+
+        // Check active metabullets in pool
+        for &index in self.pool.active_metabullet_indices() {
+            if let Some(metabullet) = self.pool.get_metabullet(index) {
+                if metabullet.active() && metabullet.entity_id() == entity_id {
+                    return Some(metabullet.damage());
+                }
             }
         }
-        // Note: Fractal bullets are now regular bullets and handled above
+
         None
     }
 
     pub fn get_bullet_velocity(&self, entity_id: crate::engine::entity::EntityId) -> Option<Vec3> {
-        // Check regular bullets
-        for bullet in &self.bullets {
-            if bullet.entity_id() == entity_id {
-                return Some(bullet.velocity());
+        // Check active bullets in pool
+        for &index in self.pool.active_bullet_indices() {
+            if let Some(bullet) = self.pool.get_bullet(index) {
+                if bullet.active() && bullet.entity_id() == entity_id {
+                    return Some(bullet.velocity());
+                }
             }
         }
-        // Check metabullets
-        for metabullet in &self.metabullets {
-            if metabullet.entity_id() == entity_id {
-                return Some(metabullet.velocity());
+
+        // Check active metabullets in pool
+        for &index in self.pool.active_metabullet_indices() {
+            if let Some(metabullet) = self.pool.get_metabullet(index) {
+                if metabullet.active() && metabullet.entity_id() == entity_id {
+                    return Some(metabullet.velocity());
+                }
             }
         }
-        // Note: Fractal bullets are now regular bullets and handled above
+
         None
     }
 
@@ -260,21 +281,26 @@ impl BulletManager {
         entity_id: crate::engine::entity::EntityId,
         velocity: Vec3,
     ) -> bool {
-        // Check regular bullets
-        for bullet in &mut self.bullets {
-            if bullet.entity_id() == entity_id {
-                bullet.set_velocity(velocity);
-                return true;
+        // Check active bullets in pool
+        for index in self.pool.active_bullet_indices().to_vec() {
+            if let Some(bullet) = self.pool.get_bullet_mut(index) {
+                if bullet.active() && bullet.entity_id() == entity_id {
+                    bullet.set_velocity(velocity);
+                    return true;
+                }
             }
         }
-        // Check metabullets
-        for metabullet in &mut self.metabullets {
-            if metabullet.entity_id() == entity_id {
-                metabullet.set_velocity(velocity);
-                return true;
+
+        // Check active metabullets in pool
+        for index in self.pool.active_metabullet_indices().to_vec() {
+            if let Some(metabullet) = self.pool.get_metabullet_mut(index) {
+                if metabullet.active() && metabullet.entity_id() == entity_id {
+                    metabullet.set_velocity(velocity);
+                    return true;
+                }
             }
         }
-        // Note: Fractal bullets are now regular bullets and handled above
+
         false
     }
 
@@ -283,21 +309,26 @@ impl BulletManager {
         &mut self,
         entity_id: crate::engine::entity::EntityId,
     ) -> bool {
-        // Check regular bullets
-        for i in 0..self.bullets.len() {
-            if self.bullets[i].entity_id() == entity_id {
-                self.bullets.remove(i);
-                return true;
+        // Check active bullets in pool
+        for index in self.pool.active_bullet_indices().to_vec() {
+            if let Some(bullet) = self.pool.get_bullet(index) {
+                if bullet.active() && bullet.entity_id() == entity_id {
+                    self.pool.release_bullet(index);
+                    return true;
+                }
             }
         }
-        // Check metabullets
-        for i in 0..self.metabullets.len() {
-            if self.metabullets[i].entity_id() == entity_id {
-                self.metabullets.remove(i);
-                return true;
+
+        // Check active metabullets in pool
+        for index in self.pool.active_metabullet_indices().to_vec() {
+            if let Some(metabullet) = self.pool.get_metabullet(index) {
+                if metabullet.active() && metabullet.entity_id() == entity_id {
+                    self.pool.release_metabullet(index);
+                    return true;
+                }
             }
         }
-        // Note: Fractal bullets are now regular bullets and handled above
+
         false
     }
 
@@ -335,45 +366,52 @@ impl BulletManager {
         impact_point: Vec3,
     ) {
         // Early exit if no metabullets exist (optimization for regular bullets)
-        if self.metabullets.is_empty() {
+        if self.metabullets().is_empty() {
             return;
         }
 
-        // Find the metabullet and trigger its effects
-        for metabullet in &self.metabullets {
+        // Find the metabullet and collect its effects to avoid borrowing conflicts
+        let mut chain_events_to_add = Vec::new();
+        for metabullet in self.metabullets() {
             if metabullet.entity_id() == bullet_id {
                 if let Some(ref on_hit_effects) = metabullet.on_hit() {
                     for effect in on_hit_effects.iter() {
                         let chain_events = effect.on_hit(impact_point, Some(target_id));
-                        // Add chain lightning events to the event queue
-                        for chain_event in chain_events {
-                            self.event_queue
-                                .push(EventType::ChainLightning(chain_event));
-                        }
+                        chain_events_to_add.extend(chain_events);
                     }
                 }
                 break;
             }
         }
+
+        // Add collected chain lightning events to the event queue
+        for chain_event in chain_events_to_add {
+            self.event_queue
+                .push(EventType::ChainLightning(chain_event));
+        }
     }
 
     /// Mark a bullet for removal by entity ID (for collision processing)
     pub fn mark_bullet_for_removal(&mut self, entity_id: EntityId) {
-        // Check regular bullets
-        for bullet in &mut self.bullets {
-            if bullet.entity_id() == entity_id {
-                bullet.mark_for_removal();
-                return;
+        // Check active bullets in pool
+        for index in self.pool.active_bullet_indices().to_vec() {
+            if let Some(bullet) = self.pool.get_bullet_mut(index) {
+                if bullet.active() && bullet.entity_id() == entity_id {
+                    bullet.mark_for_removal();
+                    return;
+                }
             }
         }
-        // Check metabullets
-        for metabullet in &mut self.metabullets {
-            if metabullet.entity_id() == entity_id {
-                metabullet.mark_for_removal();
-                return;
+
+        // Check active metabullets in pool
+        for index in self.pool.active_metabullet_indices().to_vec() {
+            if let Some(metabullet) = self.pool.get_metabullet_mut(index) {
+                if metabullet.active() && metabullet.entity_id() == entity_id {
+                    metabullet.mark_for_removal();
+                    return;
+                }
             }
         }
-        // Note: Fractal bullets are now regular bullets and handled above
     }
 
     /// Unified projectile spawning method
@@ -391,10 +429,10 @@ impl BulletManager {
                 mass,
                 visuals,
             } => {
-                // Create lightweight Bullet (same performance as before)
-                self.bullets.push(Bullet::new(
+                // Acquire bullet from pool for maximum performance
+                self.pool.acquire_bullet(
                     entity_id, position, velocity, lifetime, damage, mass, visuals,
-                ));
+                );
             }
             ProjectileType::Custom {
                 damage,
@@ -408,8 +446,8 @@ impl BulletManager {
                 let on_hit_effects = effects.on_hit;
                 let on_expire_effects = effects.on_expire;
 
-                // Create MetaBullet with custom effects
-                self.metabullets.push(MetaBullet::new(
+                // Acquire MetaBullet from pool for maximum performance
+                self.pool.acquire_metabullet(
                     entity_id,
                     position,
                     velocity,
@@ -419,7 +457,7 @@ impl BulletManager {
                     on_hit_effects,
                     on_expire_effects,
                     visuals,
-                ));
+                );
             }
             ProjectileType::SeekingExplosive {
                 damage,
@@ -449,8 +487,8 @@ impl BulletManager {
                 let on_expire_effects: Option<Vec<Box<dyn OnExpireEffect>>> =
                     Some(vec![Box::new(explosion_effect)]);
 
-                // Create seeking MetaBullet with explosion effect
-                self.metabullets.push(MetaBullet::new_seeking(
+                // Acquire seeking MetaBullet from pool with explosion effect
+                self.pool.acquire_seeking_metabullet(
                     entity_id,
                     position,
                     velocity,
@@ -462,7 +500,7 @@ impl BulletManager {
                     seeking_force,
                     seeking_range,
                     visuals,
-                ));
+                );
             }
             ProjectileType::Fractal {
                 damage,
@@ -472,8 +510,8 @@ impl BulletManager {
                 fractal_config,
                 visuals,
             } => {
-                // Create a fractal bullet that can both split AND participate in collision detection
-                self.bullets.push(Bullet::new_fractal(
+                // Acquire fractal bullet from pool for maximum performance
+                self.pool.acquire_fractal_bullet(
                     entity_id,
                     position,
                     velocity,
@@ -483,7 +521,7 @@ impl BulletManager {
                     visuals,
                     fractal_config,
                     0, // Generation 0 (parent)
-                ));
+                );
             }
             ProjectileType::Laser {
                 damage,
@@ -494,8 +532,8 @@ impl BulletManager {
                 trail_fade_rate,
                 visuals,
             } => {
-                // Create a laser bullet with trail rendering
-                self.bullets.push(Bullet::new_laser(
+                // Acquire laser bullet from pool for maximum performance
+                self.pool.acquire_laser_bullet(
                     entity_id,
                     position,
                     velocity,
@@ -505,20 +543,32 @@ impl BulletManager {
                     visuals,
                     max_trail_length,
                     trail_fade_rate,
-                ));
+                );
             }
         }
     }
 
     /// Update fractal bullets and handle splitting with batch processing for performance
     fn handle_fractal_splitting(&mut self, dt: f32) -> Vec<crate::engine::entity::EntityId> {
-        // STEP 1: Find all bullets ready to split and add new ones to pending queue
-        self.pending_split_indices
-            .retain(|&index| index < self.bullets.len()); // Clean up invalid indices
+        // STEP 1: Find all active bullets ready to split and add new ones to pending queue
+        self.pending_split_indices.retain(|&index| {
+            // Keep only valid indices that point to active bullets
+            if let Some(bullet) = self.pool.get_bullet(index) {
+                bullet.active()
+            } else {
+                false
+            }
+        });
 
-        for (index, bullet) in self.bullets.iter().enumerate() {
-            if bullet.should_split(dt) && !self.pending_split_indices.contains(&index) {
-                self.pending_split_indices.push(index);
+        // Check all active bullets for split readiness
+        for &index in self.pool.active_bullet_indices() {
+            if let Some(bullet) = self.pool.get_bullet(index) {
+                if bullet.active()
+                    && bullet.should_split(dt)
+                    && !self.pending_split_indices.contains(&index)
+                {
+                    self.pending_split_indices.push(index);
+                }
             }
         }
 
@@ -530,52 +580,96 @@ impl BulletManager {
             return Vec::new();
         }
 
-        // Pre-allocate vectors for better performance
-        let estimated_children = splits_to_process * 8; // Conservative estimate for vector sizing
-        let mut new_bullets_to_spawn = Vec::with_capacity(estimated_children);
-        let mut new_entity_ids = Vec::with_capacity(estimated_children);
-
-        // Process the batch of splits
+        // Pre-calculate total children needed and batch acquire from pool
+        let mut total_children_needed = 0;
         let split_indices: Vec<usize> = self
             .pending_split_indices
             .drain(..splits_to_process)
             .collect();
 
+        // Count children needed for batch pool acquisition
         for &index in &split_indices {
-            if let Some(bullet) = self.bullets.get_mut(index) {
+            if let Some(bullet) = self.pool.get_bullet(index) {
                 if bullet.should_split(dt) {
-                    // Generate children based on fractal pattern
-                    let split_directions = bullet.get_split_directions();
-
-                    // Pre-allocate entity IDs in batch for this bullet's children
-                    let child_count = split_directions.len();
-                    let entity_id_start = self.next_entity_id;
-                    self.next_entity_id += child_count as u32;
-
-                    // Create all children for this bullet
-                    for (i, direction) in split_directions.into_iter().enumerate() {
-                        let child_entity_id = EntityId(entity_id_start + i as u32);
-
-                        if let Some(child) = bullet.create_fractal_child(child_entity_id, direction)
-                        {
-                            new_bullets_to_spawn.push(child);
-                            new_entity_ids.push(child_entity_id);
-                        }
-                    }
-
-                    // Mark parent as having split
-                    bullet.mark_split();
+                    total_children_needed += bullet.get_split_directions().len();
                 }
             }
         }
 
-        // STEP 3: Add all new bullets in one batch operation
-        self.bullets.extend(new_bullets_to_spawn);
+        // STEP 3: Batch acquire bullets from pool for maximum performance
+        let available_bullet_indices = self
+            .pool
+            .batch_acquire_fractal_bullets(total_children_needed);
+        let mut acquired_index = 0;
+        let mut new_entity_ids = Vec::with_capacity(total_children_needed);
+
+        // Process the batch of splits using pre-acquired bullets
+        for &parent_index in &split_indices {
+            if let Some(parent_bullet) = self.pool.get_bullet(parent_index) {
+                if parent_bullet.should_split(dt) {
+                    // Generate children based on fractal pattern
+                    let split_directions = parent_bullet.get_split_directions();
+                    let fractal_data = parent_bullet.fractal_data().cloned();
+
+                    if let Some(fractal_data) = fractal_data {
+                        // Pre-allocate entity IDs in batch for this bullet's children
+                        let child_count = split_directions.len();
+                        let entity_id_start = self.next_entity_id;
+                        self.next_entity_id += child_count as u32;
+
+                        // Create all children using pre-acquired pool bullets
+                        for (i, direction) in split_directions.into_iter().enumerate() {
+                            if acquired_index < available_bullet_indices.len() {
+                                let child_index = available_bullet_indices[acquired_index];
+                                let child_entity_id = EntityId(entity_id_start + i as u32);
+
+                                // Use parent bullet data to create child
+                                if let Some(parent) = self.pool.get_bullet(parent_index) {
+                                    if let Some(child) =
+                                        parent.create_fractal_child(child_entity_id, direction)
+                                    {
+                                        // Reset the pre-acquired bullet as a fractal child
+                                        if let Some(pool_bullet) =
+                                            self.pool.get_bullet_mut(child_index)
+                                        {
+                                            pool_bullet.reset_fractal(
+                                                child.entity_id(),
+                                                child.position(),
+                                                child.velocity(),
+                                                child.ttl(),
+                                                child.damage(),
+                                                child.mass(),
+                                                child.visuals().clone(),
+                                                fractal_data.config.clone(),
+                                                fractal_data.generation + 1,
+                                            );
+                                        }
+
+                                        // CRITICAL: Add the bullet to the active list
+                                        if !self.pool.active_bullet_indices().contains(&child_index)
+                                        {
+                                            self.pool.add_to_active_bullets(child_index);
+                                        }
+                                        new_entity_ids.push(child_entity_id);
+                                    }
+                                }
+                                acquired_index += 1;
+                            }
+                        }
+                    }
+
+                    // Mark parent as having split
+                    if let Some(parent_bullet) = self.pool.get_bullet_mut(parent_index) {
+                        parent_bullet.mark_split();
+                    }
+                }
+            }
+        }
 
         // Debug info for monitoring performance
         if !new_entity_ids.is_empty() {
             println!(
-                "🌸 Fractal batch: {} bullets split into {} children ({} pending)",
+                "🌸 Fractal batch: {} bullets split into {} children ({} pending) - Pool Performance!",
                 splits_to_process,
                 new_entity_ids.len(),
                 self.pending_split_indices.len()
@@ -587,10 +681,15 @@ impl BulletManager {
 
     /// Get fractal bullet count for debugging
     pub fn fractal_bullet_count(&self) -> usize {
-        self.bullets
-            .iter()
-            .filter(|b| b.fractal_data().is_some())
-            .count()
+        let mut count = 0;
+        for &index in self.pool.active_bullet_indices() {
+            if let Some(bullet) = self.pool.get_bullet(index) {
+                if bullet.active() && bullet.fractal_data().is_some() {
+                    count += 1;
+                }
+            }
+        }
+        count
     }
 
     /// Get pending split count for performance monitoring
@@ -611,43 +710,48 @@ impl BulletManager {
     pub fn get_laser_trail_lines(&self) -> Vec<LineInstance> {
         let mut line_instances = Vec::new();
 
-        for bullet in &self.bullets {
-            if let Some(trail_data) = bullet.trail_data() {
-                let trail_points = &trail_data.trail_points;
-
-                // Need at least 2 points to make a line
-                if trail_points.len() < 2 {
+        for &index in self.pool.active_bullet_indices() {
+            if let Some(bullet) = self.pool.get_bullet(index) {
+                if !bullet.active() {
                     continue;
                 }
+                if let Some(trail_data) = bullet.trail_data() {
+                    let trail_points = &trail_data.trail_points;
 
-                // Create line segments between consecutive trail points
-                for i in 0..trail_points.len() - 1 {
-                    let start_pos = trail_points[i];
-                    let end_pos = trail_points[i + 1];
+                    // Need at least 2 points to make a line
+                    if trail_points.len() < 2 {
+                        continue;
+                    }
 
-                    // Calculate fade factor based on position in trail (newer = brighter)
-                    // i=0 is oldest (back), i=len-1 is newest (front)
-                    // We want: newest=1.0 (bright), oldest=faded
-                    let trail_progress = i as f32 / (trail_points.len() - 1) as f32;
-                    // Reverse the progress so newer segments are brighter
-                    let alpha = 1.0 - ((1.0 - trail_progress) * trail_data.trail_fade_rate);
-                    let alpha = alpha.max(0.1); // Minimum visibility
+                    // Create line segments between consecutive trail points
+                    for i in 0..trail_points.len() - 1 {
+                        let start_pos = trail_points[i];
+                        let end_pos = trail_points[i + 1];
 
-                    // Use bullet's color with fading alpha
-                    let bullet_color = bullet.visuals().color;
-                    let line_color = [
-                        bullet_color.r,
-                        bullet_color.g,
-                        bullet_color.b,
-                        bullet_color.a * alpha,
-                    ];
+                        // Calculate fade factor based on position in trail (newer = brighter)
+                        // i=0 is oldest (back), i=len-1 is newest (front)
+                        // We want: newest=1.0 (bright), oldest=faded
+                        let trail_progress = i as f32 / (trail_points.len() - 1) as f32;
+                        // Reverse the progress so newer segments are brighter
+                        let alpha = 1.0 - ((1.0 - trail_progress) * trail_data.trail_fade_rate);
+                        let alpha = alpha.max(0.1); // Minimum visibility
 
-                    line_instances.push(LineInstance {
-                        start_pos: [start_pos.x, start_pos.y, start_pos.z],
-                        end_pos: [end_pos.x, end_pos.y, end_pos.z],
-                        thickness: 0.02, // Thin laser beam
-                        color: line_color,
-                    });
+                        // Use bullet's color with fading alpha
+                        let bullet_color = bullet.visuals().color;
+                        let line_color = [
+                            bullet_color.r,
+                            bullet_color.g,
+                            bullet_color.b,
+                            bullet_color.a * alpha,
+                        ];
+
+                        line_instances.push(LineInstance {
+                            start_pos: [start_pos.x, start_pos.y, start_pos.z],
+                            end_pos: [end_pos.x, end_pos.y, end_pos.z],
+                            thickness: 0.02, // Thin laser beam
+                            color: line_color,
+                        });
+                    }
                 }
             }
         }

@@ -2,6 +2,7 @@
 pub mod effects;
 pub mod fractal;
 pub mod manager;
+pub mod pool;
 pub mod types;
 pub mod visuals;
 
@@ -9,5 +10,6 @@ pub mod visuals;
 pub use effects::{ChainLightningEffect, ChainLightningEvent, ProjectileEffects};
 pub use fractal::FractalConfig;
 pub use manager::BulletManager;
+pub use pool::{BulletPool, PoolStats};
 pub use types::{Bullet, MetaBullet, ProjectileType};
 pub use visuals::BulletVisuals;

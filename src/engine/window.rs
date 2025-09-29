@@ -204,8 +204,8 @@ impl ApplicationHandler for WindowManager {
                         // Update collision compute system with current entity states
                         let player = self.engine.scheduler.player().player();
                         let enemies = self.engine.scheduler.enemies().enemies();
-                        let bullets = self.engine.scheduler.bullets().bullets();
-                        let metabullets = self.engine.scheduler.bullets().metabullets();
+                        let bullets = self.engine.scheduler.bullets().bullets_slice();
+                        let metabullets = self.engine.scheduler.bullets().metabullets_slice();
                         let large_bodies = self.engine.scheduler.large_bodies().bodies();
                         let collectibles = self.engine.scheduler.scoring().system().multipliers();
 

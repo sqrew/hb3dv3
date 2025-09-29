@@ -77,6 +77,8 @@ pub struct Bullet {
     fractal_data: Option<FractalBulletData>,
     // Optional laser trail data
     trail_data: Option<LaserTrailData>,
+    // Pooling support
+    active: bool,
 }
 
 /// Fractal data that can be attached to regular bullets to enable splitting
@@ -120,6 +122,7 @@ impl Bullet {
             visuals,
             fractal_data: None,
             trail_data: None,
+            active: true,
         }
     }
 
@@ -160,6 +163,7 @@ impl Bullet {
                 has_split: false,
             }),
             trail_data: None,
+            active: true,
         }
     }
 
@@ -196,6 +200,7 @@ impl Bullet {
                 max_trail_length,
                 trail_fade_rate,
             }),
+            active: true,
         }
     }
 
@@ -274,7 +279,7 @@ impl Bullet {
     }
 
     pub fn is_alive(&self) -> bool {
-        self.ttl > 0.0 && !self.marked_for_removal
+        self.active && self.ttl > 0.0 && !self.marked_for_removal
     }
 
     pub fn mark_for_removal(&mut self) {
@@ -297,6 +302,10 @@ impl Bullet {
         self.damage
     }
 
+    pub fn ttl(&self) -> f32 {
+        self.ttl
+    }
+
     pub fn collision_radius(&self) -> f32 {
         self.collision_radius
     }
@@ -305,12 +314,19 @@ impl Bullet {
         self.collision_mask
     }
 
+    pub fn active(&self) -> bool {
+        self.active
+    }
+
     pub fn set_velocity(&mut self, velocity: Vec3) {
         self.vel = velocity;
     }
 
     /// Check if this bullet should split now (for fractal bullets only)
     pub fn should_split(&self, dt: f32) -> bool {
+        if !self.active {
+            return false;
+        }
         if let Some(ref fractal_data) = self.fractal_data {
             if fractal_data.has_split || fractal_data.generation >= fractal_data.config.max_depth {
                 return false;
@@ -415,6 +431,80 @@ impl Bullet {
             Vec::new()
         }
     }
+
+    /// Reset bullet for pooling reuse
+    pub fn reset(&mut self, entity_id: EntityId, pos: Vec3, vel: Vec3, ttl: f32, damage: f32, mass: f32, visuals: BulletVisuals) {
+        self.entity_id = entity_id;
+        self.pos = pos;
+        self.vel = vel;
+        self.ttl = ttl;
+        self.damage = damage;
+        self.mass = mass;
+        self.visuals = visuals;
+        self.marked_for_removal = false;
+        self.applied_force = Vec3::zeros();
+        self.fractal_data = None;
+        self.trail_data = None;
+        self.active = true;
+    }
+
+    /// Reset bullet as fractal for pooling reuse
+    pub fn reset_fractal(&mut self, entity_id: EntityId, pos: Vec3, vel: Vec3, ttl: f32, damage: f32, mass: f32, visuals: BulletVisuals, fractal_config: super::fractal::FractalConfig, generation: usize) {
+        self.entity_id = entity_id;
+        self.pos = pos;
+        self.vel = vel;
+        self.ttl = ttl;
+        self.damage = damage;
+        self.mass = mass;
+        self.visuals = visuals;
+        self.marked_for_removal = false;
+        self.applied_force = Vec3::zeros();
+        self.trail_data = None;
+
+        let time_until_split = if generation == 0 {
+            fractal_config.split_delay
+        } else {
+            fractal_config.split_delay
+        };
+
+        self.fractal_data = Some(FractalBulletData {
+            config: fractal_config,
+            generation,
+            time_until_split,
+            has_split: false,
+        });
+        self.active = true;
+    }
+
+    /// Reset bullet as laser for pooling reuse
+    pub fn reset_laser(&mut self, entity_id: EntityId, pos: Vec3, vel: Vec3, ttl: f32, damage: f32, mass: f32, visuals: BulletVisuals, max_trail_length: usize, trail_fade_rate: f32) {
+        self.entity_id = entity_id;
+        self.pos = pos;
+        self.vel = vel;
+        self.ttl = ttl;
+        self.damage = damage;
+        self.mass = mass;
+        self.visuals = visuals;
+        self.marked_for_removal = false;
+        self.applied_force = Vec3::zeros();
+        self.fractal_data = None;
+
+        let mut trail_points = VecDeque::new();
+        trail_points.push_back(pos);
+
+        self.trail_data = Some(LaserTrailData {
+            trail_points,
+            max_trail_length,
+            trail_fade_rate,
+        });
+        self.active = true;
+    }
+
+    /// Deactivate bullet for pooling reuse
+    pub fn deactivate(&mut self) {
+        self.active = false;
+        self.marked_for_removal = true;
+    }
 }
 
 impl GravityAffected for Bullet {
@@ -449,6 +539,8 @@ pub struct MetaBullet {
     seeking_force: f32,     // Force strength for seeking behavior
     max_seeking_range: f32, // Maximum range for target acquisition
     visuals: BulletVisuals,
+    // Pooling support
+    active: bool,
 }
 
 impl MetaBullet {
@@ -480,6 +572,7 @@ impl MetaBullet {
             seeking_force: 0.0,     // Default: no seeking force
             max_seeking_range: 0.0, // Default: no seeking range
             visuals,
+            active: true,
         }
     }
 
@@ -514,6 +607,7 @@ impl MetaBullet {
             seeking_force,
             max_seeking_range,
             visuals,
+            active: true,
         }
     }
 
@@ -574,7 +668,7 @@ impl MetaBullet {
     }
 
     pub fn is_alive(&self) -> bool {
-        self.ttl > 0.0 && !self.marked_for_removal
+        self.active && self.ttl > 0.0 && !self.marked_for_removal
     }
 
     pub fn mark_for_removal(&mut self) {
@@ -627,6 +721,57 @@ impl MetaBullet {
 
     pub fn set_velocity(&mut self, velocity: Vec3) {
         self.vel = velocity;
+    }
+
+    pub fn active(&self) -> bool {
+        self.active
+    }
+
+    /// Reset MetaBullet for pooling reuse
+    pub fn reset(&mut self, entity_id: EntityId, pos: Vec3, vel: Vec3, ttl: f32, damage: f32, mass: f32, on_hit: Option<Vec<Box<dyn OnHitEffect>>>, on_expire: Option<Vec<Box<dyn OnExpireEffect>>>, visuals: BulletVisuals) {
+        self.entity_id = entity_id;
+        self.pos = pos;
+        self.vel = vel;
+        self.ttl = ttl;
+        self.damage = damage;
+        self.mass = mass;
+        self.on_hit = on_hit;
+        self.on_expire = on_expire;
+        self.visuals = visuals;
+        self.marked_for_removal = false;
+        self.applied_force = Vec3::zeros();
+        self.seeking = false;
+        self.seeking_force = 0.0;
+        self.max_seeking_range = 0.0;
+        self.active = true;
+    }
+
+    /// Reset MetaBullet for seeking projectile pooling reuse
+    pub fn reset_seeking(&mut self, entity_id: EntityId, pos: Vec3, vel: Vec3, ttl: f32, damage: f32, mass: f32, on_hit: Option<Vec<Box<dyn OnHitEffect>>>, on_expire: Option<Vec<Box<dyn OnExpireEffect>>>, seeking_force: f32, max_seeking_range: f32, visuals: BulletVisuals) {
+        self.entity_id = entity_id;
+        self.pos = pos;
+        self.vel = vel;
+        self.ttl = ttl;
+        self.damage = damage;
+        self.mass = mass;
+        self.on_hit = on_hit;
+        self.on_expire = on_expire;
+        self.visuals = visuals;
+        self.marked_for_removal = false;
+        self.applied_force = Vec3::zeros();
+        self.seeking = true;
+        self.seeking_force = seeking_force;
+        self.max_seeking_range = max_seeking_range;
+        self.active = true;
+    }
+
+    /// Deactivate MetaBullet for pooling reuse
+    pub fn deactivate(&mut self) {
+        self.active = false;
+        self.marked_for_removal = true;
+        // Clear effects to prevent memory leaks
+        self.on_hit = None;
+        self.on_expire = None;
     }
 }
 

@@ -6,7 +6,7 @@ use wgpu::util::DeviceExt;
 const MAX_PARTICLES: u32 = 262144;
 
 /// Maximum spawn requests per frame
-const MAX_SPAWN_REQUESTS: u32 = 8192;
+const MAX_SPAWN_REQUESTS: u32 = 4096;
 
 /// GPU particle data structure
 #[repr(C)]
