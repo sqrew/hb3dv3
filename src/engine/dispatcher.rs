@@ -196,7 +196,12 @@ impl Dispatcher {
                 }
                 _ => {
                     // Process other collision types individually
-                    Self::handle_collision_event(event, scheduler, graphics_events, explosion_events);
+                    Self::handle_collision_event(
+                        event,
+                        scheduler,
+                        graphics_events,
+                        explosion_events,
+                    );
                 }
             }
         }
@@ -205,14 +210,16 @@ impl Dispatcher {
         if !bullet_bullet_impacts.is_empty() {
             // Use first impact point as representative position for batch spawn
             let batch_position = bullet_bullet_impacts[0];
-            let batch_count = bullet_bullet_impacts.len().min(MAX_BULLET_BULLET_PARTICLES_PER_FRAME);
+            let batch_count = bullet_bullet_impacts
+                .len()
+                .min(MAX_BULLET_BULLET_PARTICLES_PER_FRAME);
 
             // Single optimized particle spawn for all bullet-bullet collisions
             graphics_events.push(GraphicsEvent::SpawnParticles {
                 position: batch_position,
                 velocity: Vec3::new(0.0, 0.0, 0.0), // Sparks spread in all directions
-                count: batch_count as u32, // One particle per collision, capped
-                lifetime: 3.0, // Quick flash effect
+                count: batch_count as u32,          // One particle per collision, capped
+                lifetime: 3.0,                      // Quick flash effect
                 color: Color::WHITE,
             });
         }
@@ -254,13 +261,34 @@ impl Dispatcher {
                 // or literally anything else for a player taking damage
             }
             CollisionEvent::EnemyHitLargeBody {
-                enemy_id: _,
+                enemy_id,
                 large_body_id,
                 impact_point,
             } => {
-                // Calculate tangential velocity for orbital motion around the large body
-                let tangential_velocity =
-                    if let Some(large_body) = scheduler.large_bodies().get_body(large_body_id) {
+                // Try to kill the enemy (large body collisions are fatal)
+                let enemy_found =
+                    scheduler
+                        .enemies_mut()
+                        .damage_enemy_direct(enemy_id, 9999.0, large_body_id);
+
+                if !enemy_found {
+                    // Enemy already dead - but we should still reward the player for the collision!
+                    // Spawn collectible directly since the normal enemy death logic already ran
+                    let entity_manager_ptr = scheduler.entity_manager_mut() as *mut _;
+                    unsafe {
+                        scheduler
+                            .scoring_mut()
+                            .system_mut()
+                            .spawn_multiplier(impact_point, &mut *entity_manager_ptr);
+                    }
+                }
+
+                // Show particles regardless - the collision happened
+                {
+                    // Calculate tangential velocity for orbital motion around the large body
+                    let tangential_velocity = if let Some(large_body) =
+                        scheduler.large_bodies().get_body(large_body_id)
+                    {
                         let displacement = large_body.position() - impact_point;
                         let distance = displacement.magnitude();
 
@@ -287,14 +315,15 @@ impl Dispatcher {
                         Vec3::new(0.0, 0.0, 0.0)
                     };
 
-                // Spawn explosion particles with tangential velocity for orbital motion
-                graphics_events.push(GraphicsEvent::SpawnParticles {
-                    position: impact_point,
-                    velocity: tangential_velocity, // Particles inherit tangential motion
-                    count: 100,                    // Increased from 100 for dramatic effect
-                    lifetime: 60.0,                // Longer lifetime for visibility
-                    color: Color::CYAN,
-                });
+                    // Spawn explosion particles with tangential velocity for orbital motion
+                    graphics_events.push(GraphicsEvent::SpawnParticles {
+                        position: impact_point,
+                        velocity: tangential_velocity, // Particles inherit tangential motion
+                        count: 100,                    // Increased from 100 for dramatic effect
+                        lifetime: 60.0,                // Longer lifetime for visibility
+                        color: Color::CYAN,
+                    });
+                }
             }
             CollisionEvent::BulletHitLargeBody {
                 bullet_id: _,
@@ -332,8 +361,16 @@ impl Dispatcher {
                 impact_point,
             } => {
                 // PARTICLES CANNOT SPAWN HERE DUE TO FRAME SPIKING
+                // SHUT UP LOL
+                graphics_events.push(GraphicsEvent::SpawnParticles {
+                    position: impact_point,
+                    velocity: Vec3::new(0.0, 0.0, 0.0), // Sparks spread in all directions
+                    count: 20,
+                    lifetime: 3.0, // Quick flash effect
+                    color: Color::WHITE,
+                });
 
-                // Queue a massive shockwave explosion event for physics effects
+                // Queue a shockwave explosion event for physics effects
                 explosion_events.push(ExplosionEvent::Shockwave {
                     position: impact_point,
                 });

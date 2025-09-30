@@ -1,7 +1,7 @@
+use super::types::{EnemyConfig, EnemyType};
 use crate::engine::entity::{EntityId, EntityType};
 use crate::engine::{CollisionMask, Vec3};
 use crate::scene::GravityAffected;
-use super::types::{EnemyType, EnemyConfig};
 
 pub struct Enemy {
     entity_id: EntityId,
@@ -18,12 +18,7 @@ pub struct Enemy {
 }
 
 impl Enemy {
-    pub fn new(
-        entity_id: EntityId,
-        pos: Vec3,
-        vel: Vec3,
-        enemy_type: EnemyType,
-    ) -> Self {
+    pub fn new(entity_id: EntityId, pos: Vec3, vel: Vec3, enemy_type: EnemyType) -> Self {
         let config = enemy_type.config();
 
         Enemy {
@@ -50,20 +45,29 @@ impl Enemy {
         let distance_to_player = to_player.magnitude();
 
         // Seek player at any distance (but avoid division by zero)
-        if distance_to_player > 0.1 {
+        if distance_to_player > 0.01 {
+            // Much closer threshold - keep seeking until very close
             let seek_direction = to_player.normalize();
 
-            // Apply seeking velocity using config speed (but don't override gravity completely)
-            let seek_acceleration = seek_direction * self.config.speed;
+            // Boost AI seeking when no gravitational forces are present
+            let seeking_multiplier = if self.applied_force.magnitude() < 0.1 {
+                3.0 // Much stronger seeking when no gravity to overcome increased drag
+            } else {
+                1.0 // Normal seeking when gravity is present
+            };
+
+            let seek_acceleration = seek_direction * self.config.speed * seeking_multiplier;
             self.vel += seek_acceleration * dt;
         }
 
         // Update velocity with both AI movement and gravity
         self.vel += gravity_acceleration * dt;
 
-        // Apply drag only when not under strong external forces
+        // Apply drag - use stronger drag when no gravitational forces are present
         let drag_factor = if self.applied_force.magnitude() > self.config.speed * 2.0 {
             0.995 // Minimal drag when under strong forces (explosions)
+        } else if self.applied_force.magnitude() < 0.1 {
+            0.90 // Strong drag when no gravitational forces (helps AI regain control)
         } else {
             0.98 // Normal drag for AI movement
         };
@@ -71,17 +75,6 @@ impl Enemy {
 
         // Update position
         self.pos += self.vel * dt;
-
-        // Boundary handling: bounce off far boundaries only if not under strong gravitational influence
-        if self.pos.x.abs() > 50.0 && self.applied_force.magnitude() < 10.0 {
-            self.vel.x = -self.vel.x * 0.8; // Reduce velocity on bounce
-        }
-        if self.pos.z.abs() > 50.0 && self.applied_force.magnitude() < 10.0 {
-            self.vel.z = -self.vel.z * 0.8;
-        }
-        if self.pos.y.abs() > 50.0 && self.applied_force.magnitude() < 10.0 {
-            self.vel.y = -self.vel.y * 0.8;
-        }
 
         // Reset applied force for next frame
         self.applied_force = Vec3::zeros();

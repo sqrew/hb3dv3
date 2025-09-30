@@ -3,7 +3,7 @@ use crate::graphics::{Primitive, Vec3};
 use crate::input::InputManager;
 use crate::scene::{
     BulletManager, EnemyManager, ExplosionManager, GravityAffected, LargeBodyManager,
-    LargeBodyType, PhysicsManager, PlayerManager, ScoreMultiplierManager,
+    LargeBodyType, PhysicsManager, PlayerManager, ScoreMultiplierManager, WeaponSpawnRequest,
 };
 
 pub struct Scheduler {
@@ -25,47 +25,50 @@ impl Scheduler {
         let player_entity = entity_manager.create_entity(EntityType::Player);
 
         let mut enemies = EnemyManager::new();
-        //enemies.spawn_initial_enemies(&mut entity_manager);
+        enemies.spawn_initial_enemies(&mut entity_manager);
 
         let mut physics = PhysicsManager::new();
         let mut large_bodies = LargeBodyManager::new();
 
-        // large_bodies.spawn_body(
-        //     LargeBodyType::Debug,
-        //     Vec3::new(0.0, 0.0, 0.0),
+        large_bodies.spawn_body(
+            LargeBodyType::Debug,
+            Vec3::new(0.0, 0.0, 0.0),
+            &mut physics,
+            &mut entity_manager,
+        );
+
+        // large_bodies.spawn_body_with_lifetime(
+        //     LargeBodyType::BlackHole,
+        //     Vec3::new(100.0, 100.0, 100.0),
+        //     2.0, //how long to live
         //     &mut physics,
         //     &mut entity_manager,
         // );
+
         large_bodies.spawn_body(
             LargeBodyType::BlackHole,
             Vec3::new(50.0, 10.0, 50.0),
             &mut physics,
             &mut entity_manager,
         );
-        // large_bodies.spawn_body(
-        //     LargeBodyType::BlackHoleLarge,
-        //     Vec3::new(50.0, 10.0, 50.0),
-        //     &mut physics,
-        //     &mut entity_manager,
-        // );
 
-        // large_bodies.spawn_binary_pair(
-        //     crate::scene::large_body::LargeBodyType::ExoticMatter,
-        //     crate::scene::large_body::LargeBodyType::BlackHole,
-        //     crate::engine::Vec3::new(0.0, 0.0, 0.0),
-        //     100.0, // Separation distance
-        //     &mut physics,
-        //     &mut entity_manager,
-        // );
+        large_bodies.spawn_binary_pair(
+            crate::scene::large_body::LargeBodyType::ExoticMatter,
+            crate::scene::large_body::LargeBodyType::BlackHole,
+            crate::engine::Vec3::new(0.0, 0.0, 0.0),
+            100.0, // Separation distance
+            &mut physics,
+            &mut entity_manager,
+        );
 
-        // large_bodies.spawn_binary_pair(
-        //     crate::scene::large_body::LargeBodyType::Star,
-        //     crate::scene::large_body::LargeBodyType::NeutronStar,
-        //     crate::engine::Vec3::new(0.0, 0.0, 0.0),
-        //     200.0, // Separation distance
-        //     &mut physics,
-        //     &mut entity_manager,
-        // );
+        large_bodies.spawn_binary_pair(
+            crate::scene::large_body::LargeBodyType::Star,
+            crate::scene::large_body::LargeBodyType::NeutronStar,
+            crate::engine::Vec3::new(0.0, 0.0, 0.0),
+            200.0, // Separation distance
+            &mut physics,
+            &mut entity_manager,
+        );
 
         Scheduler {
             entity_manager,
@@ -113,21 +116,49 @@ impl Scheduler {
         queue: Option<&wgpu::Queue>,
     ) {
         // Update player movement
-        if let Some(bullet_requests) =
+        if let Some(spawn_request) =
             self.player
                 .update(delta_time, input, camera_forward, camera_right, camera_up)
         {
-            // Spawn bullets from player weapon using new projectile system
-            for request in bullet_requests.into_iter() {
-                let bullet_entity = self.entity_manager.create_entity(EntityType::PlayerBullet);
+            match spawn_request {
+                WeaponSpawnRequest::Bullets(bullet_requests) => {
+                    // Spawn bullets from player weapon using new projectile system
+                    for request in bullet_requests.into_iter() {
+                        let bullet_entity =
+                            self.entity_manager.create_entity(EntityType::PlayerBullet);
 
-                // Use the projectile type from the weapon request (moved, not cloned)
-                self.bullets.spawn_projectile(
-                    bullet_entity,
-                    request.position,
-                    request.projectile_type,
-                );
+                        // Use the projectile type from the weapon request (moved, not cloned)
+                        self.bullets.spawn_projectile(
+                            bullet_entity,
+                            request.position,
+                            request.projectile_type,
+                        );
+                    }
+                }
+                WeaponSpawnRequest::LargeBodies(large_body_requests) => {
+                    // Spawn large bodies from large body launcher
+                    for request in large_body_requests.into_iter() {
+                        self.large_bodies.spawn_body_with_velocity_and_lifetime(
+                            request.body_type,
+                            request.position,
+                            request.velocity,
+                            request.lifetime,
+                            &mut self.physics,
+                            &mut self.entity_manager,
+                        );
+                    }
+                }
             }
+        }
+
+        // Update large bodies (these get their physics from the PhysicsManager N-body simulation)
+        self.large_bodies
+            .update(delta_time, &mut self.physics, &mut self.entity_manager);
+
+        // Apply gravitational forces to all affected objects BEFORE enemy AI updates
+        if let (Some(device), Some(queue)) = (device, queue) {
+            // Update physics using the helper method that handles the complexity
+            self.update_physics_forces(device, queue, delta_time);
         }
 
         self.enemies.update(
@@ -154,15 +185,6 @@ impl Scheduler {
         let player_pos = self.player.player().position();
         self.scoring
             .update(delta_time, player_pos, &mut self.entity_manager);
-
-        // Update large bodies (these get their physics from the PhysicsManager N-body simulation)
-        self.large_bodies.update(delta_time, &self.physics);
-
-        // Apply gravitational forces to all affected objects
-        if let (Some(device), Some(queue)) = (device, queue) {
-            // Update physics using the helper method that handles the complexity
-            self.update_physics_forces(device, queue, delta_time);
-        }
     }
 
     pub fn postupdate(&mut self) {

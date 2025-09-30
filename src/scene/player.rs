@@ -3,7 +3,7 @@ use crate::engine::entity::{EntityId, EntityType};
 use crate::engine::{CollisionMask, Vec3};
 use crate::graphics::{Color, Primitive, PrimitiveType};
 use crate::input::{Action, InputManager};
-use crate::scene::{BulletSpawnRequest, GravityAffected, WeaponManager};
+use crate::scene::{BulletSpawnRequest, GravityAffected, WeaponManager, WeaponSpawnRequest};
 
 // Dash constants
 const DASH_DURATION: f32 = 0.15; // 150ms dash duration
@@ -66,7 +66,7 @@ impl Player {
         camera_forward: Vec3,
         camera_right: Vec3,
         camera_up: Vec3,
-    ) -> Option<Vec<BulletSpawnRequest>> {
+    ) -> Option<WeaponSpawnRequest> {
         // Update weapon manager
         self.weapon_manager.update(delta_time, input);
 
@@ -256,7 +256,7 @@ impl PlayerManager {
         camera_forward: Vec3,
         camera_right: Vec3,
         camera_up: Vec3,
-    ) -> Option<Vec<BulletSpawnRequest>> {
+    ) -> Option<WeaponSpawnRequest> {
         let bullet_requests =
             self.player
                 .update(delta_time, input, camera_forward, camera_right, camera_up);

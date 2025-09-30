@@ -4,6 +4,7 @@ use crate::input::InputManager;
 use crate::scene::bullet::{
     BulletVisuals, ChainLightningEffect, FractalConfig, ProjectileEffects, ProjectileType,
 };
+use crate::scene::large_body::LargeBodyType;
 
 // Chain Lightning Configuration Constants
 const CHAIN_LIGHTNING_JUMP_RANGE: f32 = 256.0; // Maximum distance for chain lightning jumps
@@ -24,6 +25,7 @@ pub enum WeaponType {
     SeekingExplosive,
     FractalCannon,
     LaserCannon,
+    LargeBodyLauncher,
 }
 
 #[derive(Debug, Clone)]
@@ -121,6 +123,18 @@ impl WeaponStats {
             bullet_mass: 0.01,    //
         }
     }
+
+    pub fn large_body_launcher() -> Self {
+        Self {
+            damage: 0.0,           // Damage comes from physics/collision
+            fire_rate: 10.0,       // 1 shot per second
+            bullet_speed: 200.0,   // Initial velocity for launched asteroids
+            bullet_lifetime: 10.0, // 10 second lifetime for asteroids
+            projectile_count: 1,   // Single asteroid per shot
+            spread_angle: 0.0,     // Precise targeting
+            bullet_mass: 5000.0,   // Asteroid mass (same as LargeBodyType::Asteroid default)
+        }
+    }
 }
 
 pub struct Weapon {
@@ -140,6 +154,7 @@ impl Weapon {
             WeaponType::SeekingExplosive => WeaponStats::seeking_explosive(),
             WeaponType::FractalCannon => WeaponStats::fractal_cannon(),
             WeaponType::LaserCannon => WeaponStats::laser_cannon(),
+            WeaponType::LargeBodyLauncher => WeaponStats::large_body_launcher(),
         };
 
         Self {
@@ -159,13 +174,26 @@ impl Weapon {
         time_since_last_shot >= (1.0 / self.stats.fire_rate)
     }
 
-    pub fn try_fire(&mut self, origin: Vec3, direction: Vec3) -> Option<Vec<BulletSpawnRequest>> {
+    pub fn try_fire(&mut self, origin: Vec3, direction: Vec3) -> Option<WeaponSpawnRequest> {
         if !self.can_fire() {
             return None;
         }
 
         self.last_fire_time = self.total_time;
 
+        // Handle LargeBodyLauncher separately
+        if matches!(self.weapon_type, WeaponType::LargeBodyLauncher) {
+            let velocity = direction.normalize() * self.stats.bullet_speed;
+            let large_body_request = LargeBodySpawnRequest {
+                body_type: LargeBodyType::LauncherMass,
+                position: origin,
+                velocity,
+                lifetime: self.stats.bullet_lifetime,
+            };
+            return Some(WeaponSpawnRequest::LargeBodies(vec![large_body_request]));
+        }
+
+        // Handle bullet-based weapons
         let mut requests = Vec::new();
 
         // Calculate spread for multiple projectiles
@@ -287,7 +315,7 @@ impl Weapon {
             });
         }
 
-        Some(requests)
+        Some(WeaponSpawnRequest::Bullets(requests))
     }
 
     pub fn weapon_type(&self) -> &WeaponType {
@@ -310,6 +338,20 @@ pub struct BulletSpawnRequest {
     pub projectile_type: ProjectileType, // What kind of projectile to spawn
 }
 
+#[derive(Debug)]
+pub struct LargeBodySpawnRequest {
+    pub body_type: LargeBodyType,
+    pub position: Vec3,
+    pub velocity: Vec3,
+    pub lifetime: f32,
+}
+
+#[derive(Debug)]
+pub enum WeaponSpawnRequest {
+    Bullets(Vec<BulletSpawnRequest>),
+    LargeBodies(Vec<LargeBodySpawnRequest>),
+}
+
 pub struct WeaponManager {
     current_weapon: Weapon,
     available_weapons: Vec<WeaponType>,
@@ -327,6 +369,7 @@ impl WeaponManager {
             WeaponType::SeekingExplosive,
             WeaponType::FractalCannon,
             WeaponType::LaserCannon,
+            WeaponType::LargeBodyLauncher,
         ];
 
         Self {
@@ -349,17 +392,22 @@ impl WeaponManager {
         }
     }
 
-    pub fn try_fire(&mut self, origin: Vec3, direction: Vec3) -> Option<Vec<BulletSpawnRequest>> {
-        if let Some(bullet_requests) = self.current_weapon.try_fire(origin, direction) {
+    pub fn try_fire(&mut self, origin: Vec3, direction: Vec3) -> Option<WeaponSpawnRequest> {
+        if let Some(spawn_request) = self.current_weapon.try_fire(origin, direction) {
             // Generate weapon fired event
+            let projectile_count = match &spawn_request {
+                WeaponSpawnRequest::Bullets(bullets) => bullets.len() as u32,
+                WeaponSpawnRequest::LargeBodies(bodies) => bodies.len() as u32,
+            };
+
             self.event_queue.push(EventType::Weapon(WeaponEvent::Fired {
                 weapon_type: self.current_weapon.weapon_type().clone(),
                 position: origin,
                 direction,
-                projectile_count: bullet_requests.len() as u32,
+                projectile_count,
             }));
 
-            Some(bullet_requests)
+            Some(spawn_request)
         } else {
             None
         }

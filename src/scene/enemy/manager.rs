@@ -253,6 +253,8 @@ impl EnemyManager {
                     // Generate score event immediately while we still have access to the enemy
                     let enemy_type = enemy.enemy_type();
                     let enemy_pos = enemy.position();
+
+
                     self.event_queue.push(EventType::Score(
                         crate::engine::dispatcher::ScoreEvent::EnemyKilled {
                             enemy_id: entity_id,

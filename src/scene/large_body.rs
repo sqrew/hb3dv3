@@ -4,6 +4,14 @@ use crate::engine::entity::{EntityId, EntityType};
 use crate::graphics::{Color, Primitive, PrimitiveType};
 use crate::scene::PhysicsManager;
 
+/// Death sequence state for large bodies
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum DeathState {
+    Alive,
+    DeathSequence { timer: f32 }, // Death sequence in progress, timer = time remaining
+    ReadyForRemoval,              // Death sequence complete, ready to be removed
+}
+
 /// Types of large gravitational bodies in the game
 #[allow(unused)]
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -23,7 +31,7 @@ pub enum LargeBodyType {
     /// Artificial structure with artificial gravity
     /// Gas giant with strong gravity and large radius
     /// Exotic matter that oscillates between attractive and repulsive gravity
-    Asteroid,
+    LauncherMass,
     Debug,
 }
 
@@ -39,8 +47,8 @@ impl LargeBodyType {
             LargeBodyType::Star => 200_000.0,       // Very high mass for strong gravity
             LargeBodyType::GasGiant => 100_000.0,   // Large mass
             LargeBodyType::Planet => 50_000.0,      // Medium mass
-            LargeBodyType::Asteroid => 5_000.0,
-            LargeBodyType::Debug => 0.0,
+            LargeBodyType::LauncherMass => 10_000.0,
+            LargeBodyType::Debug => 100.0, // Debug body with small but reasonable mass
         }
     }
 
@@ -55,8 +63,8 @@ impl LargeBodyType {
             LargeBodyType::Star => 80.0,     // Large and bright for visibility
             LargeBodyType::GasGiant => 20.0, // Very large
             LargeBodyType::Planet => 10.0,   // Medium size
-            LargeBodyType::Asteroid => 3.0,
-            LargeBodyType::Debug => 0.0,
+            LargeBodyType::LauncherMass => 3.0,
+            LargeBodyType::Debug => 1.0, // Debug body with small but reasonable radius
         }
     }
 
@@ -71,7 +79,7 @@ impl LargeBodyType {
             LargeBodyType::Star => Color::RED,
             LargeBodyType::GasGiant => Color::YELLOW,
             LargeBodyType::Planet => Color::CYAN,
-            LargeBodyType::Asteroid => Color::GRAY,
+            LargeBodyType::LauncherMass => Color::GRAY,
             LargeBodyType::Debug => Color::BLACK,
         }
     }
@@ -87,8 +95,8 @@ impl LargeBodyType {
             LargeBodyType::Star => 1.0,
             LargeBodyType::GasGiant => 1.0,
             LargeBodyType::Planet => 1.0,
-            LargeBodyType::Asteroid => 1.0,
-            LargeBodyType::Debug => 0.0,
+            LargeBodyType::LauncherMass => 1.0,
+            LargeBodyType::Debug => 1.0, // Standard collision radius ratio
         }
     }
 
@@ -103,8 +111,8 @@ impl LargeBodyType {
             LargeBodyType::Star => 0.5,       // Moderate stellar rotation
             LargeBodyType::GasGiant => 1.0,   // Fast rotation like Jupiter
             LargeBodyType::Planet => 0.3,     // Earth-like rotation (slower)
-            LargeBodyType::Asteroid => 1.0,
-            LargeBodyType::Debug => 0.0,
+            LargeBodyType::LauncherMass => 10.0,
+            LargeBodyType::Debug => 0.5, // Debug body with moderate rotation
         }
     }
 
@@ -116,6 +124,7 @@ impl LargeBodyType {
             LargeBodyType::NeutronStar => 20.0, // Large intense ergosphere
             LargeBodyType::WhiteHole => 20.0,  // Significant ergosphere effect
             LargeBodyType::ExoticMatter => 20.0, //
+            LargeBodyType::LauncherMass => 0.0,
             _ => 0.0,
         }
     }
@@ -129,8 +138,9 @@ impl LargeBodyType {
             LargeBodyType::BlackHoleLarge => 0.3, // Strong frame-dragging
             LargeBodyType::NeutronStar => 0.25,   // Very strong (dense + fast spinning)
             LargeBodyType::WhiteHole => 0.15,     // Moderate frame-dragging
-            LargeBodyType::ExoticMatter => 0.8,   // No frame-dragging (oscillation is main effect)
-            _ => 0.0,                             // No frame-dragging for other types
+            LargeBodyType::ExoticMatter => 0.8,   //
+            LargeBodyType::LauncherMass => 0.0,
+            _ => 0.0, // No frame-dragging for other types
         };
         mass * angular_vel * strength_factor
     }
@@ -146,13 +156,13 @@ impl LargeBodyType {
             LargeBodyType::GasGiant => PrimitiveType::Sphere,
             LargeBodyType::Planet => PrimitiveType::Sphere,
             LargeBodyType::ExoticMatter => PrimitiveType::Sphere,
-            LargeBodyType::Asteroid => PrimitiveType::Icosahedron,
+            LargeBodyType::LauncherMass => PrimitiveType::Icosahedron,
             LargeBodyType::Debug => PrimitiveType::Sphere,
         }
     }
 }
 
-/// A large gravitational body in the game world
+/// A large gravitational body ss in the game world
 #[derive(Debug, Clone)]
 pub struct LargeBody {
     entity_id: EntityId,
@@ -174,6 +184,11 @@ pub struct LargeBody {
 
     // Physics integration
     physics_index: Option<usize>, // Index in PhysicsManager's gravitational_bodies array
+
+    // Lifecycle properties
+    age: f32,                  // Current age in seconds
+    max_lifetime: Option<f32>, // Maximum lifetime in seconds (None = eternal)
+    death_state: DeathState,   // Current death sequence state
 }
 
 impl LargeBody {
@@ -207,6 +222,9 @@ impl LargeBody {
             solar_wind_timer: solar_wind_interval, // Start with first emission ready
             solar_wind_interval,
             physics_index: None,
+            age: 0.0,
+            max_lifetime: None, // Eternal by default
+            death_state: DeathState::Alive,
         }
     }
 
@@ -246,13 +264,69 @@ impl LargeBody {
             solar_wind_timer: solar_wind_interval,
             solar_wind_interval,
             physics_index: None,
+            age: 0.0,
+            max_lifetime: None, // Eternal by default
+            death_state: DeathState::Alive,
         }
+    }
+
+    /// Create a new large body with a specific lifetime
+    pub fn new_with_lifetime(
+        entity_id: EntityId,
+        body_type: LargeBodyType,
+        position: Vec3,
+        max_lifetime: f32,
+    ) -> Self {
+        let mut body = Self::new(entity_id, body_type, position);
+        body.max_lifetime = Some(max_lifetime);
+        body
     }
 
     /// Update the large body (updates rotation and visual effects only)
     pub fn update(&mut self, delta_time: f32) {
         // Position will be updated by the PhysicsManager's N-body simulation
-        // But we handle rotation here since it's visual-only
+
+        // Update age
+        self.age += delta_time;
+
+        // Update death sequence state machine
+        match self.death_state {
+            DeathState::Alive => {
+                // Check if it's time to start death sequence
+                if let Some(max_lifetime) = self.max_lifetime {
+                    if self.age >= max_lifetime {
+                        self.trigger_death_sequence();
+                        // Start death sequence with 2 second duration
+                        self.death_state = DeathState::DeathSequence {
+                            timer: match self.body_type {
+                                LargeBodyType::Debug => 1.0,
+                                LargeBodyType::BlackHole => 2.0,
+                                LargeBodyType::BlackHoleLarge => 2.0,
+                                LargeBodyType::WhiteHole => 10.0,
+                                LargeBodyType::ExoticMatter => 10.0,
+                                LargeBodyType::NeutronStar => 2.0,
+                                LargeBodyType::GasGiant => 5.0,
+                                LargeBodyType::Planet => 5.0,
+                                LargeBodyType::LauncherMass => 1.0,
+                                _ => 2.0,
+                            },
+                        };
+                    }
+                }
+            }
+            DeathState::DeathSequence { timer } => {
+                // Count down death sequence timer
+                let new_timer = timer - delta_time;
+                if new_timer <= 0.0 {
+                    self.death_state = DeathState::ReadyForRemoval;
+                } else {
+                    self.death_state = DeathState::DeathSequence { timer: new_timer };
+                }
+            }
+            DeathState::ReadyForRemoval => {
+                // Body will be removed by manager in this state
+            }
+        }
 
         // Update rotation based on angular velocity
         self.rotation += self.angular_velocity * delta_time;
@@ -349,6 +423,102 @@ impl LargeBody {
     pub fn collision_mask(&self) -> CollisionMask {
         self.collision_mask
     }
+
+    // Lifecycle methods
+    pub fn age(&self) -> f32 {
+        self.age
+    }
+
+    pub fn max_lifetime(&self) -> Option<f32> {
+        self.max_lifetime
+    }
+
+    pub fn remaining_lifetime(&self) -> Option<f32> {
+        self.max_lifetime.map(|max| (max - self.age).max(0.0))
+    }
+
+    pub fn is_dead(&self) -> bool {
+        matches!(self.death_state, DeathState::ReadyForRemoval)
+    }
+
+    pub fn lifetime_progress(&self) -> Option<f32> {
+        self.max_lifetime.map(|max| (self.age / max).min(1.0))
+    }
+
+    /// Trigger death sequence for this large body type
+    fn trigger_death_sequence(&mut self) {
+        match self.body_type {
+            LargeBodyType::BlackHole => {
+                // Hawking radiation evaporation - dramatic size increase then collapse
+                println!("💥 BlackHole evaporating in burst of Hawking radiation!");
+                self.radius *= 2.5; // Dramatic expansion before death
+
+                // Could spawn particles, change color, etc.
+            }
+
+            LargeBodyType::BlackHoleLarge => {
+                // Massive black hole evaporation - even more dramatic
+                println!("🕳️💥 Supermassive BlackHole undergoing final evaporation!");
+                self.radius *= 4.0; // Even larger expansion for supermassive
+                // Could spawn intense gravitational waves, spacetime distortion effects
+            }
+
+            LargeBodyType::WhiteHole => {
+                // Matter ejection finale - explosive outward burst
+                println!("🌟 WhiteHole ejecting all accumulated matter!");
+                self.mass *= 0.1; // Lose most mass in final ejection
+                // Could spawn outward-moving matter particles
+            }
+
+            LargeBodyType::Star => {
+                // Supernova explosion - classic stellar death
+                println!("⭐ Star going supernova!");
+                self.radius *= 5.0; // Massive expansion
+                // Could spawn shockwave, change to red giant color
+            }
+
+            LargeBodyType::NeutronStar => {
+                // Collapse to black hole - density limit exceeded
+                println!("🕳️  NeutronStar collapsing into black hole!");
+                self.radius *= 0.5; // Collapse inward
+                self.mass *= 2.0; // Gravitational intensification
+            }
+
+            LargeBodyType::Planet => {
+                // Atmospheric loss and core fragmentation
+                println!("🌍 Planet losing atmosphere and breaking apart!");
+                self.radius *= 1.5; // Expansion as core is exposed
+                // Could spawn debris particles
+            }
+
+            LargeBodyType::GasGiant => {
+                // Gas dispersion - gradual deflation
+                println!("🪐 Gas Giant dispersing atmospheric layers!");
+                self.radius *= 3.0; // Atmospheric expansion
+                self.mass *= 0.3; // Lose gas mass
+            }
+
+            LargeBodyType::LauncherMass => {
+                // Fragmentation into smaller pieces
+                println!("☄️  Asteroid fragmenting into debris field!");
+                self.radius *= 1.2; // Slight expansion as it breaks apart
+                // Could spawn multiple smaller asteroid particles
+            }
+
+            LargeBodyType::ExoticMatter => {
+                // Matter/antimatter annihilation - most dramatic
+                println!("⚡ Exotic Matter undergoing catastrophic annihilation!");
+                self.radius *= 8.0; // Massive energy release expansion
+                // Could spawn high-energy particles, light effects
+            }
+
+            LargeBodyType::Debug => {
+                // Simple debug death
+                println!("🔧 Debug body completing lifecycle test");
+                // No special effects, just clean removal
+            }
+        }
+    }
 }
 
 /// Manager for all large bodies in the game
@@ -383,6 +553,25 @@ impl LargeBodyManager {
         entity_id
     }
 
+    /// Spawn a large body with a specific lifetime
+    pub fn spawn_body_with_lifetime(
+        &mut self,
+        body_type: LargeBodyType,
+        position: Vec3,
+        max_lifetime: f32,
+        physics: &mut PhysicsManager,
+        entity_manager: &mut crate::engine::entity::EntityManager,
+    ) -> EntityId {
+        let entity_id = entity_manager.create_entity(crate::engine::entity::EntityType::LargeBody);
+
+        let mut body = LargeBody::new_with_lifetime(entity_id, body_type, position, max_lifetime);
+        body.register_with_physics(physics);
+
+        self.bodies.push(body);
+
+        entity_id
+    }
+
     /// Spawn a large body with custom properties
     pub fn spawn_body_custom(
         &mut self,
@@ -409,6 +598,27 @@ impl LargeBodyManager {
             radius * body_type.default_ergosphere_radius_ratio(),
             body_type.default_frame_dragging_strength(),
         );
+        body.register_with_physics(physics);
+
+        self.bodies.push(body);
+
+        entity_id
+    }
+
+    /// Spawn a large body with custom velocity and lifetime (for weapon launcher)
+    pub fn spawn_body_with_velocity_and_lifetime(
+        &mut self,
+        body_type: LargeBodyType,
+        position: Vec3,
+        velocity: Vec3,
+        max_lifetime: f32,
+        physics: &mut PhysicsManager,
+        entity_manager: &mut crate::engine::entity::EntityManager,
+    ) -> EntityId {
+        let entity_id = entity_manager.create_entity(crate::engine::entity::EntityType::LargeBody);
+
+        let mut body = LargeBody::new_with_lifetime(entity_id, body_type, position, max_lifetime);
+        body.set_velocity(velocity);
         body.register_with_physics(physics);
 
         self.bodies.push(body);
@@ -518,7 +728,13 @@ impl LargeBodyManager {
     }
 
     /// Update all large bodies
-    pub fn update(&mut self, delta_time: f32, physics: &PhysicsManager) {
+    pub fn update(
+        &mut self,
+        delta_time: f32,
+        physics_manager: &mut PhysicsManager,
+        entity_manager: &mut crate::engine::entity::EntityManager,
+    ) {
+        // First update all living bodies
         for body in &mut self.bodies {
             // Update the body and check for solar wind events
             if (body.body_type == LargeBodyType::Star && body.solar_wind_interval > 0.0)
@@ -575,7 +791,38 @@ impl LargeBodyManager {
 
             body.update(delta_time);
             // Update position/velocity from physics simulation
-            body.update_from_physics(physics);
+            body.update_from_physics(physics_manager);
+        }
+
+        // Remove dead bodies (iterate in reverse to avoid index issues)
+        let mut i = self.bodies.len();
+        while i > 0 {
+            i -= 1;
+            if self.bodies[i].is_dead() {
+                let body = self.bodies.remove(i);
+
+                // Remove from physics system and fix indices
+                if let Some(physics_index) = body.physics_index {
+                    physics_manager.remove_gravitational_body(physics_index);
+
+                    // Update physics indices for all remaining bodies that had higher indices
+                    for remaining_body in &mut self.bodies {
+                        if let Some(ref mut remaining_index) = remaining_body.physics_index {
+                            if *remaining_index > physics_index {
+                                *remaining_index -= 1;
+                            }
+                        }
+                    }
+                }
+
+                // Remove from entity system
+                entity_manager.destroy_entity(body.entity_id);
+
+                println!(
+                    "🪦 Large body {:?} died of old age at {:.1}s",
+                    body.body_type, body.age
+                );
+            }
         }
     }
 
