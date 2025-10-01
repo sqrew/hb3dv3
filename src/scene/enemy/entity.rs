@@ -15,6 +15,7 @@ pub struct Enemy {
     applied_force: Vec3,
     enemy_type: EnemyType,
     config: EnemyConfig,
+    eating_cooldown: f32, // Cooldown timer for Cannibal eating
 }
 
 impl Enemy {
@@ -33,21 +34,26 @@ impl Enemy {
             applied_force: Vec3::zeros(),
             enemy_type,
             config,
+            eating_cooldown: 0.0,
         }
     }
 
     pub fn update(&mut self, dt: f32, player_pos: Vec3) {
+        self.update_with_target(dt, player_pos);
+    }
+
+    pub fn update_with_target(&mut self, dt: f32, target_pos: Vec3) {
         // Apply gravitational forces (F = ma, so a = F/m)
         let gravity_acceleration = self.applied_force / self.mass;
 
-        // Player-seeking AI: calculate direction to player
-        let to_player = player_pos - self.pos;
-        let distance_to_player = to_player.magnitude();
+        // Seeking AI: calculate direction to target (player or prey)
+        let to_target = target_pos - self.pos;
+        let distance_to_target = to_target.magnitude();
 
-        // Seek player at any distance (but avoid division by zero)
-        if distance_to_player > 0.01 {
+        // Seek target at any distance (but avoid division by zero)
+        if distance_to_target > 0.01 {
             // Much closer threshold - keep seeking until very close
-            let seek_direction = to_player.normalize();
+            let seek_direction = to_target.normalize();
 
             // Boost AI seeking when no gravitational forces are present
             let seeking_multiplier = if self.applied_force.magnitude() < 0.1 {
@@ -126,6 +132,56 @@ impl Enemy {
         } else {
             0.0
         }
+    }
+
+    pub fn eating_cooldown(&self) -> f32 {
+        self.eating_cooldown
+    }
+
+    pub fn can_eat(&self) -> bool {
+        matches!(self.enemy_type, EnemyType::Cannibal { .. }) && self.eating_cooldown <= 0.0
+    }
+
+    pub fn tick_eating_cooldown(&mut self, dt: f32) {
+        if self.eating_cooldown > 0.0 {
+            self.eating_cooldown -= dt;
+        }
+    }
+
+    /// Consume another enemy - heals to full, gains max health, grows in size
+    pub fn consume_enemy(&mut self) {
+        if let EnemyType::Cannibal { meals_consumed } = &mut self.enemy_type {
+            // Increment meal count
+            let new_meals = (*meals_consumed + 1).min(10); // Cap at 10 meals
+            self.enemy_type = EnemyType::Cannibal {
+                meals_consumed: new_meals,
+            };
+
+            // Recalculate config with new meal count
+            self.config = self.enemy_type.config();
+
+            // Heal to full health
+            self.health = self.config.health;
+            self.max_health = self.config.health;
+
+            // Update collision radius to match new size
+            self.collision_radius = self.config.collision_radius;
+
+            // Set eating cooldown (3 seconds between meals)
+            self.eating_cooldown = 3.0;
+            println!("ENEMY CONSUMED!!");
+        }
+    }
+
+    pub fn is_cannibal(&self) -> bool {
+        matches!(self.enemy_type, EnemyType::Cannibal { .. })
+    }
+
+    pub fn is_basic_enemy(&self) -> bool {
+        matches!(
+            self.enemy_type,
+            EnemyType::Heavy | EnemyType::Chaser | EnemyType::Drone
+        )
     }
 }
 

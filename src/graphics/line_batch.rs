@@ -169,17 +169,32 @@ impl LineBatch {
     /// Generate all lines for this batch into a reusable buffer to avoid allocations
     pub fn finish_into(self, primitive_cache: &PrimitiveCache, buffer: &mut Vec<LineInstance>) {
         // Group requests by primitive type for better cache locality
+        // MUST match the full list from finish() to avoid silently dropping primitives!
         for primitive_type in [
             PrimitiveType::Cube,
-            PrimitiveType::Sphere,
-            PrimitiveType::Cylinder,
-            PrimitiveType::Capsule,
-            PrimitiveType::Cone,
-            PrimitiveType::Torus,
-            PrimitiveType::Octahedron,
             PrimitiveType::Tetrahedron,
+            PrimitiveType::Pyramid,
+            PrimitiveType::Octahedron,
+            PrimitiveType::Cone,
+            PrimitiveType::Cylinder,
+            PrimitiveType::Ellipsoid,
+            PrimitiveType::Sphere,
+            PrimitiveType::Torus,
             PrimitiveType::Icosahedron,
             PrimitiveType::Dodecahedron,
+            PrimitiveType::Capsule,
+            PrimitiveType::Plane,
+            PrimitiveType::Hemisphere,
+            // 2D Primitives
+            PrimitiveType::Triangle2D,
+            PrimitiveType::Square2D,
+            PrimitiveType::Circle2D,
+            PrimitiveType::Pentagon2D,
+            PrimitiveType::Hexagon2D,
+            PrimitiveType::Diamond2D,
+            PrimitiveType::Cross2D,
+            PrimitiveType::Star2D,
+            PrimitiveType::Arrow2D,
         ] {
             // Collect all requests for this primitive type
             let requests: Vec<_> = self.requests.iter()

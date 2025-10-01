@@ -328,15 +328,15 @@ impl ApplicationHandler for WindowManager {
                     let scoring_system = self.engine.scheduler.scoring().system();
                     graphics_engine.add_text(
                         &format!("Score: {}", scoring_system.score()),
-                        [10.0, 50.0],                               // Below FPS counter
-                        32,                                         // Same readable size
-                        crate::graphics::Color::WHITE,              // White for score
+                        [10.0, 50.0],                  // Below FPS counter
+                        32,                            // Same readable size
+                        crate::graphics::Color::WHITE, // White for score
                     );
                     graphics_engine.add_text(
                         &format!("Multiplier: {:.1}x", scoring_system.multiplier()),
-                        [10.0, 90.0],                               // Below score
-                        32,                                         // Same readable size
-                        crate::graphics::Color::GREEN,              // Green for multiplier
+                        [10.0, 90.0],                  // Below score
+                        32,                            // Same readable size
+                        crate::graphics::Color::GREEN, // Green for multiplier
                     );
 
                     // Display game time with milliseconds
@@ -346,9 +346,9 @@ impl ApplicationHandler for WindowManager {
                     let milliseconds = ((total_time % 1.0) * 1000.0) as u32;
                     graphics_engine.add_text(
                         &format!("Time: {:02}:{:02}.{:03}", minutes, seconds, milliseconds),
-                        [10.0, 130.0],                              // Below multiplier
-                        32,                                         // Same readable size
-                        crate::graphics::Color::CYAN,               // Cyan for time
+                        [10.0, 130.0],                // Below multiplier
+                        32,                           // Same readable size
+                        crate::graphics::Color::CYAN, // Cyan for time
                     );
 
                     // Lightning test - press 'K' to spawn lightning bolts
@@ -367,14 +367,89 @@ impl ApplicationHandler for WindowManager {
                         println!("⚡ Lightning bolt spawned!");
                     }
 
+                    // Splitter boss test - press 'B' to spawn fractal splitter
+                    if self
+                        .input_manager
+                        .is_action_just_pressed(Action::SpawnSplitter)
+                    {
+                        let player_pos = self.engine.scheduler.player().player().position();
+                        // Spawn at distance in front of player
+                        let spawn_pos = player_pos + crate::engine::Vec3::new(20.0, 5.0, 0.0);
+
+                        // Split the borrow to avoid double mutable borrow
+                        let scheduler = &mut self.engine.scheduler;
+                        let entity_manager_ptr = scheduler.entity_manager_mut() as *mut _;
+                        unsafe {
+                            scheduler.enemies_mut().spawn_splitter(
+                                spawn_pos,
+                                9, // Max generation 7 (1 -> 512 split)
+                                &mut *entity_manager_ptr,
+                            );
+                        }
+                        println!("🔥 Fractal Splitter Boss spawned! (gen 0/9)");
+                    }
+
+                    // Cannibal test - press 'N' to spawn cannibal enemy
+                    if self
+                        .input_manager
+                        .is_action_just_pressed(Action::SpawnCannibal)
+                    {
+                        let player_pos = self.engine.scheduler.player().player().position();
+                        // Spawn at distance in front of player
+                        let spawn_pos = player_pos + crate::engine::Vec3::new(15.0, 0.0, 0.0);
+
+                        // Split the borrow to avoid double mutable borrow
+                        let scheduler = &mut self.engine.scheduler;
+                        let entity_manager_ptr = scheduler.entity_manager_mut() as *mut _;
+                        unsafe {
+                            scheduler.enemies_mut().spawn_cannibal(
+                                spawn_pos,
+                                &mut *entity_manager_ptr,
+                            );
+                        }
+                        println!("🔴 Cannibal enemy spawned!");
+                    }
+
+                    // Surface reset - press 'R' to force-recreate the surface when rendering breaks
+                    if self
+                        .input_manager
+                        .is_action_just_pressed(Action::ResetSurface)
+                    {
+                        println!("🔄 RESETTING SURFACE - attempting to fix black screen...");
+                        if let Some(window) = &self.window {
+                            graphics_engine.resize(window.inner_size());
+                            println!("✓ Surface reset complete!");
+                        }
+                    }
+
                     // Get laser trail lines for rendering
                     let laser_trail_lines = self.engine.scheduler.get_laser_trail_lines();
 
                     // Render the primitives with laser trails
-                    if let Err(e) =
-                        graphics_engine.render_with_laser_trails(&primitives, &laser_trail_lines)
+                    match graphics_engine.render_with_laser_trails(&primitives, &laser_trail_lines)
                     {
-                        eprintln!("Render error: {}", e);
+                        Ok(_) => {}
+                        Err(wgpu::SurfaceError::Timeout) => {
+                            eprintln!("⏱️  RENDER ERROR: Surface timeout - GPU is overloaded!");
+                        }
+                        Err(wgpu::SurfaceError::Outdated) => {
+                            eprintln!(
+                                "🔄 RENDER ERROR: Surface outdated - will recreate on next frame"
+                            );
+                        }
+                        Err(wgpu::SurfaceError::Lost) => {
+                            eprintln!("❌ RENDER ERROR: Surface lost - resizing surface");
+                            if let Some(window) = &self.window {
+                                graphics_engine.resize(window.inner_size());
+                            }
+                        }
+                        Err(wgpu::SurfaceError::OutOfMemory) => {
+                            eprintln!("💀 FATAL RENDER ERROR: Out of GPU memory!");
+                            event_loop.exit();
+                        }
+                        Err(e) => {
+                            eprintln!("❓ RENDER ERROR: Unknown surface error: {:?}", e);
+                        }
                     }
                 }
 

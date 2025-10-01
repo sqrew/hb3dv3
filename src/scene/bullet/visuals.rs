@@ -59,7 +59,7 @@ impl BulletVisuals {
         Self {
             primitive_type: crate::graphics::PrimitiveType::Tetrahedron,
             color: crate::graphics::Color::YELLOW,
-            scale: 2.0, // start large, each successive generation becomes smaller so the huge swarm will end up composed of mostly regular sized bullets
+            scale: 3.0, // start large, each successive generation becomes smaller so the huge swarm will end up composed of mostly regular sized bullets
         }
     }
 

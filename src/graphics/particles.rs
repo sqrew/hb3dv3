@@ -6,7 +6,8 @@ use wgpu::util::DeviceExt;
 const MAX_PARTICLES: u32 = 262144;
 
 /// Maximum spawn requests per frame
-const MAX_SPAWN_REQUESTS: u32 = 4096;
+/// Reduced from 4096 to prevent GPU command queue backlog that causes rendering to stop
+const MAX_SPAWN_REQUESTS: u32 = 1024;
 
 /// GPU particle data structure
 #[repr(C)]
@@ -741,29 +742,39 @@ impl ParticleSystem {
             self.spawn_queue.truncate(MAX_SPAWN_REQUESTS as usize);
         }
 
-        // Upload spawn requests if any
-        if !self.spawn_queue.is_empty() {
-            // Hard cap to prevent any overflow - be very conservative
-            let max_safe_requests = 2097152 / std::mem::size_of::<SpawnRequest>();
-            if self.spawn_queue.len() > max_safe_requests {
-                self.spawn_queue.truncate(max_safe_requests);
+        // CRITICAL FIX: Process spawn queue in smaller batches per frame to prevent GPU stalls
+        // Track how many we're processing this frame for later compute dispatch
+        let spawns_this_frame = if !self.spawn_queue.is_empty() {
+            const MAX_SPAWNS_PER_FRAME: usize = 512; // Process 512 spawns per frame max
+
+            let batch_size = self.spawn_queue.len().min(MAX_SPAWNS_PER_FRAME);
+
+            // Take a batch without draining yet (we'll clear after GPU processing)
+            let batch: Vec<SpawnRequest> = self.spawn_queue.iter().take(batch_size).copied().collect();
+
+            if !batch.is_empty() {
+                let data_bytes = bytemuck::cast_slice::<SpawnRequest, u8>(&batch);
+                if data_bytes.len() <= 2097152 {
+                    queue.write_buffer(&self.spawn_queue_buffer, 0, data_bytes);
+                    queue.write_buffer(
+                        &self.spawn_count_buffer,
+                        0,
+                        bytemuck::cast_slice(&[batch.len() as u32]),
+                    );
+                }
             }
 
-            let data_bytes = bytemuck::cast_slice::<SpawnRequest, u8>(&self.spawn_queue);
-            if data_bytes.len() > 2097152 {
-                // Emergency fallback - clear the queue entirely if still too big
-                self.spawn_queue.clear();
-            } else {
-                queue.write_buffer(&self.spawn_queue_buffer, 0, data_bytes);
+            // Log if we have a backlog
+            if self.spawn_queue.len() > batch_size {
+                println!("⏳ Particle spawn backlog: {} requests queued for next frame",
+                    self.spawn_queue.len() - batch_size);
             }
-            queue.write_buffer(
-                &self.spawn_count_buffer,
-                0,
-                bytemuck::cast_slice(&[self.spawn_queue.len() as u32]),
-            );
+
+            batch_size
         } else {
             queue.write_buffer(&self.spawn_count_buffer, 0, bytemuck::cast_slice(&[0u32]));
-        }
+            0
+        };
 
         // Upload delta time (adjust for skipped frames)
         let adjusted_delta_time = delta_time * self.update_frequency as f32;
@@ -777,15 +788,15 @@ impl ParticleSystem {
             label: Some("Particle Update Command Encoder"),
         });
 
-        // Spawn new particles
-        if !self.spawn_queue.is_empty() {
+        // Spawn new particles (using the batch count we calculated earlier)
+        if spawns_this_frame > 0 {
             let mut compute_pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
                 label: Some("Particle Spawn Pass"),
                 timestamp_writes: None,
             });
             compute_pass.set_pipeline(&self.spawn_pipeline);
             compute_pass.set_bind_group(0, &self.compute_bind_group, &[]);
-            let workgroups = (self.spawn_queue.len() as u32 + 63) / 64;
+            let workgroups = (spawns_this_frame as u32 + 63) / 64;
             compute_pass.dispatch_workgroups(workgroups, 1, 1);
         }
 
@@ -803,8 +814,10 @@ impl ParticleSystem {
 
         queue.submit(Some(encoder.finish()));
 
-        // Clear spawn queue after processing
-        self.spawn_queue.clear();
+        // Clear only the spawns we processed this frame (batch processing)
+        if spawns_this_frame > 0 {
+            self.spawn_queue.drain(..spawns_this_frame);
+        }
     }
 
     /// Render particles

@@ -104,11 +104,11 @@ impl WeaponStats {
         Self {
             damage: 50.0,          // Base damage - multiplies with fractal generations
             fire_rate: 0.5,        // Slower rate for spectacular fractal shots
-            bullet_speed: 35.0,    // Moderate speed for good fractal development
+            bullet_speed: 10.0,    // Moderate speed for good fractal development
             bullet_lifetime: 60.0, // Long enough for deep fractals to unfold
             projectile_count: 1,   // Single fractal parent
             spread_angle: 0.0,     // Precise initial shot
-            bullet_mass: 0.8,      // Light for fractal dynamics
+            bullet_mass: 10.0,     // Light for fractal dynamics
         }
     }
 

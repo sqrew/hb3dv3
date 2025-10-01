@@ -25,7 +25,7 @@ impl Scheduler {
         let player_entity = entity_manager.create_entity(EntityType::Player);
 
         let mut enemies = EnemyManager::new();
-        enemies.spawn_initial_enemies(&mut entity_manager);
+        //     enemies.spawn_initial_enemies(&mut entity_manager);
 
         let mut physics = PhysicsManager::new();
         let mut large_bodies = LargeBodyManager::new();
@@ -52,23 +52,23 @@ impl Scheduler {
             &mut entity_manager,
         );
 
-        large_bodies.spawn_binary_pair(
-            crate::scene::large_body::LargeBodyType::ExoticMatter,
-            crate::scene::large_body::LargeBodyType::BlackHole,
-            crate::engine::Vec3::new(0.0, 0.0, 0.0),
-            100.0, // Separation distance
-            &mut physics,
-            &mut entity_manager,
-        );
+        // large_bodies.spawn_binary_pair(
+        //     crate::scene::large_body::LargeBodyType::ExoticMatter,
+        //     crate::scene::large_body::LargeBodyType::BlackHole,
+        //     crate::engine::Vec3::new(0.0, 0.0, 0.0),
+        //     100.0, // Separation distance
+        //     &mut physics,
+        //     &mut entity_manager,
+        // );
 
-        large_bodies.spawn_binary_pair(
-            crate::scene::large_body::LargeBodyType::Star,
-            crate::scene::large_body::LargeBodyType::NeutronStar,
-            crate::engine::Vec3::new(0.0, 0.0, 0.0),
-            200.0, // Separation distance
-            &mut physics,
-            &mut entity_manager,
-        );
+        // large_bodies.spawn_binary_pair(
+        //     crate::scene::large_body::LargeBodyType::Star,
+        //     crate::scene::large_body::LargeBodyType::NeutronStar,
+        //     crate::engine::Vec3::new(0.0, 0.0, 0.0),
+        //     200.0, // Separation distance
+        //     &mut physics,
+        //     &mut entity_manager,
+        // );
 
         Scheduler {
             entity_manager,

@@ -21,11 +21,14 @@ look into increasing sizes of large bodies, maybe make large versions of each so
 
 
 enemeis:
-gates, snakes, blobs, chargers, shield guys, matryoshka
+gates, snakes, blobs, chargers, shield guys, exploders, spawner portals,
+cannibals
+
 
 wepaon:
 gravity orb to collect bullets/enemies
 one that fires 2d geometric patterns that fly away from player: flowers, triangles/squares, cool shapes
+
 
 
 

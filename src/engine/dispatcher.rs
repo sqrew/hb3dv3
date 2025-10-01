@@ -729,7 +729,7 @@ pub enum PlayerEvent {
     WeaponSwitch { weapon_index: usize },
 }
 
-/// Enemy-specific events  
+/// Enemy-specific events
 #[derive(Clone, Debug)]
 pub enum EnemyEvent {
     TakeDamage {
@@ -743,6 +743,12 @@ pub enum EnemyEvent {
     Spawn {
         position: Vec3,
         enemy_type: u32,
+    },
+    Split {
+        parent_id: EntityId,
+        position: Vec3,
+        current_generation: u8,
+        max_generation: u8,
     },
 }
 

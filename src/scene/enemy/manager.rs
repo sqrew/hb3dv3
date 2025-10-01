@@ -29,7 +29,7 @@ impl EnemyManager {
         use rand::Rng;
 
         // 1. Orbital Ring Formation (classic spiral around center)
-        for i in 0..500 {
+        for i in 0..50 {
             let angle = (i as f32 / 50.0) * std::f32::consts::TAU;
             let radius = 8.0;
             let pos = Vec3::new(
@@ -140,20 +140,114 @@ impl EnemyManager {
         player_pos: Vec3,
         entity_manager: &mut crate::engine::entity::EntityManager,
     ) {
+        // Tick eating cooldowns
         for enemy in self.enemies.iter_mut() {
-            enemy.update(dt, player_pos);
+            enemy.tick_eating_cooldown(dt);
+        }
+
+        // Handle Cannibal eating behavior (process before regular updates)
+        let mut enemies_to_eat = Vec::new();
+
+        for i in 0..self.enemies.len() {
+            if self.enemies[i].is_cannibal() && self.enemies[i].can_eat() {
+                // Find nearest basic enemy
+                let cannibal_pos = self.enemies[i].position();
+                let mut nearest_distance_sq = f32::MAX;
+                let mut nearest_index = None;
+
+                for j in 0..self.enemies.len() {
+                    if i != j && self.enemies[j].is_basic_enemy() {
+                        let prey_pos = self.enemies[j].position();
+                        let diff = prey_pos - cannibal_pos;
+                        let dist_sq = diff.magnitude_squared();
+
+                        // Check if within eating range (2.0 units)
+                        if dist_sq < 4.0 && dist_sq < nearest_distance_sq {
+                            nearest_distance_sq = dist_sq;
+                            nearest_index = Some(j);
+                        }
+                    }
+                }
+
+                // If found a prey within range, mark for eating
+                if let Some(prey_idx) = nearest_index {
+                    enemies_to_eat.push((i, prey_idx));
+                }
+            }
+        }
+
+        // Process eating (remove prey and grow cannibal)
+        // Sort in reverse to handle index changes correctly
+        enemies_to_eat.sort_by(|a, b| b.1.cmp(&a.1));
+
+        for (cannibal_idx, prey_idx) in enemies_to_eat {
+            // Get prey position for particles before removing
+            let prey_pos = self.enemies[prey_idx].position();
+
+            // Remove prey enemy
+            self.enemies.remove(prey_idx);
+
+            // Adjust cannibal index if prey was before it
+            let adjusted_cannibal_idx = if prey_idx < cannibal_idx {
+                cannibal_idx - 1
+            } else {
+                cannibal_idx
+            };
+
+            // Grow the cannibal
+            if adjusted_cannibal_idx < self.enemies.len() {
+                self.enemies[adjusted_cannibal_idx].consume_enemy();
+
+                // Spawn red eating particles
+                self.event_queue
+                    .push(EventType::Graphics(GraphicsEvent::SpawnParticles {
+                        position: prey_pos,
+                        velocity: Vec3::new(0.0, 0.0, 0.0),
+                        count: 30,
+                        lifetime: 1.0,
+                        color: Color::new(0.8, 0.0, 0.0, 1.0), // Dark red
+                    }));
+            }
+        }
+
+        // Regular enemy updates with specialized AI for Cannibals
+        for i in 0..self.enemies.len() {
+            if self.enemies[i].is_cannibal() {
+                // Cannibals seek nearest basic enemy instead of player
+                let cannibal_pos = self.enemies[i].position();
+                let mut nearest_distance_sq = f32::MAX;
+                let mut target_pos = player_pos; // Default to player if no prey found
+
+                for j in 0..self.enemies.len() {
+                    if i != j && self.enemies[j].is_basic_enemy() {
+                        let prey_pos = self.enemies[j].position();
+                        let diff = prey_pos - cannibal_pos;
+                        let dist_sq = diff.magnitude_squared();
+
+                        if dist_sq < nearest_distance_sq {
+                            nearest_distance_sq = dist_sq;
+                            target_pos = prey_pos;
+                        }
+                    }
+                }
+
+                self.enemies[i].update_with_target(dt, target_pos);
+            } else {
+                // Regular enemies seek player
+                self.enemies[i].update(dt, player_pos);
+            }
         }
 
         // Check for dead enemies and generate death events with position before removing them
         let mut enemies_to_remove = Vec::new();
         for enemy in &self.enemies {
             if !enemy.is_alive() {
-                enemies_to_remove.push((enemy.entity_id(), enemy.position()));
+                enemies_to_remove.push((enemy.entity_id(), enemy.position(), enemy.enemy_type()));
             }
         }
 
-        // Generate death events with position for dead enemies
-        for (enemy_id, position) in enemies_to_remove {
+        // Generate death events and handle splitting for dead enemies
+        for (enemy_id, position, enemy_type) in enemies_to_remove {
             self.event_queue
                 .push(EventType::Enemy(EnemyEvent::Die { enemy_id }));
 
@@ -166,9 +260,62 @@ impl EnemyManager {
                     lifetime: 2.0,
                     color: Color::GREEN,
                 }));
+
+            // Check if this is a Splitter that should split - do it here before removal
+            if let EnemyType::Splitter { current_generation, max_generation } = enemy_type {
+                if current_generation < max_generation {
+                    // Spawn 2 child splitters immediately
+                    use rand::Rng;
+
+                    let next_generation = current_generation + 1;
+
+                    // Create 2 children offset from parent position with outward velocity
+                    for i in 0..2 {
+                        let angle = (i as f32 / 2.0) * std::f32::consts::TAU + rand::rng().random_range(0.0..0.5);
+                        let offset_distance = 2.0; // Spawn slightly away from parent
+
+                        let offset = Vec3::new(
+                            angle.cos() * offset_distance,
+                            rand::rng().random_range(-1.0..1.0), // Random vertical offset
+                            angle.sin() * offset_distance,
+                        );
+
+                        // Velocity pointing outward from split point
+                        let outward_speed = 5.0;
+                        let vel = Vec3::new(
+                            angle.cos() * outward_speed,
+                            rand::rng().random_range(-2.0..2.0),
+                            angle.sin() * outward_speed,
+                        );
+
+                        // Create entity ID using entity_manager
+                        let enemy_entity = entity_manager.create_entity(crate::engine::entity::EntityType::Enemy);
+
+                        self.enemies.push(Enemy::new(
+                            enemy_entity,
+                            position + offset,
+                            vel,
+                            EnemyType::Splitter {
+                                current_generation: next_generation,
+                                max_generation,
+                            },
+                        ));
+                    }
+
+                    // Spawn particles for the split effect
+                    self.event_queue
+                        .push(EventType::Graphics(GraphicsEvent::SpawnParticles {
+                            position,
+                            velocity: Vec3::new(0.0, 0.0, 0.0),
+                            count: 50, // Burst of particles at split point
+                            lifetime: 1.5,
+                            color: Color::ORANGE, // Bright split effect
+                        }));
+                }
+            }
         }
 
-        // Now remove the dead enemies
+        // Now remove the dead enemies (after spawning children)
         self.enemies.retain(|e| e.is_alive());
 
         self.spawn_timer += dt;
@@ -253,7 +400,6 @@ impl EnemyManager {
                     // Generate score event immediately while we still have access to the enemy
                     let enemy_type = enemy.enemy_type();
                     let enemy_pos = enemy.position();
-
 
                     self.event_queue.push(EventType::Score(
                         crate::engine::dispatcher::ScoreEvent::EnemyKilled {
@@ -395,6 +541,40 @@ impl EnemyManager {
         self.event_queue.drain(..).collect()
     }
 
+    /// Spawn a fractal splitter boss at a specific position
+    pub fn spawn_splitter(
+        &mut self,
+        position: Vec3,
+        max_generation: u8,
+        entity_manager: &mut crate::engine::entity::EntityManager,
+    ) {
+        let enemy_entity = entity_manager.create_entity(crate::engine::entity::EntityType::Enemy);
+        self.enemies.push(Enemy::new(
+            enemy_entity,
+            position,
+            Vec3::zeros(), // Start stationary
+            EnemyType::Splitter {
+                current_generation: 0,
+                max_generation,
+            },
+        ));
+    }
+
+    /// Spawn a cannibal enemy at a specific position
+    pub fn spawn_cannibal(
+        &mut self,
+        position: Vec3,
+        entity_manager: &mut crate::engine::entity::EntityManager,
+    ) {
+        let enemy_entity = entity_manager.create_entity(crate::engine::entity::EntityType::Enemy);
+        self.enemies.push(Enemy::new(
+            enemy_entity,
+            position,
+            Vec3::zeros(), // Start stationary
+            EnemyType::Cannibal { meals_consumed: 0 },
+        ));
+    }
+
     /// Handle enemy events from dispatcher
     pub fn handle_event(&mut self, event: crate::engine::dispatcher::EnemyEvent) {
         use crate::engine::dispatcher::EnemyEvent;
@@ -411,7 +591,7 @@ impl EnemyManager {
                 for enemy in &mut self.enemies {
                     if enemy.entity_id() == enemy_id {
                         let enemy_pos = enemy.position();
-                        let _enemy_type = enemy.enemy_type();
+                        let enemy_type = enemy.enemy_type();
 
                         // Spawn explosion particles at enemy death location
                         use crate::engine::dispatcher::{EventType, GraphicsEvent};
@@ -420,11 +600,24 @@ impl EnemyManager {
                         self.event_queue
                             .push(EventType::Graphics(GraphicsEvent::SpawnParticles {
                                 position: enemy_pos,
-                                velocity: crate::engine::Vec3::new(0.0, 0.0, 0.0), // Upward explosion
-                                count: 100,          // Big explosion for enemy death
-                                lifetime: 2.0,       // Longer lasting death particles
-                                color: Color::GREEN, // Orange explosion color: use enemy.color eventually once its coded in
+                                velocity: crate::engine::Vec3::new(0.0, 0.0, 0.0),
+                                count: 100,
+                                lifetime: 2.0,
+                                color: Color::GREEN,
                             }));
+
+                        // Check if this is a Splitter that should split
+                        if let EnemyType::Splitter { current_generation, max_generation } = enemy_type {
+                            if current_generation < max_generation {
+                                // Queue split event to spawn 2 child splitters
+                                self.event_queue.push(EventType::Enemy(EnemyEvent::Split {
+                                    parent_id: enemy_id,
+                                    position: enemy_pos,
+                                    current_generation,
+                                    max_generation,
+                                }));
+                            }
+                        }
 
                         // Score event is now generated immediately upon death in damage_enemy_direct
 
@@ -448,6 +641,61 @@ impl EnemyManager {
                     Vec3::zeros(),
                     EnemyType::Drone,
                 ));
+            }
+            EnemyEvent::Split {
+                parent_id: _,
+                position,
+                current_generation,
+                max_generation,
+            } => {
+                // Spawn 2 child splitters at the next generation
+                use rand::Rng;
+
+                let next_generation = current_generation + 1;
+
+                // Create 2 children offset from parent position with outward velocity
+                for i in 0..2 {
+                    let angle = (i as f32 / 2.0) * std::f32::consts::TAU + rand::rng().random_range(0.0..0.5);
+                    let offset_distance = 2.0; // Spawn slightly away from parent
+
+                    let offset = Vec3::new(
+                        angle.cos() * offset_distance,
+                        rand::rng().random_range(-1.0..1.0), // Random vertical offset
+                        angle.sin() * offset_distance,
+                    );
+
+                    // Velocity pointing outward from split point
+                    let outward_speed = 5.0;
+                    let vel = Vec3::new(
+                        angle.cos() * outward_speed,
+                        rand::rng().random_range(-2.0..2.0),
+                        angle.sin() * outward_speed,
+                    );
+
+                    // Create temporary entity ID (should use EntityManager in production)
+                    let temp_id = (self.enemies.len() as u32).wrapping_add(50000);
+                    let enemy_entity = crate::engine::entity::EntityId(temp_id);
+
+                    self.enemies.push(Enemy::new(
+                        enemy_entity,
+                        position + offset,
+                        vel,
+                        EnemyType::Splitter {
+                            current_generation: next_generation,
+                            max_generation,
+                        },
+                    ));
+                }
+
+                // Spawn particles for the split effect
+                self.event_queue
+                    .push(EventType::Graphics(GraphicsEvent::SpawnParticles {
+                        position,
+                        velocity: Vec3::new(0.0, 0.0, 0.0),
+                        count: 50, // Burst of particles at split point
+                        lifetime: 1.5,
+                        color: Color::ORANGE, // Bright split effect
+                    }));
             }
         }
     }

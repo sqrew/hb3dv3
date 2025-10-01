@@ -42,6 +42,9 @@ pub enum Action {
     // Debug
     ToggleWireframe,
     TestLightning,
+    ResetSurface,
+    SpawnSplitter,
+    SpawnCannibal,
 
     // Application
     Exit,
@@ -252,6 +255,21 @@ impl Default for ActionBindings {
         bindings.insert(
             Action::TestLightning,
             vec![InputBinding::keyboard(KeyCode::KeyK)],
+        );
+
+        bindings.insert(
+            Action::ResetSurface,
+            vec![InputBinding::keyboard(KeyCode::KeyR)],
+        );
+
+        bindings.insert(
+            Action::SpawnSplitter,
+            vec![InputBinding::keyboard(KeyCode::KeyB)], // B for Boss
+        );
+
+        bindings.insert(
+            Action::SpawnCannibal,
+            vec![InputBinding::keyboard(KeyCode::KeyN)], // N for eNemy cannibal
         );
 
         // Application

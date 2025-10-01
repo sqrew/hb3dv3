@@ -150,7 +150,7 @@ impl Bullet {
             vel,
             ttl,
             damage,
-            collision_radius: 0.5,
+            collision_radius: 1.0,
             collision_mask: CollisionMask::from(EntityType::PlayerBullet),
             marked_for_removal: false,
             mass,
@@ -374,7 +374,7 @@ impl Bullet {
 
             // Offset child position in the split direction to prevent immediate collisions
             // Use dynamic separation based on pattern complexity to prevent immediate sibling collisions
-            let base_separation = 1.2; // Base separation distance
+            let base_separation = 1.5; // Base separation distance
             let pattern_multiplier = match fractal_data.config.pattern {
                 super::fractal::FractalPattern::BinaryTree
                 | super::fractal::FractalPattern::DragonCurve
@@ -433,7 +433,16 @@ impl Bullet {
     }
 
     /// Reset bullet for pooling reuse
-    pub fn reset(&mut self, entity_id: EntityId, pos: Vec3, vel: Vec3, ttl: f32, damage: f32, mass: f32, visuals: BulletVisuals) {
+    pub fn reset(
+        &mut self,
+        entity_id: EntityId,
+        pos: Vec3,
+        vel: Vec3,
+        ttl: f32,
+        damage: f32,
+        mass: f32,
+        visuals: BulletVisuals,
+    ) {
         self.entity_id = entity_id;
         self.pos = pos;
         self.vel = vel;
@@ -449,7 +458,18 @@ impl Bullet {
     }
 
     /// Reset bullet as fractal for pooling reuse
-    pub fn reset_fractal(&mut self, entity_id: EntityId, pos: Vec3, vel: Vec3, ttl: f32, damage: f32, mass: f32, visuals: BulletVisuals, fractal_config: super::fractal::FractalConfig, generation: usize) {
+    pub fn reset_fractal(
+        &mut self,
+        entity_id: EntityId,
+        pos: Vec3,
+        vel: Vec3,
+        ttl: f32,
+        damage: f32,
+        mass: f32,
+        visuals: BulletVisuals,
+        fractal_config: super::fractal::FractalConfig,
+        generation: usize,
+    ) {
         self.entity_id = entity_id;
         self.pos = pos;
         self.vel = vel;
@@ -477,7 +497,18 @@ impl Bullet {
     }
 
     /// Reset bullet as laser for pooling reuse
-    pub fn reset_laser(&mut self, entity_id: EntityId, pos: Vec3, vel: Vec3, ttl: f32, damage: f32, mass: f32, visuals: BulletVisuals, max_trail_length: usize, trail_fade_rate: f32) {
+    pub fn reset_laser(
+        &mut self,
+        entity_id: EntityId,
+        pos: Vec3,
+        vel: Vec3,
+        ttl: f32,
+        damage: f32,
+        mass: f32,
+        visuals: BulletVisuals,
+        max_trail_length: usize,
+        trail_fade_rate: f32,
+    ) {
         self.entity_id = entity_id;
         self.pos = pos;
         self.vel = vel;
@@ -728,7 +759,18 @@ impl MetaBullet {
     }
 
     /// Reset MetaBullet for pooling reuse
-    pub fn reset(&mut self, entity_id: EntityId, pos: Vec3, vel: Vec3, ttl: f32, damage: f32, mass: f32, on_hit: Option<Vec<Box<dyn OnHitEffect>>>, on_expire: Option<Vec<Box<dyn OnExpireEffect>>>, visuals: BulletVisuals) {
+    pub fn reset(
+        &mut self,
+        entity_id: EntityId,
+        pos: Vec3,
+        vel: Vec3,
+        ttl: f32,
+        damage: f32,
+        mass: f32,
+        on_hit: Option<Vec<Box<dyn OnHitEffect>>>,
+        on_expire: Option<Vec<Box<dyn OnExpireEffect>>>,
+        visuals: BulletVisuals,
+    ) {
         self.entity_id = entity_id;
         self.pos = pos;
         self.vel = vel;
@@ -747,7 +789,20 @@ impl MetaBullet {
     }
 
     /// Reset MetaBullet for seeking projectile pooling reuse
-    pub fn reset_seeking(&mut self, entity_id: EntityId, pos: Vec3, vel: Vec3, ttl: f32, damage: f32, mass: f32, on_hit: Option<Vec<Box<dyn OnHitEffect>>>, on_expire: Option<Vec<Box<dyn OnExpireEffect>>>, seeking_force: f32, max_seeking_range: f32, visuals: BulletVisuals) {
+    pub fn reset_seeking(
+        &mut self,
+        entity_id: EntityId,
+        pos: Vec3,
+        vel: Vec3,
+        ttl: f32,
+        damage: f32,
+        mass: f32,
+        on_hit: Option<Vec<Box<dyn OnHitEffect>>>,
+        on_expire: Option<Vec<Box<dyn OnExpireEffect>>>,
+        seeking_force: f32,
+        max_seeking_range: f32,
+        visuals: BulletVisuals,
+    ) {
         self.entity_id = entity_id;
         self.pos = pos;
         self.vel = vel;

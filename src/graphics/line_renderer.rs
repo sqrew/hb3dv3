@@ -58,8 +58,9 @@ impl InstancedLineRenderer {
             usage: wgpu::BufferUsages::INDEX,
         });
         
-        // Create double-buffered instance buffers (space for 1M+ lines for extreme stress testing)
-        let max_instances = 1_500_000;
+        // Create double-buffered instance buffers (space for 3M lines for extreme fractal bullet spam)
+        // 3M instances × 44 bytes = 132MB per buffer × 2 buffers = 264MB total
+        let max_instances = 3_000_000;
         let instance_buffer_size = (std::mem::size_of::<LineInstance>() * max_instances) as u64;
         
         let instance_buffer_a = device.create_buffer(&wgpu::BufferDescriptor {
@@ -172,23 +173,23 @@ impl InstancedLineRenderer {
         camera_bind_group: &wgpu::BindGroup,
         lines: &[LineInstance],
     ) {
-        // Ensure we don't exceed buffer capacity
         let line_count = lines.len().min(self.max_instances);
-        
-        let current_instance_buffer = if self.current_buffer { 
-            &self.instance_buffer_b 
-        } else { 
-            &self.instance_buffer_a 
+        if line_count == 0 {
+            return;
+        }
+
+        let current_instance_buffer = if self.current_buffer {
+            &self.instance_buffer_b
+        } else {
+            &self.instance_buffer_a
         };
-        
-        // Set up render pass using the pre-updated buffer
+
         render_pass.set_pipeline(&self.render_pipeline);
         render_pass.set_bind_group(0, camera_bind_group, &[]);
         render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
         render_pass.set_vertex_buffer(1, current_instance_buffer.slice(..));
         render_pass.set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint16);
-        
-        // Draw all instances in one call!
+
         render_pass.draw_indexed(0..self.index_count, 0, 0..line_count as u32);
     }
     

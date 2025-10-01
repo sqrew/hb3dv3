@@ -293,6 +293,18 @@ impl ScoringSystem {
             crate::scene::enemy::EnemyType::Drone => 100, // Pink cubes - basic enemies
             crate::scene::enemy::EnemyType::Chaser => 150, // Green octahedrons - more aggressive
             crate::scene::enemy::EnemyType::Heavy => 200, // Blue cylinders - tanky enemies
+            crate::scene::enemy::EnemyType::Splitter { current_generation, max_generation: _ } => {
+                // Exponential scoring: higher generations (smaller enemies) worth less individually
+                // But total HP pool across all splits increases, so total score potential increases
+                let base = 500;
+                let generation_multiplier = 0.7_f64.powi(*current_generation as i32);
+                (base as f64 * generation_multiplier) as u64
+            }
+            crate::scene::enemy::EnemyType::Cannibal { meals_consumed } => {
+                // Higher value based on how many enemies it consumed
+                // Base 200 + 50 per meal (can be worth up to 700 if fully fed)
+                200 + ((*meals_consumed as u64) * 50)
+            }
         }
     }
 }

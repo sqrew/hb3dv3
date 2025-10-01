@@ -611,6 +611,7 @@ impl GraphicsEngine {
         laser_trail_lines: &[LineInstance]
     ) -> Result<(), wgpu::SurfaceError> {
         self.frame_count = self.frame_count.wrapping_add(1);
+
         let output = self.surface.get_current_texture()?;
         let final_view = output
             .texture
@@ -787,11 +788,6 @@ impl GraphicsEngine {
         // Ensure we don't exceed the instanced renderer's capacity to prevent buffer overflow
         let max_capacity = self.line_renderer.max_instance_count();
         if self.line_instances_buffer.len() > max_capacity {
-            println!(
-                "Warning: {} lines exceed capacity {}, truncating",
-                self.line_instances_buffer.len(),
-                max_capacity
-            );
             self.line_instances_buffer.truncate(max_capacity);
         }
 
