@@ -300,10 +300,33 @@ impl ScoringSystem {
                 let generation_multiplier = 0.7_f64.powi(*current_generation as i32);
                 (base as f64 * generation_multiplier) as u64
             }
-            crate::scene::enemy::EnemyType::Cannibal { meals_consumed } => {
+            crate::scene::enemy::EnemyType::Cannibal {
+                meals_consumed,
+                eating_cooldown: _,
+            } => {
                 // Higher value based on how many enemies it consumed
                 // Base 200 + 50 per meal (can be worth up to 700 if fully fed)
                 200 + ((*meals_consumed as u64) * 50)
+            }
+            crate::scene::enemy::EnemyType::Shield {
+                current_generation,
+                max_generation: _,
+                core_id: _,
+                orbit_angle: _,
+                orbit_inclination: _,
+                orbit_radius: _,
+            } => {
+                // Shields are worth less as they split (similar to splitter)
+                let base = 150;
+                let generation_multiplier = 0.7_f64.powi(*current_generation as i32);
+                (base as f64 * generation_multiplier) as u64
+            }
+            crate::scene::enemy::EnemyType::ShieldOrbCore {
+                shield_ids: _,
+                is_vulnerable: _,
+            } => {
+                // Boss enemy - high value
+                1000
             }
         }
     }

@@ -23,6 +23,7 @@ look into increasing sizes of large bodies, maybe make large versions of each so
 enemeis:
 gates, snakes, blobs, chargers, shield guys, exploders, spawner portals,
 cannibals
+central orb with shields attached by lightning
 
 
 wepaon:

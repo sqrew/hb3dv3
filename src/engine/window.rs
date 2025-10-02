@@ -402,12 +402,35 @@ impl ApplicationHandler for WindowManager {
                         let scheduler = &mut self.engine.scheduler;
                         let entity_manager_ptr = scheduler.entity_manager_mut() as *mut _;
                         unsafe {
-                            scheduler.enemies_mut().spawn_cannibal(
+                            scheduler
+                                .enemies_mut()
+                                .spawn_cannibal(spawn_pos, &mut *entity_manager_ptr);
+                        }
+                        println!("🔴 Cannibal enemy spawned!");
+                    }
+
+                    // ShieldOrb boss test - press 'O' to spawn ShieldOrb boss
+                    if self
+                        .input_manager
+                        .is_action_just_pressed(Action::SpawnShieldOrb)
+                    {
+                        let player_pos = self.engine.scheduler.player().player().position();
+                        // Spawn at distance in front of player
+                        let spawn_pos = player_pos + crate::engine::Vec3::new(25.0, 0.0, 0.0);
+
+                        // Split the borrow to avoid double mutable borrow
+                        let scheduler = &mut self.engine.scheduler;
+                        let entity_manager_ptr = scheduler.entity_manager_mut() as *mut _;
+                        unsafe {
+                            scheduler.enemies_mut().spawn_shield_orb_boss(
                                 spawn_pos,
+                                16,  // 8 initial shields
+                                3,   // Max 3 generations (8 -> 16 -> 32 -> 64 shields max)
+                                8.0, // 8 unit orbit radius
                                 &mut *entity_manager_ptr,
                             );
                         }
-                        println!("🔴 Cannibal enemy spawned!");
+                        println!("🛡️ ShieldOrb Boss spawned! (8 shields, gen 0/3)");
                     }
 
                     // Surface reset - press 'R' to force-recreate the surface when rendering breaks

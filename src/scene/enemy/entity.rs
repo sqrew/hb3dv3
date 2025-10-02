@@ -15,7 +15,6 @@ pub struct Enemy {
     applied_force: Vec3,
     enemy_type: EnemyType,
     config: EnemyConfig,
-    eating_cooldown: f32, // Cooldown timer for Cannibal eating
 }
 
 impl Enemy {
@@ -34,7 +33,6 @@ impl Enemy {
             applied_force: Vec3::zeros(),
             enemy_type,
             config,
-            eating_cooldown: 0.0,
         }
     }
 
@@ -107,11 +105,15 @@ impl Enemy {
     }
 
     pub fn take_damage(&mut self, damage: f32) {
+        // ShieldOrbCore is invulnerable when protected by shields
+        if !self.is_vulnerable() {
+            return; // Invulnerable - no damage taken
+        }
         self.health -= damage;
     }
 
-    pub fn enemy_type(&self) -> EnemyType {
-        self.enemy_type
+    pub fn enemy_type(&self) -> &EnemyType {
+        &self.enemy_type
     }
 
     pub fn config(&self) -> &EnemyConfig {
@@ -135,26 +137,45 @@ impl Enemy {
     }
 
     pub fn eating_cooldown(&self) -> f32 {
-        self.eating_cooldown
+        if let EnemyType::Cannibal { eating_cooldown, .. } = &self.enemy_type {
+            *eating_cooldown
+        } else {
+            0.0
+        }
     }
 
     pub fn can_eat(&self) -> bool {
-        matches!(self.enemy_type, EnemyType::Cannibal { .. }) && self.eating_cooldown <= 0.0
+        if let EnemyType::Cannibal { eating_cooldown, .. } = &self.enemy_type {
+            *eating_cooldown <= 0.0
+        } else {
+            false
+        }
     }
 
     pub fn tick_eating_cooldown(&mut self, dt: f32) {
-        if self.eating_cooldown > 0.0 {
-            self.eating_cooldown -= dt;
+        if let EnemyType::Cannibal {
+            meals_consumed: _,
+            eating_cooldown,
+        } = &mut self.enemy_type
+        {
+            if *eating_cooldown > 0.0 {
+                *eating_cooldown -= dt;
+            }
         }
     }
 
     /// Consume another enemy - heals to full, gains max health, grows in size
     pub fn consume_enemy(&mut self) {
-        if let EnemyType::Cannibal { meals_consumed } = &mut self.enemy_type {
+        if let EnemyType::Cannibal { meals_consumed, eating_cooldown } = &mut self.enemy_type {
             // Increment meal count
             let new_meals = (*meals_consumed + 1).min(10); // Cap at 10 meals
+
+            // Set eating cooldown (3 seconds between meals)
+            *eating_cooldown = 3.0;
+
             self.enemy_type = EnemyType::Cannibal {
                 meals_consumed: new_meals,
+                eating_cooldown: *eating_cooldown,
             };
 
             // Recalculate config with new meal count
@@ -167,8 +188,6 @@ impl Enemy {
             // Update collision radius to match new size
             self.collision_radius = self.config.collision_radius;
 
-            // Set eating cooldown (3 seconds between meals)
-            self.eating_cooldown = 3.0;
             println!("ENEMY CONSUMED!!");
         }
     }
@@ -182,6 +201,99 @@ impl Enemy {
             self.enemy_type,
             EnemyType::Heavy | EnemyType::Chaser | EnemyType::Drone
         )
+    }
+
+    pub fn is_shield(&self) -> bool {
+        matches!(self.enemy_type, EnemyType::Shield { .. })
+    }
+
+    pub fn is_shield_orb_core(&self) -> bool {
+        matches!(self.enemy_type, EnemyType::ShieldOrbCore { .. })
+    }
+
+    /// Update shield orbital position around its core using spherical coordinates
+    pub fn update_shield_orbit(&mut self, dt: f32, core_pos: Vec3) {
+        if let EnemyType::Shield {
+            current_generation: _,
+            max_generation: _,
+            core_id: _,
+            orbit_angle,
+            orbit_inclination,
+            orbit_radius,
+        } = &mut self.enemy_type
+        {
+            // Rotate around the core (azimuthal angle)
+            let rotation_speed = 1.0; // radians per second
+            *orbit_angle += rotation_speed * dt;
+
+            // Wrap angle to 0-2π
+            if *orbit_angle > std::f32::consts::TAU {
+                *orbit_angle -= std::f32::consts::TAU;
+            }
+
+            // Calculate 3D orbital position using spherical coordinates
+            // x = r * sin(phi) * cos(theta)
+            // y = r * cos(phi)
+            // z = r * sin(phi) * sin(theta)
+            let sin_phi = orbit_inclination.sin();
+            let x = core_pos.x + *orbit_radius * sin_phi * orbit_angle.cos();
+            let y = core_pos.y + *orbit_radius * orbit_inclination.cos();
+            let z = core_pos.z + *orbit_radius * sin_phi * orbit_angle.sin();
+
+            self.pos = Vec3::new(x, y, z);
+            self.vel = Vec3::zeros(); // Shields don't have velocity, they just orbit
+
+            // Reset applied force for next frame
+            self.applied_force = Vec3::zeros();
+        }
+    }
+
+    /// Get the core_id if this is a shield
+    pub fn shield_core_id(&self) -> Option<EntityId> {
+        if let EnemyType::Shield { core_id, .. } = &self.enemy_type {
+            Some(*core_id)
+        } else {
+            None
+        }
+    }
+
+    /// Get the shield IDs if this is a ShieldOrbCore
+    pub fn core_shield_ids(&self) -> Option<&Vec<EntityId>> {
+        if let EnemyType::ShieldOrbCore { shield_ids, .. } = &self.enemy_type {
+            Some(shield_ids)
+        } else {
+            None
+        }
+    }
+
+    /// Check if core is vulnerable (can take damage)
+    pub fn is_vulnerable(&self) -> bool {
+        if let EnemyType::ShieldOrbCore { is_vulnerable, .. } = &self.enemy_type {
+            *is_vulnerable
+        } else {
+            true // Non-cores are always vulnerable
+        }
+    }
+
+    /// Update core vulnerability based on shield count
+    pub fn update_vulnerability(&mut self, active_shield_count: usize) {
+        if let EnemyType::ShieldOrbCore {
+            shield_ids,
+            is_vulnerable,
+        } = &mut self.enemy_type
+        {
+            // Core becomes vulnerable when 50% or more shields are destroyed
+            let initial_shield_count = shield_ids.len();
+            *is_vulnerable = if initial_shield_count == 0 {
+                true // No shields = vulnerable
+            } else {
+                let shield_percentage = active_shield_count as f32 / initial_shield_count as f32;
+                shield_percentage <= 0.5
+            };
+
+            // Update config to reflect new color based on vulnerability
+            self.config = self.enemy_type.config();
+        }
     }
 }
 

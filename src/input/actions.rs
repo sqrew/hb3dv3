@@ -45,6 +45,7 @@ pub enum Action {
     ResetSurface,
     SpawnSplitter,
     SpawnCannibal,
+    SpawnShieldOrb,
 
     // Application
     Exit,
@@ -270,6 +271,11 @@ impl Default for ActionBindings {
         bindings.insert(
             Action::SpawnCannibal,
             vec![InputBinding::keyboard(KeyCode::KeyN)], // N for eNemy cannibal
+        );
+
+        bindings.insert(
+            Action::SpawnShieldOrb,
+            vec![InputBinding::keyboard(KeyCode::KeyO)], // O for Orb boss
         );
 
         // Application

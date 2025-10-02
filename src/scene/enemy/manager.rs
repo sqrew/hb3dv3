@@ -210,9 +210,43 @@ impl EnemyManager {
             }
         }
 
-        // Regular enemy updates with specialized AI for Cannibals
+        // Update core vulnerability states based on active shield counts
         for i in 0..self.enemies.len() {
-            if self.enemies[i].is_cannibal() {
+            if self.enemies[i].is_shield_orb_core() {
+                let core_id = self.enemies[i].entity_id();
+
+                // Count active shields for this core
+                let active_shield_count = self
+                    .enemies
+                    .iter()
+                    .filter(|e| {
+                        if let Some(shield_core_id) = e.shield_core_id() {
+                            shield_core_id == core_id && e.is_alive()
+                        } else {
+                            false
+                        }
+                    })
+                    .count();
+
+                self.enemies[i].update_vulnerability(active_shield_count);
+            }
+        }
+
+        // Regular enemy updates with specialized behavior for different types
+        for i in 0..self.enemies.len() {
+            if self.enemies[i].is_shield() {
+                // Shields orbit around their core
+                if let Some(core_id) = self.enemies[i].shield_core_id() {
+                    // Find the core position
+                    if let Some(core) = self.enemies.iter().find(|e| e.entity_id() == core_id) {
+                        let core_pos = core.position();
+                        self.enemies[i].update_shield_orbit(dt, core_pos);
+                    } else {
+                        // Core is dead - shield should die too
+                        self.enemies[i].take_damage(9999.0);
+                    }
+                }
+            } else if self.enemies[i].is_cannibal() {
                 // Cannibals seek nearest basic enemy instead of player
                 let cannibal_pos = self.enemies[i].position();
                 let mut nearest_distance_sq = f32::MAX;
@@ -233,7 +267,7 @@ impl EnemyManager {
 
                 self.enemies[i].update_with_target(dt, target_pos);
             } else {
-                // Regular enemies seek player
+                // Regular enemies and cores seek player
                 self.enemies[i].update(dt, player_pos);
             }
         }
@@ -242,7 +276,11 @@ impl EnemyManager {
         let mut enemies_to_remove = Vec::new();
         for enemy in &self.enemies {
             if !enemy.is_alive() {
-                enemies_to_remove.push((enemy.entity_id(), enemy.position(), enemy.enemy_type()));
+                enemies_to_remove.push((
+                    enemy.entity_id(),
+                    enemy.position(),
+                    enemy.enemy_type().clone(),
+                ));
             }
         }
 
@@ -262,7 +300,11 @@ impl EnemyManager {
                 }));
 
             // Check if this is a Splitter that should split - do it here before removal
-            if let EnemyType::Splitter { current_generation, max_generation } = enemy_type {
+            if let EnemyType::Splitter {
+                current_generation,
+                max_generation,
+            } = enemy_type
+            {
                 if current_generation < max_generation {
                     // Spawn 2 child splitters immediately
                     use rand::Rng;
@@ -302,7 +344,7 @@ impl EnemyManager {
                         ));
                     }
 
-                    // Spawn particles for the split effect
+                    // Spawn particles for the splitter split effect
                     self.event_queue
                         .push(EventType::Graphics(GraphicsEvent::SpawnParticles {
                             position,
@@ -310,6 +352,59 @@ impl EnemyManager {
                             count: 50, // Burst of particles at split point
                             lifetime: 1.5,
                             color: Color::ORANGE, // Bright split effect
+                        }));
+                }
+            }
+
+            // Check if this is a Shield that should split - fractal defense
+            if let EnemyType::Shield {
+                current_generation,
+                max_generation,
+                core_id,
+                orbit_angle,
+                orbit_inclination,
+                orbit_radius,
+            } = enemy_type
+            {
+                if current_generation < max_generation {
+                    // Spawn 2 child shields immediately at same orbit
+                    use rand::Rng;
+
+                    let next_generation = current_generation + 1;
+
+                    // Create 2 children at slightly different orbital positions
+                    for i in 0..2 {
+                        // Offset angle slightly so they don't spawn on top of each other
+                        let angle_offset = (i as f32 - 0.5) * 0.5; // ±0.25 radians
+                        let new_orbit_angle = orbit_angle + angle_offset;
+
+                        // Create entity ID using entity_manager
+                        let enemy_entity =
+                            entity_manager.create_entity(crate::engine::entity::EntityType::Enemy);
+
+                        self.enemies.push(Enemy::new(
+                            enemy_entity,
+                            position, // Start at parent position
+                            Vec3::zeros(), // Shields have no velocity
+                            EnemyType::Shield {
+                                current_generation: next_generation,
+                                max_generation,
+                                core_id,
+                                orbit_angle: new_orbit_angle,
+                                orbit_inclination, // Keep same inclination (same latitude on sphere)
+                                orbit_radius,      // Keep same orbit radius
+                            },
+                        ));
+                    }
+
+                    // Spawn blue particles for shield split
+                    self.event_queue
+                        .push(EventType::Graphics(GraphicsEvent::SpawnParticles {
+                            position,
+                            velocity: Vec3::new(0.0, 0.0, 0.0),
+                            count: 30,
+                            lifetime: 1.0,
+                            color: Color::new(0.3, 0.6, 1.0, 1.0), // Blue shield particles
                         }));
                 }
             }
@@ -398,7 +493,7 @@ impl EnemyManager {
                 // Check if enemy died
                 if enemy.health() <= 0.0 && old_health > 0.0 {
                     // Generate score event immediately while we still have access to the enemy
-                    let enemy_type = enemy.enemy_type();
+                    let enemy_type = enemy.enemy_type().clone();
                     let enemy_pos = enemy.position();
 
                     self.event_queue.push(EventType::Score(
@@ -571,7 +666,72 @@ impl EnemyManager {
             enemy_entity,
             position,
             Vec3::zeros(), // Start stationary
-            EnemyType::Cannibal { meals_consumed: 0 },
+            EnemyType::Cannibal {
+                meals_consumed: 0,
+                eating_cooldown: 0.0,
+            },
+        ));
+    }
+
+    /// Spawn a ShieldOrb boss (core with orbiting fractal shields)
+    pub fn spawn_shield_orb_boss(
+        &mut self,
+        position: Vec3,
+        initial_shield_count: usize,
+        max_shield_generation: u8,
+        orbit_radius: f32,
+        entity_manager: &mut crate::engine::entity::EntityManager,
+    ) {
+        // Create the core
+        let core_entity = entity_manager.create_entity(crate::engine::entity::EntityType::Enemy);
+        let mut shield_ids = Vec::new();
+
+        // Distribute shields evenly on a sphere using Fibonacci sphere algorithm
+        // This gives a more uniform distribution than just dividing angles
+        let golden_ratio = (1.0 + 5.0_f32.sqrt()) / 2.0;
+
+        for i in 0..initial_shield_count {
+            // Fibonacci sphere distribution
+            let idx = i as f32;
+            let count = initial_shield_count as f32;
+
+            // Azimuth angle (theta) - horizontal rotation
+            let orbit_angle = std::f32::consts::TAU * idx / golden_ratio;
+
+            // Polar angle (phi) - vertical angle from pole
+            // Maps from 0 to PI (top to bottom of sphere)
+            // z ranges from ~1 (top) to ~-1 (bottom)
+            let z = 1.0 - (2.0 * (idx + 0.5)) / count;
+            let orbit_inclination = z.acos();
+
+            let shield_entity =
+                entity_manager.create_entity(crate::engine::entity::EntityType::Enemy);
+            shield_ids.push(shield_entity);
+
+            self.enemies.push(Enemy::new(
+                shield_entity,
+                position, // Start at core position, will be updated by orbital movement
+                Vec3::zeros(),
+                EnemyType::Shield {
+                    current_generation: 0,
+                    max_generation: max_shield_generation,
+                    core_id: core_entity,
+                    orbit_angle,
+                    orbit_inclination,
+                    orbit_radius,
+                },
+            ));
+        }
+
+        // Now create the core with the shield IDs
+        self.enemies.push(Enemy::new(
+            core_entity,
+            position,
+            Vec3::zeros(),
+            EnemyType::ShieldOrbCore {
+                shield_ids,
+                is_vulnerable: false, // Start invulnerable (protected by shields)
+            },
         ));
     }
 
@@ -607,14 +767,18 @@ impl EnemyManager {
                             }));
 
                         // Check if this is a Splitter that should split
-                        if let EnemyType::Splitter { current_generation, max_generation } = enemy_type {
-                            if current_generation < max_generation {
+                        if let EnemyType::Splitter {
+                            current_generation,
+                            max_generation,
+                        } = enemy_type
+                        {
+                            if *current_generation < *max_generation {
                                 // Queue split event to spawn 2 child splitters
                                 self.event_queue.push(EventType::Enemy(EnemyEvent::Split {
                                     parent_id: enemy_id,
                                     position: enemy_pos,
-                                    current_generation,
-                                    max_generation,
+                                    current_generation: *current_generation,
+                                    max_generation: *max_generation,
                                 }));
                             }
                         }

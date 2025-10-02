@@ -1,6 +1,7 @@
+use crate::engine::entity::EntityId;
 use crate::graphics::{Color, PrimitiveType};
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum EnemyType {
     Heavy,  // Cyan Sphere
     Chaser, // Green Octahedron
@@ -11,7 +12,20 @@ pub enum EnemyType {
     }, // Multi-colored fractal miniboss that splits recursively
     Cannibal {
         meals_consumed: u8,
+        eating_cooldown: f32,
     }, // Dark red predator that eats other enemies and grows stronger
+    Shield {
+        current_generation: u8,
+        max_generation: u8,
+        core_id: EntityId,
+        orbit_angle: f32,       // Azimuth angle (theta) - horizontal rotation
+        orbit_inclination: f32, // Polar angle (phi) - vertical angle from pole
+        orbit_radius: f32,
+    }, // Blue shield that orbits a core and splits on death (fractal defense)
+    ShieldOrbCore {
+        shield_ids: Vec<EntityId>,
+        is_vulnerable: bool,
+    }, // Red orb protected by shields, becomes vulnerable when shields are depleted
 }
 
 #[derive(Debug, Clone)]
@@ -113,7 +127,10 @@ impl EnemyType {
                     color,
                 }
             }
-            EnemyType::Cannibal { meals_consumed } => {
+            EnemyType::Cannibal {
+                meals_consumed,
+                eating_cooldown: _,
+            } => {
                 // Cannibal: Fast predator that hunts other enemies
                 let base_health = 1000.0;
                 let base_speed = 200.0;
@@ -133,6 +150,59 @@ impl EnemyType {
                     visual_scale: base_scale * scale_multiplier,
                     primitive_type: PrimitiveType::Tetrahedron, // Sharp, predatory shape
                     color: Color::new(0.6, 0.0, 0.0, 1.0),      // Dark red/crimson
+                }
+            }
+            EnemyType::Shield {
+                current_generation,
+                max_generation: _,
+                core_id: _,
+                orbit_angle: _,
+                orbit_inclination: _,
+                orbit_radius: _,
+            } => {
+                // Shield: Orbital defense that splits into smaller shields when destroyed
+                let base_health = 100.0;
+                let base_mass = 30.0;
+                let base_scale = 5.0;
+
+                // Scale down with generation (similar to splitter but less aggressive)
+                let generation = *current_generation as f32;
+                let health_decay = 0.80_f32.powf(generation);
+                let scale_decay = 0.70_f32.powf(generation);
+
+                // Shields don't move (speed is for seeking AI, shields use orbital movement)
+                let speed = 0.0;
+
+                EnemyConfig {
+                    health: base_health * health_decay,
+                    speed,
+                    mass: base_mass,
+                    collision_radius: base_scale * scale_decay,
+                    visual_scale: base_scale * scale_decay,
+                    primitive_type: PrimitiveType::Octahedron, // Shield-like angular shape
+                    color: Color::new(0.2, 0.5, 1.0, 1.0),     // Bright blue
+                }
+            }
+            EnemyType::ShieldOrbCore {
+                shield_ids: _,
+                is_vulnerable,
+            } => {
+                // ShieldOrbCore: Boss enemy protected by shields
+                // Color changes based on vulnerability state
+                let color = if *is_vulnerable {
+                    Color::new(0.2, 0.5, 1.0, 1.0) // Blue when vulnerable
+                } else {
+                    Color::new(1.0, 0.2, 0.2, 1.0) // Red when invulnerable
+                };
+
+                EnemyConfig {
+                    health: 500.0,                         // High health
+                    speed: 25.0,                           // Slow movement - shields follow
+                    mass: 150.0,                           // Heavy
+                    collision_radius: 3.0,                 // Large collision radius
+                    visual_scale: 3.0,                     // Large visual
+                    primitive_type: PrimitiveType::Sphere, // Perfect sphere for the core
+                    color,
                 }
             }
         }
