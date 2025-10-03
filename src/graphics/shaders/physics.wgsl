@@ -37,8 +37,8 @@ struct Explosion {
 // Constants
 const GRAVITATIONAL_CONSTANT: f32 = 6.674e-1; // Scaled for game physics
 const MIN_DISTANCE_SQUARED: f32 = 0.01; // Prevent singularities
-const BINDING_FORCE_STRENGTH: f32 = 50000.0; // Soft binding to origin
-const BINDING_DISTANCE_THRESHOLD: f32 = 1.0; // Start binding beyond this distance
+const BINDING_FORCE_STRENGTH: f32 = 10000.0; // Soft binding to origin
+const BINDING_DISTANCE_THRESHOLD: f32 = 10.0; // Start binding beyond this distance
 
 // Gravity force computation bindings
 @group(0) @binding(0) var<storage, read> gravitational_bodies: array<GravitationalBody>;
@@ -261,15 +261,16 @@ fn update_gravitational_bodies(@builtin(global_invocation_id) global_id: vec3<u3
     }
     
     // Add soft binding force to keep bodies near origin (including negative mass bodies)
+    // Skip binding for bodies with absolute mass less than 50,000.0 (e.g., LauncherMass)
     let distance_from_origin = length(current_body.position);
     var gravitational_acceleration = total_force / current_body.mass; // Normal physics for gravity
-    
-    if (distance_from_origin > BINDING_DISTANCE_THRESHOLD) {
+
+    if (distance_from_origin > BINDING_DISTANCE_THRESHOLD && abs(current_body.mass) >= 50000.0) {
         let binding_direction = -normalize(current_body.position); // Toward origin
         let excess_distance = distance_from_origin - BINDING_DISTANCE_THRESHOLD;
         let binding_force_magnitude = BINDING_FORCE_STRENGTH * excess_distance;
         let binding_force = binding_direction * binding_force_magnitude;
-        
+
         // Use absolute mass for binding force only to prevent negative mass bodies from escaping
         let binding_acceleration = binding_force / abs(current_body.mass);
         gravitational_acceleration += binding_acceleration;

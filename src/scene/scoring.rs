@@ -293,40 +293,35 @@ impl ScoringSystem {
             crate::scene::enemy::EnemyType::Drone => 100, // Pink cubes - basic enemies
             crate::scene::enemy::EnemyType::Chaser => 150, // Green octahedrons - more aggressive
             crate::scene::enemy::EnemyType::Heavy => 200, // Blue cylinders - tanky enemies
-            crate::scene::enemy::EnemyType::Splitter { current_generation, max_generation: _ } => {
+            crate::scene::enemy::EnemyType::Splitter(data) => {
                 // Exponential scoring: higher generations (smaller enemies) worth less individually
                 // But total HP pool across all splits increases, so total score potential increases
                 let base = 500;
-                let generation_multiplier = 0.7_f64.powi(*current_generation as i32);
+                let generation_multiplier = 0.7_f64.powi(data.current_generation as i32);
                 (base as f64 * generation_multiplier) as u64
             }
-            crate::scene::enemy::EnemyType::Cannibal {
-                meals_consumed,
-                eating_cooldown: _,
-            } => {
+            crate::scene::enemy::EnemyType::Cannibal(data) => {
                 // Higher value based on how many enemies it consumed
                 // Base 200 + 50 per meal (can be worth up to 700 if fully fed)
-                200 + ((*meals_consumed as u64) * 50)
+                200 + ((data.meals_consumed as u64) * 50)
             }
-            crate::scene::enemy::EnemyType::Shield {
-                current_generation,
-                max_generation: _,
-                core_id: _,
-                orbit_angle: _,
-                orbit_inclination: _,
-                orbit_radius: _,
-            } => {
+            crate::scene::enemy::EnemyType::Shield(data) => {
                 // Shields are worth less as they split (similar to splitter)
                 let base = 150;
-                let generation_multiplier = 0.7_f64.powi(*current_generation as i32);
+                let generation_multiplier = 0.7_f64.powi(data.current_generation as i32);
                 (base as f64 * generation_multiplier) as u64
             }
-            crate::scene::enemy::EnemyType::ShieldOrbCore {
-                shield_ids: _,
-                is_vulnerable: _,
-            } => {
+            crate::scene::enemy::EnemyType::ShieldOrbCore(_) => {
                 // Boss enemy - high value
                 1000
+            }
+            crate::scene::enemy::EnemyType::Snake(data) => {
+                // Snake head value scales with number of segments
+                300 + (data.segment_count() as u64 * 50)
+            }
+            crate::scene::enemy::EnemyType::SnakeSegment(_) => {
+                // Segments are worth decent points when killed
+                150
             }
         }
     }

@@ -1,3 +1,4 @@
+pub mod behaviors;
 pub mod types;
 pub mod entity;
 pub mod manager;

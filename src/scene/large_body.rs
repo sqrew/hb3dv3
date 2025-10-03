@@ -47,7 +47,7 @@ impl LargeBodyType {
             LargeBodyType::Star => 200_000.0,       // Very high mass for strong gravity
             LargeBodyType::GasGiant => 100_000.0,   // Large mass
             LargeBodyType::Planet => 50_000.0,      // Medium mass
-            LargeBodyType::LauncherMass => 10_000.0,
+            LargeBodyType::LauncherMass => 49_000.0,
             LargeBodyType::Debug => 100.0, // Debug body with small but reasonable mass
         }
     }
@@ -103,14 +103,14 @@ impl LargeBodyType {
     /// Get default angular velocity for this body type (radians per second)
     pub fn default_angular_velocity(self) -> f32 {
         match self {
-            LargeBodyType::BlackHole => 2.67, // Fast spinning black hole for frame-dragging
+            LargeBodyType::BlackHole => 2.0, // Fast spinning black hole for frame-dragging
             LargeBodyType::BlackHoleLarge => 1.8, // Fast spinning black hole for frame-dragging
             LargeBodyType::WhiteHole => -3.0, // Counter-rotating white hole
             LargeBodyType::NeutronStar => 12.0, // Extremely fast pulsar rotation
             LargeBodyType::ExoticMatter => 6.0, // Rapid oscillating rotation for visual effect
-            LargeBodyType::Star => 0.5,       // Moderate stellar rotation
-            LargeBodyType::GasGiant => 1.0,   // Fast rotation like Jupiter
-            LargeBodyType::Planet => 0.3,     // Earth-like rotation (slower)
+            LargeBodyType::Star => 0.5,      // Moderate stellar rotation
+            LargeBodyType::GasGiant => 1.0,  // Fast rotation like Jupiter
+            LargeBodyType::Planet => 0.3,    // Earth-like rotation (slower)
             LargeBodyType::LauncherMass => 10.0,
             LargeBodyType::Debug => 0.5, // Debug body with moderate rotation
         }

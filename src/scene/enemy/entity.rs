@@ -88,6 +88,14 @@ impl Enemy {
         self.pos
     }
 
+    pub fn set_position(&mut self, pos: Vec3) {
+        self.pos = pos;
+    }
+
+    pub fn velocity(&self) -> Vec3 {
+        self.vel
+    }
+
     pub fn is_alive(&self) -> bool {
         self.health > 0.0
     }
@@ -105,15 +113,54 @@ impl Enemy {
     }
 
     pub fn take_damage(&mut self, damage: f32) {
+        self.take_damage_internal(damage, false);
+    }
+
+    /// Take damage bypassing snake segment invulnerability (for routed damage from head)
+    pub fn take_damage_routed(&mut self, damage: f32) {
+        self.take_damage_internal(damage, true);
+    }
+
+    /// Internal damage function with option to bypass invulnerability checks
+    fn take_damage_internal(&mut self, damage: f32, bypass_segment_invulnerability: bool) {
         // ShieldOrbCore is invulnerable when protected by shields
         if !self.is_vulnerable() {
             return; // Invulnerable - no damage taken
         }
+
+        // Snake segments are invulnerable to direct damage (unless bypassed for routed damage)
+        if !bypass_segment_invulnerability && matches!(self.enemy_type, EnemyType::SnakeSegment(_)) {
+            return;
+        }
+
         self.health -= damage;
+    }
+
+    /// Route damage from snake head to its last segment (returns segment_id if damage was routed)
+    pub fn route_snake_damage(&self, _damage: f32) -> Option<EntityId> {
+        if let EnemyType::Snake(data) = &self.enemy_type {
+            // If snake has segments, route damage to last segment
+            if let Some(&last_segment_id) = data.segment_ids.last() {
+                return Some(last_segment_id);
+            }
+            // No segments - damage will be applied to head normally
+        }
+        None
+    }
+
+    /// Remove a segment from snake's chain (called when segment dies)
+    pub fn remove_segment(&mut self, segment_id: EntityId) {
+        if let EnemyType::Snake(data) = &mut self.enemy_type {
+            data.segment_ids.retain(|&id| id != segment_id);
+        }
     }
 
     pub fn enemy_type(&self) -> &EnemyType {
         &self.enemy_type
+    }
+
+    pub fn enemy_type_mut(&mut self) -> &mut EnemyType {
+        &mut self.enemy_type
     }
 
     pub fn config(&self) -> &EnemyConfig {
@@ -136,56 +183,16 @@ impl Enemy {
         }
     }
 
-    pub fn eating_cooldown(&self) -> f32 {
-        if let EnemyType::Cannibal { eating_cooldown, .. } = &self.enemy_type {
-            *eating_cooldown
-        } else {
-            0.0
-        }
-    }
-
-    pub fn can_eat(&self) -> bool {
-        if let EnemyType::Cannibal { eating_cooldown, .. } = &self.enemy_type {
-            *eating_cooldown <= 0.0
-        } else {
-            false
-        }
-    }
-
-    pub fn tick_eating_cooldown(&mut self, dt: f32) {
-        if let EnemyType::Cannibal {
-            meals_consumed: _,
-            eating_cooldown,
-        } = &mut self.enemy_type
-        {
-            if *eating_cooldown > 0.0 {
-                *eating_cooldown -= dt;
-            }
-        }
-    }
-
     /// Consume another enemy - heals to full, gains max health, grows in size
     pub fn consume_enemy(&mut self) {
-        if let EnemyType::Cannibal { meals_consumed, eating_cooldown } = &mut self.enemy_type {
-            // Increment meal count
-            let new_meals = (*meals_consumed + 1).min(10); // Cap at 10 meals
+        if let EnemyType::Cannibal(data) = &mut self.enemy_type {
+            // Consume and get updated config
+            let new_config = data.consume();
 
-            // Set eating cooldown (3 seconds between meals)
-            *eating_cooldown = 3.0;
-
-            self.enemy_type = EnemyType::Cannibal {
-                meals_consumed: new_meals,
-                eating_cooldown: *eating_cooldown,
-            };
-
-            // Recalculate config with new meal count
-            self.config = self.enemy_type.config();
-
-            // Heal to full health
+            // Update enemy stats
+            self.config = new_config;
             self.health = self.config.health;
             self.max_health = self.config.health;
-
-            // Update collision radius to match new size
             self.collision_radius = self.config.collision_radius;
 
             println!("ENEMY CONSUMED!!");
@@ -193,7 +200,7 @@ impl Enemy {
     }
 
     pub fn is_cannibal(&self) -> bool {
-        matches!(self.enemy_type, EnemyType::Cannibal { .. })
+        matches!(self.enemy_type, EnemyType::Cannibal(..))
     }
 
     pub fn is_basic_enemy(&self) -> bool {
@@ -204,54 +211,27 @@ impl Enemy {
     }
 
     pub fn is_shield(&self) -> bool {
-        matches!(self.enemy_type, EnemyType::Shield { .. })
+        matches!(self.enemy_type, EnemyType::Shield(..))
     }
 
     pub fn is_shield_orb_core(&self) -> bool {
-        matches!(self.enemy_type, EnemyType::ShieldOrbCore { .. })
+        matches!(self.enemy_type, EnemyType::ShieldOrbCore(..))
     }
 
     /// Update shield orbital position around its core using spherical coordinates
     pub fn update_shield_orbit(&mut self, dt: f32, core_pos: Vec3) {
-        if let EnemyType::Shield {
-            current_generation: _,
-            max_generation: _,
-            core_id: _,
-            orbit_angle,
-            orbit_inclination,
-            orbit_radius,
-        } = &mut self.enemy_type
-        {
-            // Rotate around the core (azimuthal angle)
-            let rotation_speed = 1.0; // radians per second
-            *orbit_angle += rotation_speed * dt;
-
-            // Wrap angle to 0-2π
-            if *orbit_angle > std::f32::consts::TAU {
-                *orbit_angle -= std::f32::consts::TAU;
-            }
-
-            // Calculate 3D orbital position using spherical coordinates
-            // x = r * sin(phi) * cos(theta)
-            // y = r * cos(phi)
-            // z = r * sin(phi) * sin(theta)
-            let sin_phi = orbit_inclination.sin();
-            let x = core_pos.x + *orbit_radius * sin_phi * orbit_angle.cos();
-            let y = core_pos.y + *orbit_radius * orbit_inclination.cos();
-            let z = core_pos.z + *orbit_radius * sin_phi * orbit_angle.sin();
-
-            self.pos = Vec3::new(x, y, z);
-            self.vel = Vec3::zeros(); // Shields don't have velocity, they just orbit
-
-            // Reset applied force for next frame
+        if let EnemyType::Shield(data) = &mut self.enemy_type {
+            let new_pos = data.update_orbit(dt, core_pos);
+            self.pos = new_pos;
+            self.vel = Vec3::zeros();
             self.applied_force = Vec3::zeros();
         }
     }
 
     /// Get the core_id if this is a shield
     pub fn shield_core_id(&self) -> Option<EntityId> {
-        if let EnemyType::Shield { core_id, .. } = &self.enemy_type {
-            Some(*core_id)
+        if let EnemyType::Shield(data) = &self.enemy_type {
+            Some(data.core_id)
         } else {
             None
         }
@@ -259,8 +239,8 @@ impl Enemy {
 
     /// Get the shield IDs if this is a ShieldOrbCore
     pub fn core_shield_ids(&self) -> Option<&Vec<EntityId>> {
-        if let EnemyType::ShieldOrbCore { shield_ids, .. } = &self.enemy_type {
-            Some(shield_ids)
+        if let EnemyType::ShieldOrbCore(data) = &self.enemy_type {
+            Some(&data.shield_ids)
         } else {
             None
         }
@@ -268,8 +248,8 @@ impl Enemy {
 
     /// Check if core is vulnerable (can take damage)
     pub fn is_vulnerable(&self) -> bool {
-        if let EnemyType::ShieldOrbCore { is_vulnerable, .. } = &self.enemy_type {
-            *is_vulnerable
+        if let EnemyType::ShieldOrbCore(data) = &self.enemy_type {
+            data.is_vulnerable
         } else {
             true // Non-cores are always vulnerable
         }
@@ -277,21 +257,8 @@ impl Enemy {
 
     /// Update core vulnerability based on shield count
     pub fn update_vulnerability(&mut self, active_shield_count: usize) {
-        if let EnemyType::ShieldOrbCore {
-            shield_ids,
-            is_vulnerable,
-        } = &mut self.enemy_type
-        {
-            // Core becomes vulnerable when 50% or more shields are destroyed
-            let initial_shield_count = shield_ids.len();
-            *is_vulnerable = if initial_shield_count == 0 {
-                true // No shields = vulnerable
-            } else {
-                let shield_percentage = active_shield_count as f32 / initial_shield_count as f32;
-                shield_percentage <= 0.5
-            };
-
-            // Update config to reflect new color based on vulnerability
+        if let EnemyType::ShieldOrbCore(data) = &mut self.enemy_type {
+            data.update_vulnerability(active_shield_count);
             self.config = self.enemy_type.config();
         }
     }
