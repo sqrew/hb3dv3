@@ -79,7 +79,7 @@ impl LargeBodyType {
             LargeBodyType::Star => Color::RED,
             LargeBodyType::GasGiant => Color::YELLOW,
             LargeBodyType::Planet => Color::CYAN,
-            LargeBodyType::LauncherMass => Color::GRAY,
+            LargeBodyType::LauncherMass => Color::random_color(),
             LargeBodyType::Debug => Color::BLACK,
         }
     }
@@ -111,7 +111,7 @@ impl LargeBodyType {
             LargeBodyType::Star => 0.5,      // Moderate stellar rotation
             LargeBodyType::GasGiant => 1.0,  // Fast rotation like Jupiter
             LargeBodyType::Planet => 0.3,    // Earth-like rotation (slower)
-            LargeBodyType::LauncherMass => 10.0,
+            LargeBodyType::LauncherMass => 4.0,
             LargeBodyType::Debug => 0.5, // Debug body with moderate rotation
         }
     }
@@ -124,7 +124,7 @@ impl LargeBodyType {
             LargeBodyType::NeutronStar => 20.0, // Large intense ergosphere
             LargeBodyType::WhiteHole => 20.0,  // Significant ergosphere effect
             LargeBodyType::ExoticMatter => 20.0, //
-            LargeBodyType::LauncherMass => 0.0,
+            LargeBodyType::LauncherMass => 10.0,
             _ => 0.0,
         }
     }
@@ -139,7 +139,7 @@ impl LargeBodyType {
             LargeBodyType::NeutronStar => 0.25,   // Very strong (dense + fast spinning)
             LargeBodyType::WhiteHole => 0.15,     // Moderate frame-dragging
             LargeBodyType::ExoticMatter => 0.8,   //
-            LargeBodyType::LauncherMass => 0.0,
+            LargeBodyType::LauncherMass => 0.2,
             _ => 0.0, // No frame-dragging for other types
         };
         mass * angular_vel * strength_factor

@@ -870,6 +870,8 @@ impl GraphicsEngine {
                     crate::scene::explosion::FalloffType::Linear => 0,
                     crate::scene::explosion::FalloffType::Quadratic => 1,
                     crate::scene::explosion::FalloffType::Constant => 2,
+                    crate::scene::explosion::FalloffType::InverseLinear => 3,
+                    crate::scene::explosion::FalloffType::InverseQuadratic => 4,
                 },
                 _pad1: 0.0,
                 _pad2: 0.0,

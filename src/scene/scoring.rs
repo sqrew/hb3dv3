@@ -323,6 +323,18 @@ impl ScoringSystem {
                 // Segments are worth decent points when killed
                 150
             }
+            crate::scene::enemy::EnemyType::BlobCore(data) => {
+                // Blob core value scales with number of nodes
+                500 + (data.node_count() as u64 * 25)
+            }
+            crate::scene::enemy::EnemyType::BlobNode(data) => {
+                // Factory nodes worth more than base nodes
+                if data.is_factory() {
+                    250 // Factories are critical targets
+                } else {
+                    100 // Base nodes
+                }
+            }
         }
     }
 }

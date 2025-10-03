@@ -20,7 +20,7 @@ impl EnemyManager {
             enemies: Vec::new(),
             event_queue: Vec::new(),
             spawn_timer: 0.0,
-            spawn_interval: 110.0,
+            spawn_interval: 0.5,
         }
     }
 
@@ -43,8 +43,17 @@ impl EnemyManager {
         // Handle snake growth
         updater::handle_snake_growth(&mut self.enemies, entity_manager, dt);
 
+        // Handle blob growth
+        updater::handle_blob_growth(&mut self.enemies, entity_manager, dt, player_pos);
+
         // Handle predator eating behavior
         updater::handle_predator_eating(&mut self.enemies, &mut self.event_queue, dt);
+
+        // Check blob connectivity
+        updater::check_blob_connectivity(&mut self.enemies);
+
+        // Apply withering to disconnected blob nodes
+        updater::apply_blob_withering(&mut self.enemies, dt);
 
         // Update core vulnerability states
         updater::update_vulnerability(&mut self.enemies);
@@ -321,6 +330,14 @@ impl EnemyManager {
         entity_manager: &mut crate::engine::entity::EntityManager,
     ) {
         spawner::spawn_snake(&mut self.enemies, position, entity_manager);
+    }
+
+    pub fn spawn_blob(
+        &mut self,
+        position: Vec3,
+        entity_manager: &mut crate::engine::entity::EntityManager,
+    ) {
+        spawner::spawn_blob(&mut self.enemies, position, entity_manager);
     }
 
     pub fn spawn_shield_orb_boss(

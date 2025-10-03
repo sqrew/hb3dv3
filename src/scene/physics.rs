@@ -522,6 +522,8 @@ impl PhysicsManager {
                 crate::scene::explosion::FalloffType::Linear => 0u32,
                 crate::scene::explosion::FalloffType::Quadratic => 1u32,
                 crate::scene::explosion::FalloffType::Constant => 2u32,
+                crate::scene::explosion::FalloffType::InverseLinear => 3u32,
+                crate::scene::explosion::FalloffType::InverseQuadratic => 4u32,
             };
 
             self.explosions_cache.push(GpuExplosion {

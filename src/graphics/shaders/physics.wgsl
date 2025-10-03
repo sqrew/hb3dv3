@@ -29,7 +29,7 @@ struct Explosion {
     position: vec3<f32>,
     current_radius: f32,
     force_strength: f32,
-    falloff_type: u32,  // 0=Linear, 1=Quadratic, 2=Constant
+    falloff_type: u32,  // 0=Linear, 1=Quadratic, 2=Constant, 3=InverseLinear, 4=InverseQuadratic
     _pad1: f32,
     _pad2: f32,
 }
@@ -139,6 +139,13 @@ fn compute_gravity_forces(@builtin(global_invocation_id) global_id: vec3<u32>) {
             } else if (explosion.falloff_type == 2u) {
                 // Constant falloff
                 force_magnitude = explosion.force_strength;
+            } else if (explosion.falloff_type == 3u) {
+                // Inverse linear falloff (stronger at edges)
+                force_magnitude = explosion.force_strength * (explosion_distance / explosion.current_radius);
+            } else if (explosion.falloff_type == 4u) {
+                // Inverse quadratic falloff (much stronger at edges)
+                let normalized_distance = explosion_distance / explosion.current_radius;
+                force_magnitude = explosion.force_strength * (normalized_distance * normalized_distance);
             }
             
             // Apply explosion force (outward from explosion center)

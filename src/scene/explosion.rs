@@ -10,6 +10,10 @@ pub enum FalloffType {
     Quadratic,
     /// Constant force within radius, zero outside
     Constant,
+    /// Force increases linearly with distance (inverted)
+    InverseLinear,
+    /// Force increases with square of distance (inverted quadratic)
+    InverseQuadratic,
 }
 
 /// A single explosion effect
@@ -98,6 +102,11 @@ impl Explosion {
                 1.0 - normalized_distance * normalized_distance
             }
             FalloffType::Constant => 1.0,
+            FalloffType::InverseLinear => distance / self.current_radius, // Stronger at edges
+            FalloffType::InverseQuadratic => {
+                let normalized_distance = distance / self.current_radius;
+                normalized_distance * normalized_distance // Much stronger at edges
+            }
         };
 
         self.force_strength * time_falloff * distance_factor

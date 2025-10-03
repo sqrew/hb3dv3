@@ -372,12 +372,26 @@ impl BulletManager {
 
         // Find the metabullet and collect its effects to avoid borrowing conflicts
         let mut chain_events_to_add = Vec::new();
+        let mut explosion_events_to_add = Vec::new();
+
         for metabullet in self.metabullets() {
             if metabullet.entity_id() == bullet_id {
                 if let Some(ref on_hit_effects) = metabullet.on_hit() {
                     for effect in on_hit_effects.iter() {
-                        let chain_events = effect.on_hit(impact_point, Some(target_id));
-                        chain_events_to_add.extend(chain_events);
+                        // Try to downcast to ImplosionOnHitEffect first
+                        if let Some(implosion_effect) = effect
+                            .as_any()
+                            .downcast_ref::<super::effects::ImplosionOnHitEffect>(
+                        ) {
+                            // This is an implosion effect - trigger explosion
+                            let explosion_event =
+                                implosion_effect.get_explosion_event(impact_point);
+                            explosion_events_to_add.push(explosion_event);
+                        } else {
+                            // Regular on_hit effect (e.g., chain lightning)
+                            let chain_events = effect.on_hit(impact_point, Some(target_id));
+                            chain_events_to_add.extend(chain_events);
+                        }
                     }
                 }
                 break;
@@ -388,6 +402,11 @@ impl BulletManager {
         for chain_event in chain_events_to_add {
             self.event_queue
                 .push(EventType::ChainLightning(chain_event));
+        }
+
+        // Add collected explosion events to the event queue
+        for explosion_event in explosion_events_to_add {
+            self.event_queue.push(EventType::Explosion(explosion_event));
         }
     }
 
@@ -499,6 +518,51 @@ impl BulletManager {
                     on_expire_effects,
                     seeking_force,
                     seeking_range,
+                    visuals,
+                );
+            }
+            ProjectileType::ImplosionExplosive {
+                damage,
+                velocity,
+                lifetime,
+                mass,
+                explosion_radius,
+                explosion_force,
+                explosion_duration,
+                visuals,
+            } => {
+                // Create implosion effect (negative force) for BOTH hit and expire
+                let implosion_effect = ExplosionEffect::new(
+                    explosion_radius,
+                    explosion_force, // Negative value for implosion!
+                    explosion_duration,
+                    crate::scene::explosion::FalloffType::Linear,
+                    damage,
+                    explosion_radius,
+                    Color::PURPLE,
+                    Color::MAGENTA,
+                    50,
+                );
+
+                // Clone the effect for both on_hit and on_expire
+                let on_hit_effects: Option<Vec<Box<dyn super::effects::OnHitEffect>>> =
+                    Some(vec![Box::new(super::effects::ImplosionOnHitEffect {
+                        explosion_effect: implosion_effect.clone(),
+                    })]);
+
+                let on_expire_effects: Option<Vec<Box<dyn OnExpireEffect>>> =
+                    Some(vec![Box::new(implosion_effect)]);
+
+                // Acquire regular MetaBullet from pool with implosion effect on both hit and expire
+                self.pool.acquire_metabullet(
+                    entity_id,
+                    position,
+                    velocity,
+                    lifetime,
+                    damage,
+                    mass,
+                    on_hit_effects,
+                    on_expire_effects,
                     visuals,
                 );
             }

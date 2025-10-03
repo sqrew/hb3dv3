@@ -29,7 +29,7 @@ gravity orb to collect bullets/enemies
 one that fires 2d geometric patterns that fly away from player: flowers, triangles/squares, cool shapes
 
 
-
+make exotic matter use inverseLinear explosion effect to create oscillation instead of explosions (maybe)
 
 
 

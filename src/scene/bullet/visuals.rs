@@ -31,6 +31,14 @@ impl BulletVisuals {
         }
     }
 
+    pub fn implosion_launcher() -> Self {
+        Self {
+            primitive_type: crate::graphics::PrimitiveType::Icosahedron,
+            color: crate::graphics::Color::new(0.5, 0.2, 0.9, 1.0), // Purple/violet
+            scale: 1.3,
+        }
+    }
+
     pub fn rapid_fire() -> Self {
         Self {
             primitive_type: crate::graphics::PrimitiveType::Tetrahedron,

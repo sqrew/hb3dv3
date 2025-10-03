@@ -39,6 +39,17 @@ pub enum ProjectileType {
         explosion_duration: f32,
         visuals: BulletVisuals,
     },
+    /// Implosion projectile that explodes with negative force on hit OR expire
+    ImplosionExplosive {
+        damage: f32,
+        velocity: Vec3,
+        lifetime: f32,
+        mass: f32,
+        explosion_radius: f32,
+        explosion_force: f32, // Negative value for implosion
+        explosion_duration: f32,
+        visuals: BulletVisuals,
+    },
     /// Fractal projectile that splits into mathematical patterns
     Fractal {
         damage: f32,

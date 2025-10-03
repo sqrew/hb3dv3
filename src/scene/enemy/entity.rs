@@ -167,6 +167,13 @@ impl Enemy {
         &self.config
     }
 
+    pub fn update_config(&mut self, new_config: EnemyConfig) {
+        self.collision_radius = new_config.collision_radius;
+        self.mass = new_config.mass;
+        self.config = new_config;
+        // Note: Don't update health/max_health to preserve current damage state
+    }
+
     pub fn health(&self) -> f32 {
         self.health
     }

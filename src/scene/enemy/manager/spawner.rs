@@ -4,6 +4,7 @@ use super::super::behaviors::cannibal::CannibalData;
 use super::super::behaviors::splitter::SplitterData;
 use super::super::behaviors::shield::{ShieldData, ShieldOrbCoreData};
 use super::super::behaviors::snake::{SnakeData, SnakeSegmentData};
+use super::super::behaviors::blob::{BlobCoreData, BlobNodeData};
 use crate::engine::{Vec3, entity::{EntityManager, EntityType, EntityId}};
 
 /// Spawn initial enemy formations
@@ -368,6 +369,62 @@ pub fn spawn_snake_segment(
         if enemy.entity_id() == head_id {
             if let EnemyType::Snake(snake_data) = enemy.enemy_type_mut() {
                 snake_data.add_segment(segment_entity);
+            }
+            break;
+        }
+    }
+}
+
+/// Spawn a blob core enemy
+pub fn spawn_blob(
+    enemies: &mut Vec<Enemy>,
+    pos: Vec3,
+    entity_manager: &mut EntityManager,
+) {
+    let enemy_entity = entity_manager.create_entity(EntityType::Enemy);
+    let data = BlobCoreData::new();
+
+    enemies.push(Enemy::new(
+        enemy_entity,
+        pos,
+        Vec3::zeros(),
+        EnemyType::BlobCore(data),
+    ));
+}
+
+/// Spawn a blob node for an existing blob core
+pub fn spawn_blob_node(
+    enemies: &mut Vec<Enemy>,
+    core_id: EntityId,
+    core_pos: Vec3,
+    grid_position: (i32, i32, i32),
+    is_factory: bool,
+    entity_manager: &mut EntityManager,
+) {
+    use super::super::behaviors::blob;
+
+    let node_entity = entity_manager.create_entity(EntityType::Enemy);
+    let data = if is_factory {
+        BlobNodeData::new_factory(core_id, grid_position)
+    } else {
+        BlobNodeData::new_base(core_id, grid_position)
+    };
+
+    // Calculate world position from grid position
+    let world_pos = blob::grid_to_world_position(core_pos, grid_position);
+
+    enemies.push(Enemy::new(
+        node_entity,
+        world_pos,
+        Vec3::zeros(),
+        EnemyType::BlobNode(data),
+    ));
+
+    // Register node with blob core
+    for enemy in enemies.iter_mut() {
+        if enemy.entity_id() == core_id {
+            if let EnemyType::BlobCore(core_data) = enemy.enemy_type_mut() {
+                core_data.add_node(node_entity);
             }
             break;
         }

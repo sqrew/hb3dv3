@@ -15,6 +15,9 @@ const SEEKING_EXPLOSIVE_SEEK_RANGE: f32 = 1000.0;
 const SEEKING_EXPLOSIVE_EXPLOSION_RADIUS: f32 = 30.0;
 const SEEKING_EXPLOSIVE_EXPLOSION_FORCE: f32 = 20000.0;
 const SEEKING_EXPLOSIVE_EXPLOSION_DURATION: f32 = 0.5;
+const IMPLOSION_LAUNCHER_EXPLOSION_RADIUS: f32 = 30.0;
+const IMPLOSION_LAUNCHER_EXPLOSION_FORCE: f32 = -20000.0; // Negative for implosion!
+const IMPLOSION_LAUNCHER_EXPLOSION_DURATION: f32 = 0.5;
 
 #[derive(Debug, Clone)]
 pub enum WeaponType {
@@ -23,6 +26,7 @@ pub enum WeaponType {
     AntiGravityCannon,
     ChainLightning,
     SeekingExplosive,
+    ImplosionLauncher,
     FractalCannon,
     LaserCannon,
     LargeBodyLauncher,
@@ -100,6 +104,18 @@ impl WeaponStats {
         }
     }
 
+    pub fn implosion_launcher() -> Self {
+        Self {
+            damage: 10.0,         // Base damage - implosion adds pulling effect
+            fire_rate: 1.5,       // Slower rate for powerful implosion
+            bullet_speed: 200.0,  // Slower projectile to control placement
+            bullet_lifetime: 2.0, // Explodes on hit or after 5 seconds
+            projectile_count: 1,  // Single implosion rocket
+            spread_angle: 0.0,    // Precise targeting
+            bullet_mass: -1.0,    // Heavier rocket
+        }
+    }
+
     pub fn fractal_cannon() -> Self {
         Self {
             damage: 50.0,          // Base damage - multiplies with fractal generations
@@ -132,7 +148,7 @@ impl WeaponStats {
             bullet_lifetime: 10.0, // 10 second lifetime for asteroids
             projectile_count: 1,   // Single asteroid per shot
             spread_angle: 0.0,     // Precise targeting
-            bullet_mass: 5000.0,   // Asteroid mass (same as LargeBodyType::Asteroid default)
+            bullet_mass: 49000.0,  // Asteroid mass (same as LargeBodyType::Asteroid default)
         }
     }
 }
@@ -152,6 +168,7 @@ impl Weapon {
             WeaponType::AntiGravityCannon => WeaponStats::anti_gravity_cannon(),
             WeaponType::ChainLightning => WeaponStats::chain_lightning(),
             WeaponType::SeekingExplosive => WeaponStats::seeking_explosive(),
+            WeaponType::ImplosionLauncher => WeaponStats::implosion_launcher(),
             WeaponType::FractalCannon => WeaponStats::fractal_cannon(),
             WeaponType::LaserCannon => WeaponStats::laser_cannon(),
             WeaponType::LargeBodyLauncher => WeaponStats::large_body_launcher(),
@@ -262,6 +279,19 @@ impl Weapon {
                         visuals: BulletVisuals::seeking_explosive(),
                     }
                 }
+                WeaponType::ImplosionLauncher => {
+                    // Create implosion explosive projectile
+                    ProjectileType::ImplosionExplosive {
+                        damage: self.stats.damage,
+                        velocity: projectile_direction * self.stats.bullet_speed,
+                        lifetime: self.stats.bullet_lifetime,
+                        mass: self.stats.bullet_mass,
+                        explosion_radius: IMPLOSION_LAUNCHER_EXPLOSION_RADIUS,
+                        explosion_force: IMPLOSION_LAUNCHER_EXPLOSION_FORCE, // Negative!
+                        explosion_duration: IMPLOSION_LAUNCHER_EXPLOSION_DURATION,
+                        visuals: BulletVisuals::implosion_launcher(),
+                    }
+                }
                 WeaponType::FractalCannon => {
                     // Create fractal projectile with random pattern
                     ProjectileType::Fractal {
@@ -363,10 +393,11 @@ impl WeaponManager {
     pub fn new() -> Self {
         let available_weapons = vec![
             WeaponType::BasicBlaster,
-            // WeaponType::Shotgun,
-            // WeaponType::AntiGravityCannon,
+            WeaponType::Shotgun,
+            WeaponType::AntiGravityCannon,
             WeaponType::ChainLightning,
             WeaponType::SeekingExplosive,
+            WeaponType::ImplosionLauncher,
             WeaponType::FractalCannon,
             WeaponType::LaserCannon,
             WeaponType::LargeBodyLauncher,

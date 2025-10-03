@@ -4,10 +4,13 @@ use crate::{
 };
 
 /// Trait for effects that trigger when a bullet hits a target
-pub trait OnHitEffect: std::fmt::Debug {
+pub trait OnHitEffect: std::fmt::Debug + std::any::Any {
     /// Called when the bullet hits a target
     /// Returns chain lightning events if this is a chain lightning bullet
     fn on_hit(&self, hit_position: Vec3, target_id: Option<EntityId>) -> Vec<ChainLightningEvent>;
+
+    /// Enable downcasting for trait objects
+    fn as_any(&self) -> &dyn std::any::Any;
 }
 
 /// Trait for effects that trigger when a bullet expires
@@ -49,10 +52,14 @@ impl OnHitEffect for ChainLightningEffect {
             excluded_target: target_id,
         }]
     }
+
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
 }
 
 /// Explosion effect that triggers when bullet expires
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ExplosionEffect {
     pub max_radius: f32,
     pub force_strength: f32,
@@ -106,6 +113,42 @@ impl OnExpireEffect for ExplosionEffect {
             particle_color: self.particle_color,
             particle_count: self.particle_count,
         }]
+    }
+}
+
+/// Implosion effect that triggers when bullet hits (for implosion launcher)
+#[derive(Debug)]
+pub struct ImplosionOnHitEffect {
+    pub explosion_effect: ExplosionEffect,
+}
+
+impl OnHitEffect for ImplosionOnHitEffect {
+    fn on_hit(&self, _hit_position: Vec3, _target_id: Option<EntityId>) -> Vec<ChainLightningEvent> {
+        // We don't return chain lightning events
+        // The explosion will be triggered via downcasting in the manager
+        Vec::new()
+    }
+
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
+}
+
+impl ImplosionOnHitEffect {
+    /// Get the explosion event for this implosion (called by manager when processing on_hit)
+    pub fn get_explosion_event(&self, position: Vec3) -> crate::engine::dispatcher::ExplosionEvent {
+        crate::engine::dispatcher::ExplosionEvent::Custom {
+            position,
+            max_radius: self.explosion_effect.max_radius,
+            force_strength: self.explosion_effect.force_strength,
+            duration: self.explosion_effect.duration,
+            falloff_type: self.explosion_effect.falloff_type,
+            damage: self.explosion_effect.damage,
+            damage_radius: self.explosion_effect.damage_radius,
+            explosion_color: self.explosion_effect.explosion_color,
+            particle_color: self.explosion_effect.particle_color,
+            particle_count: self.explosion_effect.particle_count,
+        }
     }
 }
 

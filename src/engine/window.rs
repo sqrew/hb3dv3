@@ -453,6 +453,26 @@ impl ApplicationHandler for WindowManager {
                         println!("🐍 Snake enemy spawned!");
                     }
 
+                    // Blob test - press 'U' to spawn blob enemy
+                    if self
+                        .input_manager
+                        .is_action_just_pressed(Action::SpawnBlob)
+                    {
+                        let player_pos = self.engine.scheduler.player().player().position();
+                        // Spawn at distance in front of player
+                        let spawn_pos = player_pos + crate::engine::Vec3::new(15.0, 0.0, 0.0);
+
+                        // Split the borrow to avoid double mutable borrow
+                        let scheduler = &mut self.engine.scheduler;
+                        let entity_manager_ptr = scheduler.entity_manager_mut() as *mut _;
+                        unsafe {
+                            scheduler
+                                .enemies_mut()
+                                .spawn_blob(spawn_pos, &mut *entity_manager_ptr);
+                        }
+                        println!("🟦 Blob enemy spawned!");
+                    }
+
                     // Surface reset - press 'R' to force-recreate the surface when rendering breaks
                     if self
                         .input_manager

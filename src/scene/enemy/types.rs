@@ -1,5 +1,5 @@
+use super::behaviors::{blob, cannibal, chaser, drone, heavy, shield, snake, splitter};
 use crate::graphics::{Color, PrimitiveType};
-use super::behaviors::{cannibal, splitter, shield, heavy, chaser, drone, snake};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum EnemyType {
@@ -12,6 +12,8 @@ pub enum EnemyType {
     ShieldOrbCore(shield::ShieldOrbCoreData),
     Snake(snake::SnakeData),
     SnakeSegment(snake::SnakeSegmentData),
+    BlobCore(blob::BlobCoreData),
+    BlobNode(blob::BlobNodeData),
 }
 
 #[derive(Debug, Clone)]
@@ -37,6 +39,8 @@ impl EnemyType {
             EnemyType::ShieldOrbCore(data) => data.config(),
             EnemyType::Snake(data) => data.config(),
             EnemyType::SnakeSegment(data) => data.config(),
+            EnemyType::BlobCore(data) => data.config(),
+            EnemyType::BlobNode(data) => data.config(),
         }
     }
 

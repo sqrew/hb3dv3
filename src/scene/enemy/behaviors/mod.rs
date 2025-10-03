@@ -5,6 +5,7 @@ pub mod cannibal;
 pub mod splitter;
 pub mod shield;
 pub mod snake;
+pub mod blob;
 
 use crate::engine::Vec3;
 use super::entity::Enemy;
