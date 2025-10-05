@@ -24,6 +24,7 @@ pub enum Action {
     Jump,
     Dash,
     Interact,
+    PanicExplosion,
     PlasmaBurst,
 
     // Weapon switching
@@ -204,6 +205,13 @@ impl Default for ActionBindings {
             Action::Interact,
             vec![
                 InputBinding::keyboard(KeyCode::KeyF).with_gamepad_button(Button::West), // F key + X button (West on Xbox)
+            ],
+        );
+
+        bindings.insert(
+            Action::PanicExplosion,
+            vec![
+                InputBinding::keyboard(KeyCode::KeyX).with_gamepad_button(Button::North), // X key + Y button (North on Xbox)
             ],
         );
 

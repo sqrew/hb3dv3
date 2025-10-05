@@ -254,11 +254,17 @@ impl Dispatcher {
                 player_id: _,
                 damage,
             } => {
-                scheduler.player_mut().player_mut().take_damage(damage);
-                // Reset score multiplier when player gets hit
-                scheduler.scoring_mut().system_mut().reset_multiplier();
-                // Could queue screen shake event
-                // or literally anything else for a player taking damage
+                // Check for invincibility before applying damage
+                if !scheduler.player().is_invincible() {
+                    scheduler.player_mut().player_mut().take_damage(damage);
+                    // Reset score multiplier when player gets hit
+                    scheduler.scoring_mut().system_mut().reset_multiplier();
+                    // Could queue screen shake event
+                    // or literally anything else for a player taking damage
+                } else {
+                    // Player has i-frames, ignore damage and multiplier loss
+                    println!("🛡️ Damage and multiplier loss blocked by i-frames!");
+                }
             }
             CollisionEvent::EnemyHitLargeBody {
                 enemy_id,
@@ -739,6 +745,7 @@ pub enum EnemyEvent {
     },
     Die {
         enemy_id: EntityId,
+        color: Color,
     },
     Spawn {
         position: Vec3,

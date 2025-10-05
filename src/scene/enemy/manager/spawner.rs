@@ -403,6 +403,17 @@ pub fn spawn_blob_node(
 ) {
     use super::super::behaviors::blob;
 
+    // DEBUG: Log every spawn
+    let distance_from_core = grid_position.0.abs() + grid_position.1.abs() + grid_position.2.abs();
+    if distance_from_core > 30 {
+        println!(
+            "🚨 SPAWNING {} at grid {:?}, distance {} from core!",
+            if is_factory { "FACTORY" } else { "node" },
+            grid_position,
+            distance_from_core
+        );
+    }
+
     let node_entity = entity_manager.create_entity(EntityType::Enemy);
     let data = if is_factory {
         BlobNodeData::new_factory(core_id, grid_position)

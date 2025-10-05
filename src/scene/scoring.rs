@@ -4,9 +4,9 @@ use crate::engine::{CollisionMask, Vec3};
 use crate::graphics::{Color, Primitive, PrimitiveType};
 use crate::scene::GravityAffected;
 
-const ATTRACTION_RANGE: f32 = 150.0; // range in units
-const ATTRACTION_FORCE_MULTIPLIER: f32 = 100.0; // arbitrary number honestly
 const COLLECTIBLE_AIR_DRAG: f32 = 0.995; // slight amount of drag for floatiness
+const COLLECTIBLE_ATTRACTION_RANGE: f32 = 150.0; // range in units
+const COLLECTIBLE_ATTRACTION_FORCE_MULTIPLIER: f32 = 100.0; // arbitrary number honestly
 
 #[derive(Debug, Clone, Copy)]
 pub struct ScoreMultiplier {
@@ -46,13 +46,33 @@ impl ScoreMultiplier {
         let to_player = player_pos - self.pos;
         let distance = to_player.magnitude();
 
-        // Apply attraction when player is within attraction range (15 units)
-        let attraction_range = 200.0;
+        // Apply attraction when player is within attraction range
+        let attraction_range = COLLECTIBLE_ATTRACTION_RANGE;
+        let magnetic_range = 20.0; // Strong magnetic pull within this range
         if distance > 0.1 && distance < attraction_range {
-            // Stronger attraction when closer, using inverse square falloff
-            let attraction_strength = (attraction_range - distance) / attraction_range;
-            let attraction_force =
-                to_player.normalize() * attraction_strength * ATTRACTION_FORCE_MULTIPLIER; // Base attraction force
+            let attraction_force = if distance < magnetic_range {
+                // Very strong magnetic pull at close range using inverse square
+                let magnetic_strength = 1.0 - (distance / magnetic_range);
+                let magnetic_multiplier = magnetic_strength * magnetic_strength * 500.0; // Much stronger close-range pull
+
+                // Kill orbital velocity by heavily damping perpendicular motion
+                let radial_direction = to_player.normalize();
+                let radial_velocity = self.vel.dot(&radial_direction);
+                let perpendicular_velocity = self.vel - radial_direction * radial_velocity;
+
+                // Damp perpendicular motion (kills orbiting)
+                let damping_factor = 0.85; // Aggressive damping in magnetic range
+                self.vel =
+                    radial_direction * radial_velocity + perpendicular_velocity * damping_factor;
+
+                radial_direction * magnetic_multiplier
+            } else {
+                // Normal attraction at medium range
+                let attraction_strength = (attraction_range - distance) / attraction_range;
+                to_player.normalize()
+                    * attraction_strength
+                    * COLLECTIBLE_ATTRACTION_FORCE_MULTIPLIER
+            };
 
             // Apply attraction as acceleration
             self.vel += attraction_force * dt;

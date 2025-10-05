@@ -170,15 +170,17 @@ fn update_gravitational_bodies(@builtin(global_invocation_id) global_id: vec3<u3
     // Calculate forces from all other gravitational bodies
     for (var other_idx = 0u; other_idx < nbody_body_count; other_idx++) {
         if (other_idx == body_index) { continue; } // Don't apply force to self
-        
+
         let other_body = nbody_bodies[other_idx];
         let displacement = other_body.position - current_body.position;
         let distance_squared = dot(displacement, displacement);
         let distance = sqrt(distance_squared);
-        
+
         // Check for collision (overlapping bodies) - reduced collision distance for closer visual contact
         let collision_distance = (current_body.radius + other_body.radius) * 0.9;
-        if (distance < collision_distance && distance > 0.001) {
+        // IMPORTANT: Only process each collision pair once to avoid race conditions
+        // Process collision only when body_index < other_idx (each pair processed exactly once)
+        if (distance < collision_distance && distance > 0.001 && body_index < other_idx) {
             // Collision detected - apply elastic collision response
             let collision_normal = displacement / distance;
             

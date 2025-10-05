@@ -7,8 +7,8 @@ pub const BLOB_MAX_SIZE: u32 = 5000;
 pub const BLOB_MAX_FACTORY_COUNT: u32 = 100;
 pub const BLOB_NODE_SPAWN_INTERVAL: f32 = 0.02;
 pub const BLOB_FACTORY_SPAWN_INTERVAL: f32 = 1.0;
-pub const BLOB_WITHER_RATE_MIN: f32 = 0.02; // 2% max HP per second
-pub const BLOB_WITHER_RATE_MAX: f32 = 0.05; // 5% max HP per second
+pub const BLOB_WITHER_RATE_MIN: f32 = 0.03; // 2% max HP per second
+pub const BLOB_WITHER_RATE_MAX: f32 = 0.06; // 5% max HP per second
 
 /// Blob node type classification
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -33,8 +33,8 @@ pub struct BlobCoreData {
 /// Blob growth phases
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum BlobPhase {
-    Bolstering, // Phase 1: 0-81 nodes, omnidirectional
-    Reaching,   // Phase 2: 81+ nodes, directional toward player
+    Bolstering, // Phase 1: 0-273 nodes, omnidirectional
+    Reaching,   // Phase 2: 273+ nodes, directional toward player
 }
 
 impl BlobCoreData {
@@ -73,14 +73,26 @@ impl BlobCoreData {
     pub fn add_node(&mut self, node_id: EntityId) {
         self.node_ids.push(node_id);
 
-        // Transition to Phase 2 after 81 nodes
-        if self.node_ids.len() >= 81 && self.phase == BlobPhase::Bolstering {
-            self.phase = BlobPhase::Reaching;
-        }
+        // Dynamic phase transitions based on node count
+        self.update_phase();
     }
 
     pub fn remove_node(&mut self, node_id: EntityId) {
         self.node_ids.retain(|&id| id != node_id);
+
+        // Re-evaluate phase after losing nodes
+        self.update_phase();
+    }
+
+    /// Update phase based on current node count
+    fn update_phase(&mut self) {
+        let node_count = self.node_ids.len();
+
+        if node_count >= 273 {
+            self.phase = BlobPhase::Reaching;
+        } else {
+            self.phase = BlobPhase::Bolstering;
+        }
     }
 
     pub fn node_count(&self) -> usize {
@@ -93,9 +105,9 @@ impl BlobCoreData {
 
     pub fn config(&self) -> EnemyConfig {
         EnemyConfig {
-            health: 5000.0,
+            health: 10000.0,
             speed: 0.0, // Stationary
-            mass: 10000.0,
+            mass: 100000.0,
             collision_radius: 20.0,
             visual_scale: 20.0,
             primitive_type: PrimitiveType::Dodecahedron,

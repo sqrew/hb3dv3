@@ -12,12 +12,12 @@ const CHAIN_LIGHTNING_MAX_JUMPS: usize = 32; // Maximum number of jumps
 const CHAIN_LIGHTNING_DAMAGE_FALLOFF: f32 = 0.9; // Damage multiplier per jump (75% damage per jump)
 const SEEKING_EXPLOSIVE_SEEK_FORCE: f32 = 5000.0;
 const SEEKING_EXPLOSIVE_SEEK_RANGE: f32 = 1000.0;
-const SEEKING_EXPLOSIVE_EXPLOSION_RADIUS: f32 = 30.0;
+const SEEKING_EXPLOSIVE_EXPLOSION_RADIUS: f32 = 50.0;
 const SEEKING_EXPLOSIVE_EXPLOSION_FORCE: f32 = 20000.0;
 const SEEKING_EXPLOSIVE_EXPLOSION_DURATION: f32 = 0.5;
-const IMPLOSION_LAUNCHER_EXPLOSION_RADIUS: f32 = 30.0;
+const IMPLOSION_LAUNCHER_EXPLOSION_RADIUS: f32 = 200.0;
 const IMPLOSION_LAUNCHER_EXPLOSION_FORCE: f32 = -20000.0; // Negative for implosion!
-const IMPLOSION_LAUNCHER_EXPLOSION_DURATION: f32 = 0.5;
+const IMPLOSION_LAUNCHER_EXPLOSION_DURATION: f32 = 1.5;
 
 #[derive(Debug, Clone)]
 pub enum WeaponType {
@@ -58,13 +58,13 @@ impl WeaponStats {
 
     pub fn shotgun() -> Self {
         Self {
-            damage: 12.0,
-            fire_rate: 1.5,
-            bullet_speed: 18.0,
-            bullet_lifetime: 2.0,
-            projectile_count: 5,
-            spread_angle: 15.0,
-            bullet_mass: 0.6, // Heavier pellets for shotgun
+            damage: 10.0,
+            fire_rate: 150.0,
+            bullet_speed: 200.0,
+            bullet_lifetime: 1.0,
+            projectile_count: 2,
+            spread_angle: 30.0,
+            bullet_mass: 0.1, // Heavier pellets for shotgun
         }
     }
 
@@ -107,9 +107,9 @@ impl WeaponStats {
     pub fn implosion_launcher() -> Self {
         Self {
             damage: 10.0,         // Base damage - implosion adds pulling effect
-            fire_rate: 1.5,       // Slower rate for powerful implosion
-            bullet_speed: 200.0,  // Slower projectile to control placement
-            bullet_lifetime: 2.0, // Explodes on hit or after 5 seconds
+            fire_rate: 2.0,       // Slower rate for powerful implosion
+            bullet_speed: 150.0,  // Slower projectile to control placement
+            bullet_lifetime: 0.5, // Explodes on hit or after 5 seconds
             projectile_count: 1,  // Single implosion rocket
             spread_angle: 0.0,    // Precise targeting
             bullet_mass: -1.0,    // Heavier rocket
@@ -145,7 +145,7 @@ impl WeaponStats {
             damage: 0.0,           // Damage comes from physics/collision
             fire_rate: 10.0,       // 1 shot per second
             bullet_speed: 200.0,   // Initial velocity for launched asteroids
-            bullet_lifetime: 10.0, // 10 second lifetime for asteroids
+            bullet_lifetime: 60.0, // 10 second lifetime for asteroids
             projectile_count: 1,   // Single asteroid per shot
             spread_angle: 0.0,     // Precise targeting
             bullet_mass: 49000.0,  // Asteroid mass (same as LargeBodyType::Asteroid default)
@@ -224,19 +224,50 @@ impl Weapon {
                 direction.normalize()
             } else {
                 // Multiple projectiles - apply spread
-                let t = (i as f32) / (self.stats.projectile_count - 1) as f32;
-                let angle_offset = -half_spread + (t * spread_rad);
+                // For shotgun, use true 3D random spread
+                if matches!(self.weapon_type, WeaponType::Shotgun) {
+                    // Generate random offsets in all three dimensions
+                    use rand::Rng;
+                    let mut rng = rand::rng();
 
-                // Rotate the direction vector around the up axis
-                let cos_angle = angle_offset.cos();
-                let sin_angle = angle_offset.sin();
+                    // Random angles for spherical spread using proper spherical coordinates
+                    let angle = rng.random_range(0.0..half_spread); // Distance from center
+                    let rotation = rng.random_range(0.0..std::f32::consts::TAU); // Random rotation around firing axis
 
-                Vec3::new(
-                    direction.x * cos_angle - direction.z * sin_angle,
-                    direction.y,
-                    direction.x * sin_angle + direction.z * cos_angle,
-                )
-                .normalize()
+                    // Create perpendicular vectors for the spread basis
+                    let up = if direction.y.abs() < 0.9 {
+                        Vec3::new(0.0, 1.0, 0.0)
+                    } else {
+                        Vec3::new(1.0, 0.0, 0.0)
+                    };
+
+                    let right = direction.cross(&up).normalize();
+                    let actual_up = right.cross(&direction).normalize();
+
+                    // Apply cone spread: rotate around the firing axis, then offset by angle
+                    let offset_x = rotation.cos() * angle.sin();
+                    let offset_y = rotation.sin() * angle.sin();
+
+                    let spread_dir =
+                        direction * angle.cos() + right * offset_x + actual_up * offset_y;
+
+                    spread_dir.normalize()
+                } else {
+                    // Other multi-projectile weapons use 2D spread
+                    let t = (i as f32) / (self.stats.projectile_count - 1) as f32;
+                    let angle_offset = -half_spread + (t * spread_rad);
+
+                    // Rotate the direction vector around the up axis
+                    let cos_angle = angle_offset.cos();
+                    let sin_angle = angle_offset.sin();
+
+                    Vec3::new(
+                        direction.x * cos_angle - direction.z * sin_angle,
+                        direction.y,
+                        direction.x * sin_angle + direction.z * cos_angle,
+                    )
+                    .normalize()
+                }
             };
 
             // Determine projectile type based on weapon

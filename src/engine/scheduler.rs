@@ -3,7 +3,8 @@ use crate::graphics::{Primitive, Vec3};
 use crate::input::InputManager;
 use crate::scene::{
     BulletManager, EnemyManager, ExplosionManager, GravityAffected, LargeBodyManager,
-    LargeBodyType, PhysicsManager, PlayerManager, ScoreMultiplierManager, WeaponSpawnRequest,
+    LargeBodyType, PanicExplosionRequest, PhysicsManager, PlayerManager, ScoreMultiplierManager,
+    WeaponSpawnRequest,
 };
 
 pub struct Scheduler {
@@ -24,7 +25,7 @@ impl Scheduler {
         // Create player entity
         let player_entity = entity_manager.create_entity(EntityType::Player);
 
-        let mut enemies = EnemyManager::new();
+        let enemies = EnemyManager::new();
         //     enemies.spawn_initial_enemies(&mut entity_manager);
 
         let mut physics = PhysicsManager::new();
@@ -46,7 +47,7 @@ impl Scheduler {
         // );
 
         large_bodies.spawn_body(
-            LargeBodyType::BlackHole,
+            LargeBodyType::BlackHoleLarge,
             Vec3::new(50.0, 10.0, 50.0),
             &mut physics,
             &mut entity_manager,
@@ -62,7 +63,16 @@ impl Scheduler {
         // );
 
         // large_bodies.spawn_binary_pair(
-        //     crate::scene::large_body::LargeBodyType::Star,
+        //     crate::scene::large_body::LargeBodyType::BlackHoleLarge,
+        //     crate::scene::large_body::LargeBodyType::NeutronStar,
+        //     crate::engine::Vec3::new(0.0, 0.0, 0.0),
+        //     200.0, // Separation distance
+        //     &mut physics,
+        //     &mut entity_manager,
+        // );
+
+        // large_bodies.spawn_binary_pair(
+        //     crate::scene::large_body::LargeBodyType::GasGiant,
         //     crate::scene::large_body::LargeBodyType::NeutronStar,
         //     crate::engine::Vec3::new(0.0, 0.0, 0.0),
         //     200.0, // Separation distance
@@ -116,10 +126,17 @@ impl Scheduler {
         queue: Option<&wgpu::Queue>,
     ) {
         // Update player movement
-        if let Some(spawn_request) =
+        let (weapon_request, panic_request) =
             self.player
-                .update(delta_time, input, camera_forward, camera_right, camera_up)
-        {
+                .update(delta_time, input, camera_forward, camera_right, camera_up);
+
+        // Handle panic explosion request
+        if let Some(panic_req) = panic_request {
+            self.handle_panic_explosion(panic_req);
+        }
+
+        // Handle weapon spawn request
+        if let Some(spawn_request) = weapon_request {
             match spawn_request {
                 WeaponSpawnRequest::Bullets(bullet_requests) => {
                     // Spawn bullets from player weapon using new projectile system
@@ -397,6 +414,24 @@ impl Scheduler {
         for bullet_id in bullets_to_remove {
             self.bullets.remove_bullet_by_entity_id(bullet_id);
         }
+    }
+
+    /// Handle panic explosion request from player
+    fn handle_panic_explosion(&mut self, request: PanicExplosionRequest) {
+        use crate::graphics::Color;
+        use crate::scene::explosion::FalloffType;
+
+        // Spawn explosion at player position
+        self.explosions.spawn_explosion(
+            request.position,
+            100.0,    // Moderate radius for defensive use
+            100000.0, // Strong push force to clear enemies
+            0.1,      // Duration in seconds
+            FalloffType::Constant,
+            Color::CYAN, // Cyan explosion visual
+            Color::CYAN, // Cyan particles
+            200,         // Lots of particles for impact
+        );
     }
 
     /// Restart the game by resetting all managers to initial state

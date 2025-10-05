@@ -47,9 +47,26 @@ The application follows a layered entity-component-like architecture with distin
 
 **Scene/Game Layer** (`src/scene/`):
 - **Player System**: Player entity with movement, health, and weapon management
-- **Enemy System**: Enemy entities with AI and behavior
+- **Enemy System**: Modular enemy entities with distinct AI behaviors:
+  - **Heavy**: Slow, tank-like enemies
+  - **Chaser**: Fast pursuit enemies
+  - **Drone**: Basic patrol enemies
+  - **Splitter**: Enemies that split into smaller units on death
+  - **Cannibal**: Enemies that consume other enemies for power
+  - **Shield**: Enemies with shield orbs providing protection
+  - **Snake**: Multi-segmented snake enemies with following behavior
+  - **Blob**: Network enemies with core and connected nodes
 - **Bullet System**: Projectile physics with bullet-bullet collision and deflection
-- **Weapon System**: Weapon management and firing mechanics
+- **Weapon System**: 9 distinct weapon types with unique mechanics:
+  - **BasicBlaster**: Standard rapid-fire energy weapon
+  - **Shotgun**: 100-pellet spread weapon with 3D spherical cone distribution
+  - **AntiGravityCannon**: Negative-mass projectiles repelled by gravity
+  - **ChainLightning**: Arcing lightning that jumps between enemies
+  - **SeekingExplosive**: Homing missiles with explosive radius
+  - **ImplosionLauncher**: Large-radius implosion bombs that pull entities inward
+  - **FractalCannon**: Bullets that spawn fractal generations of child projectiles
+  - **LaserCannon**: Ultra-fast beam weapon with trailing effects
+  - **LargeBodyLauncher**: Fires gravitational asteroid masses as projectiles
 - **Large Body System**: Gravitational celestial bodies (planets, stars, black holes, etc.)
 - **Physics System**: GPU-accelerated gravitational forces and N-body simulation
 

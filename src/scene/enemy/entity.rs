@@ -190,6 +190,10 @@ impl Enemy {
         }
     }
 
+    pub fn heal(&mut self, amount: f32) {
+        self.health = (self.health + amount).min(self.max_health);
+    }
+
     /// Consume another enemy - heals to full, gains max health, grows in size
     pub fn consume_enemy(&mut self) {
         if let EnemyType::Cannibal(data) = &mut self.enemy_type {

@@ -10,6 +10,6 @@ pub mod visuals;
 pub use effects::{ChainLightningEffect, ChainLightningEvent, ProjectileEffects};
 pub use fractal::FractalConfig;
 pub use manager::BulletManager;
-pub use pool::{BulletPool, PoolStats};
+// pub use pool::{BulletPool, PoolStats}; // Unused - commented out
 pub use types::{Bullet, MetaBullet, ProjectileType};
 pub use visuals::BulletVisuals;

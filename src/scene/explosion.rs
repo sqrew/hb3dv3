@@ -156,9 +156,9 @@ impl ExplosionManager {
     pub fn spawn_simple_shockwave(&mut self, position: Vec3) {
         self.spawn_explosion(
             position,
-            50.0,   // Large radius
-            1000.0, // Strong force
-            0.3,    // Duration in seconds
+            60.0,   // Large radius
+            2000.0, // Strong force
+            0.1,    // Duration in seconds
             FalloffType::Quadratic,
             Color::ORANGE,
             Color::ORANGE,

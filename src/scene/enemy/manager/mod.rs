@@ -5,7 +5,7 @@ use super::entity::Enemy;
 use super::types::EnemyType;
 use crate::engine::Vec3;
 use crate::engine::dispatcher::{EnemyEvent, EventType};
-use crate::graphics::Primitive;
+use crate::graphics::{Color, Primitive};
 
 pub struct EnemyManager {
     enemies: Vec<Enemy>,
@@ -43,14 +43,18 @@ impl EnemyManager {
         // Handle snake growth
         updater::handle_snake_growth(&mut self.enemies, entity_manager, dt);
 
-        // Handle blob growth
+        // Check blob connectivity BEFORE growth (so growth can use current connectivity data)
+        updater::check_blob_connectivity(&mut self.enemies);
+
+        // Handle blob growth (uses connectivity data from above)
         updater::handle_blob_growth(&mut self.enemies, entity_manager, dt, player_pos);
+
+        // CRITICAL: Check connectivity IMMEDIATELY after growth
+        // This prevents newly-spawned-but-actually-disconnected nodes from spawning children
+        updater::check_blob_connectivity(&mut self.enemies);
 
         // Handle predator eating behavior
         updater::handle_predator_eating(&mut self.enemies, &mut self.event_queue, dt);
-
-        // Check blob connectivity
-        updater::check_blob_connectivity(&mut self.enemies);
 
         // Apply withering to disconnected blob nodes
         updater::apply_blob_withering(&mut self.enemies, dt);
@@ -77,7 +81,34 @@ impl EnemyManager {
             .iter()
             .map(|enemy| {
                 let config = enemy.config();
-                Primitive::new(config.primitive_type, enemy.position(), config.color)
+                let health_percent = enemy.health_percentage();
+
+                // Apply health-based color tinting
+                let color = match enemy.enemy_type() {
+                    EnemyType::BlobCore(_) => {
+                        // Core turns red below 70% health
+                        if health_percent < 0.7 {
+                            Color::YELLOW
+                        } else if health_percent < 0.3 {
+                            Color::RED
+                        } else {
+                            config.color
+                        }
+                    }
+                    EnemyType::BlobNode(_) => {
+                        // Nodes turn red below 30% health
+                        if health_percent < 0.4 {
+                            Color::YELLOW
+                        } else if health_percent < 0.2 {
+                            Color::RED
+                        } else {
+                            config.color
+                        }
+                    }
+                    _ => config.color, // Other enemies use normal color
+                };
+
+                Primitive::new(config.primitive_type, enemy.position(), color)
                     .with_uniform_scale(config.visual_scale)
             })
             .collect()
@@ -156,6 +187,7 @@ impl EnemyManager {
                     if enemy.health() <= 0.0 && old_health > 0.0 {
                         let enemy_type = enemy.enemy_type().clone();
                         let enemy_pos = enemy.position();
+                        let enemy_color = enemy.config().color;
 
                         self.event_queue.push(EventType::Score(
                             crate::engine::dispatcher::ScoreEvent::EnemyKilled {
@@ -167,6 +199,7 @@ impl EnemyManager {
 
                         self.event_queue.push(EventType::Enemy(EnemyEvent::Die {
                             enemy_id: segment_id,
+                            color: enemy_color,
                         }));
                     }
 
@@ -183,6 +216,7 @@ impl EnemyManager {
                     if enemy.health() <= 0.0 && old_health > 0.0 {
                         let enemy_type = enemy.enemy_type().clone();
                         let enemy_pos = enemy.position();
+                        let enemy_color = enemy.config().color;
 
                         self.event_queue.push(EventType::Score(
                             crate::engine::dispatcher::ScoreEvent::EnemyKilled {
@@ -194,6 +228,7 @@ impl EnemyManager {
 
                         self.event_queue.push(EventType::Enemy(EnemyEvent::Die {
                             enemy_id: entity_id,
+                            color: enemy_color,
                         }));
                     }
 
@@ -237,8 +272,10 @@ impl EnemyManager {
                         }));
 
                     if enemy.health() <= 0.0 && old_health > 0.0 {
+                        let enemy_color = enemy.config().color;
                         self.event_queue.push(EventType::Enemy(EnemyEvent::Die {
                             enemy_id: segment_id,
+                            color: enemy_color,
                         }));
                     }
 
@@ -260,8 +297,10 @@ impl EnemyManager {
                         }));
 
                     if enemy.health() <= 0.0 && old_health > 0.0 {
+                        let enemy_color = enemy.config().color;
                         self.event_queue.push(EventType::Enemy(EnemyEvent::Die {
                             enemy_id: entity_id,
+                            color: enemy_color,
                         }));
                     }
 
@@ -286,6 +325,15 @@ impl EnemyManager {
         for enemy in &self.enemies {
             if enemy.entity_id() == entity_id {
                 return Some(enemy.position());
+            }
+        }
+        None
+    }
+
+    pub fn get_enemy_color(&self, entity_id: crate::engine::entity::EntityId) -> Option<crate::graphics::color::Color> {
+        for enemy in &self.enemies {
+            if enemy.entity_id() == entity_id {
+                return Some(enemy.config().color);
             }
         }
         None
@@ -360,7 +408,6 @@ impl EnemyManager {
 
     pub fn handle_event(&mut self, event: crate::engine::dispatcher::EnemyEvent) {
         use crate::engine::dispatcher::{EventType, GraphicsEvent};
-        use crate::graphics::Color;
 
         match event {
             EnemyEvent::TakeDamage {
@@ -370,7 +417,7 @@ impl EnemyManager {
             } => {
                 self.damage_enemy_with_event(enemy_id, amount, source);
             }
-            EnemyEvent::Die { enemy_id } => {
+            EnemyEvent::Die { enemy_id, color } => {
                 for enemy in &mut self.enemies {
                     if enemy.entity_id() == enemy_id {
                         let enemy_pos = enemy.position();
@@ -381,7 +428,7 @@ impl EnemyManager {
                                 velocity: Vec3::new(0.0, 0.0, 0.0),
                                 count: 100,
                                 lifetime: 2.0,
-                                color: Color::GREEN,
+                                color,
                             }));
 
                         enemy.take_damage(9999.0);

@@ -79,7 +79,7 @@ impl LargeBodyType {
             LargeBodyType::Star => Color::RED,
             LargeBodyType::GasGiant => Color::YELLOW,
             LargeBodyType::Planet => Color::CYAN,
-            LargeBodyType::LauncherMass => Color::random_color(),
+            LargeBodyType::LauncherMass => Color::WHITE,
             LargeBodyType::Debug => Color::BLACK,
         }
     }
@@ -104,14 +104,14 @@ impl LargeBodyType {
     pub fn default_angular_velocity(self) -> f32 {
         match self {
             LargeBodyType::BlackHole => 2.0, // Fast spinning black hole for frame-dragging
-            LargeBodyType::BlackHoleLarge => 1.8, // Fast spinning black hole for frame-dragging
+            LargeBodyType::BlackHoleLarge => 1.0, // Spinning black hole for frame-dragging
             LargeBodyType::WhiteHole => -3.0, // Counter-rotating white hole
             LargeBodyType::NeutronStar => 12.0, // Extremely fast pulsar rotation
             LargeBodyType::ExoticMatter => 6.0, // Rapid oscillating rotation for visual effect
             LargeBodyType::Star => 0.5,      // Moderate stellar rotation
             LargeBodyType::GasGiant => 1.0,  // Fast rotation like Jupiter
             LargeBodyType::Planet => 0.3,    // Earth-like rotation (slower)
-            LargeBodyType::LauncherMass => 4.0,
+            LargeBodyType::LauncherMass => 3.0,
             LargeBodyType::Debug => 0.5, // Debug body with moderate rotation
         }
     }
@@ -120,11 +120,11 @@ impl LargeBodyType {
     pub fn default_ergosphere_radius_ratio(self) -> f32 {
         match self {
             LargeBodyType::BlackHole => 100.0, // Much larger ergosphere for visible frame-dragging
-            LargeBodyType::BlackHoleLarge => 10.0, // Reduced to match playable area
+            LargeBodyType::BlackHoleLarge => 2.0, // Reduced to match playable area
             LargeBodyType::NeutronStar => 20.0, // Large intense ergosphere
             LargeBodyType::WhiteHole => 20.0,  // Significant ergosphere effect
             LargeBodyType::ExoticMatter => 20.0, //
-            LargeBodyType::LauncherMass => 10.0,
+            LargeBodyType::LauncherMass => 20.0,
             _ => 0.0,
         }
     }
@@ -135,11 +135,11 @@ impl LargeBodyType {
         let angular_vel = self.default_angular_velocity().abs(); // Use absolute value
         let strength_factor = match self {
             LargeBodyType::BlackHole => 0.2,      // Strong frame-dragging
-            LargeBodyType::BlackHoleLarge => 0.3, // Strong frame-dragging
+            LargeBodyType::BlackHoleLarge => 0.5, // Strong frame-dragging
             LargeBodyType::NeutronStar => 0.25,   // Very strong (dense + fast spinning)
             LargeBodyType::WhiteHole => 0.15,     // Moderate frame-dragging
             LargeBodyType::ExoticMatter => 0.8,   //
-            LargeBodyType::LauncherMass => 0.2,
+            LargeBodyType::LauncherMass => 5.0,
             _ => 0.0, // No frame-dragging for other types
         };
         mass * angular_vel * strength_factor

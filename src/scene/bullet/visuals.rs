@@ -49,9 +49,9 @@ impl BulletVisuals {
 
     pub fn shotgun() -> Self {
         Self {
-            primitive_type: crate::graphics::PrimitiveType::Sphere,
+            primitive_type: crate::graphics::PrimitiveType::Tetrahedron,
             color: crate::graphics::Color::YELLOW,
-            scale: 0.4,
+            scale: 0.1,
         }
     }
 

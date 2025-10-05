@@ -3,7 +3,12 @@ use crate::engine::entity::{EntityId, EntityType};
 use crate::engine::{CollisionMask, Vec3};
 use crate::graphics::{Color, Primitive, PrimitiveType};
 use crate::input::{Action, InputManager};
-use crate::scene::{BulletSpawnRequest, GravityAffected, WeaponManager, WeaponSpawnRequest};
+use crate::scene::{GravityAffected, WeaponManager, WeaponSpawnRequest};
+
+/// Request to spawn a panic explosion
+pub struct PanicExplosionRequest {
+    pub position: Vec3,
+}
 
 // Dash constants
 const DASH_DURATION: f32 = 0.15; // 150ms dash duration
@@ -11,6 +16,10 @@ const DASH_COOLDOWN: f32 = 1.0; // 1 second cooldown
 const DASH_SPEED_MULTIPLIER: f32 = 6.0; // 4x normal speed during dash
 const IFRAMES_DURATION: f32 = 0.5;
 const IFRAMES_COOLDOWN: f32 = 3.0;
+const DAMAGE_FLASH_DURATION: f32 = 0.5; // How long to show red damage flash
+
+// Panic explosion constants
+const PANIC_EXPLOSION_COOLDOWN: f32 = 5.0; // 5 second cooldown
 
 pub struct Player {
     entity_id: EntityId,
@@ -32,6 +41,12 @@ pub struct Player {
     // I-frame system
     iframe_timer: f32,
     iframe_cooldown_timer: f32,
+
+    // Damage flash system
+    damage_flash_timer: f32,
+
+    // Panic explosion system
+    panic_explosion_cooldown_timer: f32,
 }
 
 impl Player {
@@ -56,6 +71,12 @@ impl Player {
             // I-frame system initialization
             iframe_timer: 0.0,
             iframe_cooldown_timer: 0.0,
+
+            // Damage flash system initialization
+            damage_flash_timer: 0.0,
+
+            // Panic explosion system initialization
+            panic_explosion_cooldown_timer: 0.0,
         }
     }
 
@@ -66,7 +87,7 @@ impl Player {
         camera_forward: Vec3,
         camera_right: Vec3,
         camera_up: Vec3,
-    ) -> Option<WeaponSpawnRequest> {
+    ) -> (Option<WeaponSpawnRequest>, Option<PanicExplosionRequest>) {
         // Update weapon manager
         self.weapon_manager.update(delta_time, input);
 
@@ -81,6 +102,27 @@ impl Player {
         }
         if self.iframe_cooldown_timer > 0.0 {
             self.iframe_cooldown_timer -= delta_time;
+        }
+
+        // Update damage flash timer
+        if self.damage_flash_timer > 0.0 {
+            self.damage_flash_timer -= delta_time;
+        }
+
+        // Update panic explosion cooldown timer
+        if self.panic_explosion_cooldown_timer > 0.0 {
+            self.panic_explosion_cooldown_timer -= delta_time;
+        }
+
+        // Handle panic explosion input
+        let mut panic_explosion_request = None;
+        let panic_pressed = input.is_action_just_pressed(Action::PanicExplosion);
+        if panic_pressed && self.panic_explosion_cooldown_timer <= 0.0 {
+            panic_explosion_request = Some(PanicExplosionRequest {
+                position: self.pos,
+            });
+            self.panic_explosion_cooldown_timer = PANIC_EXPLOSION_COOLDOWN;
+            println!("💥 Panic explosion triggered!");
         }
 
         // Handle movement input with correct mapping
@@ -136,12 +178,14 @@ impl Player {
         // Handle shooting input
         let fire_pressed = input.get_action_value(Action::Fire) > 0.0;
 
-        if fire_pressed {
+        let weapon_request = if fire_pressed {
             // Try to fire weapon in camera forward direction
             self.weapon_manager.try_fire(self.pos, camera_forward)
         } else {
             None
-        }
+        };
+
+        (weapon_request, panic_explosion_request)
     }
 
     fn start_dash(&mut self) {
@@ -196,6 +240,15 @@ impl Player {
         }
     }
 
+    /// Returns panic explosion cooldown progress (0.0 = ready, 1.0 = just used)
+    pub fn panic_explosion_cooldown_progress(&self) -> f32 {
+        if self.panic_explosion_cooldown_timer <= 0.0 {
+            0.0
+        } else {
+            self.panic_explosion_cooldown_timer / PANIC_EXPLOSION_COOLDOWN
+        }
+    }
+
     pub fn collision_radius(&self) -> f32 {
         self.collision_radius
     }
@@ -206,6 +259,8 @@ impl Player {
 
     pub fn take_damage(&mut self, damage: f32) {
         self.health -= damage;
+        // Start damage flash timer
+        self.damage_flash_timer = DAMAGE_FLASH_DURATION;
     }
 
     pub fn heal(&mut self, amount: f32) {
@@ -256,8 +311,8 @@ impl PlayerManager {
         camera_forward: Vec3,
         camera_right: Vec3,
         camera_up: Vec3,
-    ) -> Option<WeaponSpawnRequest> {
-        let bullet_requests =
+    ) -> (Option<WeaponSpawnRequest>, Option<PanicExplosionRequest>) {
+        let (weapon_request, panic_request) =
             self.player
                 .update(delta_time, input, camera_forward, camera_right, camera_up);
 
@@ -265,7 +320,7 @@ impl PlayerManager {
         let weapon_events = self.player.weapon_manager.drain_events();
         self.event_queue.extend(weapon_events);
 
-        bullet_requests
+        (weapon_request, panic_request)
     }
 
     /// Get and clear player events (including weapon events)
@@ -274,10 +329,18 @@ impl PlayerManager {
     }
 
     pub fn get_render_data(&self) -> Vec<Primitive> {
+        let color = if self.player.damage_flash_timer > 0.0 {
+            Color::RED
+        } else if self.player.is_invincible() {
+            Color::CYAN
+        } else {
+            Color::WHITE
+        };
+
         vec![Primitive::new(
             PrimitiveType::Cube,
             self.player.pos,
-            Color::WHITE,
+            color,
         )]
     }
 
@@ -350,5 +413,10 @@ impl PlayerManager {
     /// Returns i-frame cooldown progress (0.0 = ready, 1.0 = just used)
     pub fn iframe_cooldown_progress(&self) -> f32 {
         self.player.iframe_cooldown_progress()
+    }
+
+    /// Returns panic explosion cooldown progress (0.0 = ready, 1.0 = just used)
+    pub fn panic_explosion_cooldown_progress(&self) -> f32 {
+        self.player.panic_explosion_cooldown_progress()
     }
 }

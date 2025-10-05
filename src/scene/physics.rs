@@ -2,7 +2,7 @@ use crate::graphics::Vec3;
 use wgpu::util::DeviceExt;
 
 /// Maximum number of gravitational bodies in the system
-const MAX_GRAVITATIONAL_BODIES: u32 = 128;
+const MAX_GRAVITATIONAL_BODIES: u32 = 1024;
 
 /// Maximum number of gravity-affected objects
 const MAX_AFFECTED_OBJECTS: u32 = 65536;
