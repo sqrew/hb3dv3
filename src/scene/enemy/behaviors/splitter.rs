@@ -1,7 +1,7 @@
-use crate::engine::Vec3;
-use crate::graphics::{Color, PrimitiveType};
 use super::super::types::EnemyConfig;
 use super::DeathEffect;
+use crate::engine::Vec3;
+use crate::graphics::{Color, PrimitiveType};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct SplitterData {

@@ -1,13 +1,13 @@
-use crate::engine::Vec3;
-use crate::graphics::{Color, PrimitiveType};
 use super::super::types::EnemyConfig;
 use super::DeathEffect;
+use crate::engine::Vec3;
+use crate::graphics::{Color, PrimitiveType};
 
 pub fn config() -> EnemyConfig {
     EnemyConfig {
         health: 30.0,          // Glass cannon
         speed: 140.0,          // Fast and agile
-        mass: 15.0,            // Light for quick movement
+        mass: 10.0,            // Light for quick movement
         collision_radius: 1.0, // Smaller, harder to hit
         visual_scale: 1.0,     // Slightly smaller
         primitive_type: PrimitiveType::Octahedron,

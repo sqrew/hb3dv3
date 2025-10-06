@@ -20,7 +20,7 @@ impl EnemyManager {
             enemies: Vec::new(),
             event_queue: Vec::new(),
             spawn_timer: 0.0,
-            spawn_interval: 0.5,
+            spawn_interval: 110.5,
         }
     }
 
@@ -330,7 +330,10 @@ impl EnemyManager {
         None
     }
 
-    pub fn get_enemy_color(&self, entity_id: crate::engine::entity::EntityId) -> Option<crate::graphics::color::Color> {
+    pub fn get_enemy_color(
+        &self,
+        entity_id: crate::engine::entity::EntityId,
+    ) -> Option<crate::graphics::color::Color> {
         for enemy in &self.enemies {
             if enemy.entity_id() == entity_id {
                 return Some(enemy.config().color);

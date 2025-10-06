@@ -4,6 +4,9 @@ use crate::engine::entity::{EntityId, EntityType};
 use crate::graphics::{Color, Primitive, PrimitiveType};
 use crate::scene::PhysicsManager;
 
+// Particle trail configuration for large bodies
+const LARGE_BODY_TRAIL_INTERVAL: f32 = 0.01; // Spawn particles every 20ms (50 Hz)
+
 /// Death sequence state for large bodies
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum DeathState {
@@ -80,7 +83,7 @@ impl LargeBodyType {
             LargeBodyType::GasGiant => Color::YELLOW,
             LargeBodyType::Planet => Color::CYAN,
             LargeBodyType::LauncherMass => Color::WHITE,
-            LargeBodyType::Debug => Color::BLACK,
+            LargeBodyType::Debug => Color::random_color(),
         }
     }
 
@@ -189,6 +192,9 @@ pub struct LargeBody {
     age: f32,                  // Current age in seconds
     max_lifetime: Option<f32>, // Maximum lifetime in seconds (None = eternal)
     death_state: DeathState,   // Current death sequence state
+
+    // Particle trail system
+    trail_particle_timer: f32, // Timer for spawning trail particles
 }
 
 impl LargeBody {
@@ -225,6 +231,7 @@ impl LargeBody {
             age: 0.0,
             max_lifetime: None, // Eternal by default
             death_state: DeathState::Alive,
+            trail_particle_timer: 0.0,
         }
     }
 
@@ -267,6 +274,7 @@ impl LargeBody {
             age: 0.0,
             max_lifetime: None, // Eternal by default
             death_state: DeathState::Alive,
+            trail_particle_timer: 0.0,
         }
     }
 
@@ -787,6 +795,38 @@ impl LargeBodyManager {
                             },
                         ));
                 }
+            }
+
+            // Particle trail system - spawn trail particles for all bodies
+            body.trail_particle_timer -= delta_time;
+            if body.trail_particle_timer <= 0.0 {
+                // Reset timer
+                body.trail_particle_timer = LARGE_BODY_TRAIL_INTERVAL;
+
+                // Calculate spawn position behind the body's movement
+                // This prevents particles from spawning inside the body and being launched
+                let spawn_offset = if body.velocity.magnitude() > 0.01 {
+                    // Body is moving - spawn behind it
+                    let velocity_dir = body.velocity.normalize();
+                    -velocity_dir * body.radius // Behind the body at radius distance
+                } else {
+                    // Body is stationary - spawn at radius distance in a consistent direction
+                    Vec3::new(0.0, body.radius, 0.0) // Spawn above
+                };
+
+                let spawn_position = body.position + spawn_offset;
+
+                // Queue particle spawn event with body-type-specific color
+                self.pending_events
+                    .push(crate::engine::dispatcher::EventType::Graphics(
+                        crate::engine::dispatcher::GraphicsEvent::SpawnParticles {
+                            position: spawn_position,
+                            velocity: Vec3::zeros(), // Stationary - let gravity move them!
+                            count: 1,                // Fewer than player trail
+                            lifetime: 15.0,          // Longer lifetime to see gravity effects
+                            color: body.body_type.color(), // Match body color
+                        },
+                    ));
             }
 
             body.update(delta_time);

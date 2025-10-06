@@ -327,13 +327,13 @@ impl ApplicationHandler for WindowManager {
                     // Display score and multiplier
                     let scoring_system = self.engine.scheduler.scoring().system();
                     graphics_engine.add_text(
-                        &format!("Score: {}", scoring_system.score()),
+                        &format!("SCORE: {}", scoring_system.score()),
                         [10.0, 50.0],                  // Below FPS counter
                         32,                            // Same readable size
                         crate::graphics::Color::WHITE, // White for score
                     );
                     graphics_engine.add_text(
-                        &format!("Multiplier: {:.1}x", scoring_system.multiplier()),
+                        &format!("MULTI: {:.1}x", scoring_system.multiplier()),
                         [10.0, 90.0],                  // Below score
                         32,                            // Same readable size
                         crate::graphics::Color::GREEN, // Green for multiplier
@@ -345,7 +345,7 @@ impl ApplicationHandler for WindowManager {
                     let seconds = (total_time % 60.0) as u32;
                     let milliseconds = ((total_time % 1.0) * 1000.0) as u32;
                     graphics_engine.add_text(
-                        &format!("Time: {:02}:{:02}.{:03}", minutes, seconds, milliseconds),
+                        &format!("TIME: {:02}:{:02}.{:03}", minutes, seconds, milliseconds),
                         [10.0, 130.0],                // Below multiplier
                         32,                           // Same readable size
                         crate::graphics::Color::CYAN, // Cyan for time
@@ -454,10 +454,7 @@ impl ApplicationHandler for WindowManager {
                     }
 
                     // Blob test - press 'U' to spawn blob enemy
-                    if self
-                        .input_manager
-                        .is_action_just_pressed(Action::SpawnBlob)
-                    {
+                    if self.input_manager.is_action_just_pressed(Action::SpawnBlob) {
                         let player_pos = self.engine.scheduler.player().player().position();
                         // Spawn at distance in front of player
                         let spawn_pos = player_pos + crate::engine::Vec3::new(15.0, 0.0, 0.0);

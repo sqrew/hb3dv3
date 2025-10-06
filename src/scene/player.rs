@@ -11,15 +11,18 @@ pub struct PanicExplosionRequest {
 }
 
 // Dash constants
-const DASH_DURATION: f32 = 0.15; // 150ms dash duration
+const DASH_DURATION: f32 = 0.2; // 150ms dash duration
 const DASH_COOLDOWN: f32 = 1.0; // 1 second cooldown
-const DASH_SPEED_MULTIPLIER: f32 = 6.0; // 4x normal speed during dash
-const IFRAMES_DURATION: f32 = 0.5;
-const IFRAMES_COOLDOWN: f32 = 3.0;
-const DAMAGE_FLASH_DURATION: f32 = 0.5; // How long to show red damage flash
+const DASH_SPEED_MULTIPLIER: f32 = 5.0; // 6x normal speed during dash
+const IFRAMES_DURATION: f32 = 0.4;
+const IFRAMES_COOLDOWN: f32 = 2.0;
+const DAMAGE_FLASH_DURATION: f32 = 0.4; // How long to show red damage flash
+const FREE_FLIGHT_THRUST_STRENGHT: f32 = 60.0;
+const FREE_FLIGHT_MAX_VELOCITY: f32 = 200.0;
+const FREE_FLIGHT_DAMPING: f32 = 0.9999;
 
-// Panic explosion constants
-const PANIC_EXPLOSION_COOLDOWN: f32 = 5.0; // 5 second cooldown
+const PANIC_EXPLOSION_COOLDOWN: f32 = 3.0; // 5 second cooldown
+const TRAIL_PARTICLE_INTERVAL: f32 = 0.01; // Spawn trail particles every 50ms
 
 pub struct Player {
     entity_id: EntityId,
@@ -47,6 +50,9 @@ pub struct Player {
 
     // Panic explosion system
     panic_explosion_cooldown_timer: f32,
+
+    // Free flight trail system
+    trail_particle_timer: f32,
 }
 
 impl Player {
@@ -60,7 +66,7 @@ impl Player {
             collision_radius: 0.8,
             collision_mask: CollisionMask::from(EntityType::Player),
             weapon_manager: WeaponManager::new(),
-            mass: 75.0, // Player mass in kg
+            mass: 10.0, // Player mass in kg
             applied_force: Vec3::zeros(),
 
             // Dash system initialization
@@ -77,6 +83,9 @@ impl Player {
 
             // Panic explosion system initialization
             panic_explosion_cooldown_timer: 0.0,
+
+            // Free flight trail system initialization
+            trail_particle_timer: 0.0,
         }
     }
 
@@ -87,7 +96,11 @@ impl Player {
         camera_forward: Vec3,
         camera_right: Vec3,
         camera_up: Vec3,
-    ) -> (Option<WeaponSpawnRequest>, Option<PanicExplosionRequest>) {
+    ) -> (
+        Option<WeaponSpawnRequest>,
+        Option<PanicExplosionRequest>,
+        bool,
+    ) {
         // Update weapon manager
         self.weapon_manager.update(delta_time, input);
 
@@ -118,9 +131,7 @@ impl Player {
         let mut panic_explosion_request = None;
         let panic_pressed = input.is_action_just_pressed(Action::PanicExplosion);
         if panic_pressed && self.panic_explosion_cooldown_timer <= 0.0 {
-            panic_explosion_request = Some(PanicExplosionRequest {
-                position: self.pos,
-            });
+            panic_explosion_request = Some(PanicExplosionRequest { position: self.pos });
             self.panic_explosion_cooldown_timer = PANIC_EXPLOSION_COOLDOWN;
             println!("💥 Panic explosion triggered!");
         }
@@ -156,18 +167,43 @@ impl Player {
             }
         }
 
+        // Check if free flight mode is enabled (hold L or left trigger)
+        let free_flight_enabled = input.is_action_pressed(Action::FreeFlight);
+
         // Calculate velocity
-        let final_velocity = if self.is_dashing {
-            // During dash: use current input direction at high speed, ignore gravity
-            movement_direction * self.speed * DASH_SPEED_MULTIPLIER
+        if self.is_dashing {
+            // During dash: override with dash velocity
+            self.vel = movement_direction * self.speed * DASH_SPEED_MULTIPLIER;
+        } else if free_flight_enabled {
+            // FREE FLIGHT MODE: Thrust + physics forces + damping
+            let free_flight_thrust_strength = FREE_FLIGHT_THRUST_STRENGHT;
+            let free_flight_max_velocity = FREE_FLIGHT_MAX_VELOCITY;
+            let free_flight_damping = FREE_FLIGHT_DAMPING;
+
+            // Input provides thrust acceleration, not direct velocity
+            let thrust_acceleration = movement_direction * free_flight_thrust_strength;
+
+            // Physics forces (gravity, explosions, etc.)
+            let physics_acceleration = self.applied_force / self.mass;
+
+            // Accumulate velocity from forces
+            let total_acceleration = thrust_acceleration + physics_acceleration;
+            self.vel += total_acceleration * delta_time;
+
+            // Apply damping to prevent infinite drift
+            self.vel *= free_flight_damping;
+
+            // Cap velocity to prevent extreme speeds (yeeting into space)
+            let current_speed = self.vel.magnitude();
+            if current_speed > free_flight_max_velocity {
+                self.vel = self.vel.normalize() * free_flight_max_velocity;
+            }
         } else {
-            // Normal movement: combine input with gravity
+            // NORMAL MODE: Direct positional control (original behavior)
             let input_velocity = movement_direction * self.speed;
             let gravity_acceleration = self.applied_force / self.mass;
-            input_velocity + gravity_acceleration * delta_time
-        };
-
-        self.vel = final_velocity;
+            self.vel = input_velocity + gravity_acceleration * delta_time;
+        }
 
         // Update position
         self.pos += self.vel * delta_time;
@@ -185,7 +221,7 @@ impl Player {
             None
         };
 
-        (weapon_request, panic_explosion_request)
+        (weapon_request, panic_explosion_request, free_flight_enabled)
     }
 
     fn start_dash(&mut self) {
@@ -312,13 +348,37 @@ impl PlayerManager {
         camera_right: Vec3,
         camera_up: Vec3,
     ) -> (Option<WeaponSpawnRequest>, Option<PanicExplosionRequest>) {
-        let (weapon_request, panic_request) =
+        let (weapon_request, panic_request, free_flight_active) =
             self.player
                 .update(delta_time, input, camera_forward, camera_right, camera_up);
 
         // Collect weapon events from player
         let weapon_events = self.player.weapon_manager.drain_events();
         self.event_queue.extend(weapon_events);
+
+        // Spawn trail particles when in free flight mode
+        if free_flight_active {
+            self.player.trail_particle_timer -= delta_time;
+            if self.player.trail_particle_timer <= 0.0 {
+                // Reset timer
+                self.player.trail_particle_timer = TRAIL_PARTICLE_INTERVAL;
+
+                // Spawn trail particles
+                use crate::graphics::Color;
+                self.event_queue.push(EventType::Graphics(
+                    crate::engine::dispatcher::GraphicsEvent::SpawnParticles {
+                        position: self.player.pos,
+                        velocity: Vec3::zeros(), // Stationary particles for trail effect
+                        count: 3,                // Few particles per spawn
+                        lifetime: 10.0,          // Half-second lifetime
+                        color: Color::WHITE,     // Cyan trail to match free flight theme
+                    },
+                ));
+            }
+        } else {
+            // Reset timer when not in free flight
+            self.player.trail_particle_timer = 0.0;
+        }
 
         (weapon_request, panic_request)
     }
@@ -337,11 +397,7 @@ impl PlayerManager {
             Color::WHITE
         };
 
-        vec![Primitive::new(
-            PrimitiveType::Cube,
-            self.player.pos,
-            color,
-        )]
+        vec![Primitive::new(PrimitiveType::Cube, self.player.pos, color)]
     }
 
     pub fn player(&self) -> &Player {

@@ -106,7 +106,7 @@ impl SnakeData {
         EnemyConfig {
             health: 500.0,
             speed: 160.0, // Fast and aggressive
-            mass: 1000.0,
+            mass: 100.0,
             collision_radius: 3.0,
             visual_scale: 3.0,
             primitive_type: PrimitiveType::Tetrahedron,

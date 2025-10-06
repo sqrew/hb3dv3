@@ -26,6 +26,7 @@ pub enum Action {
     Interact,
     PanicExplosion,
     PlasmaBurst,
+    FreeFlight, // Hold to enable physics-based movement
 
     // Weapon switching
     NextWeapon,
@@ -212,6 +213,14 @@ impl Default for ActionBindings {
             Action::PanicExplosion,
             vec![
                 InputBinding::keyboard(KeyCode::KeyX).with_gamepad_button(Button::North), // X key + Y button (North on Xbox)
+            ],
+        );
+
+        bindings.insert(
+            Action::FreeFlight,
+            vec![
+                InputBinding::keyboard(KeyCode::KeyL), // L key
+                InputBinding::gamepad_axis(Axis::LeftZ, 0.1), // Left trigger axis for free flight
             ],
         );
 

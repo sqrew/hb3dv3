@@ -39,6 +39,7 @@ const GRAVITATIONAL_CONSTANT: f32 = 6.674e-1; // Scaled for game physics
 const MIN_DISTANCE_SQUARED: f32 = 0.01; // Prevent singularities
 const BINDING_FORCE_STRENGTH: f32 = 10000.0; // Soft binding to origin
 const BINDING_DISTANCE_THRESHOLD: f32 = 10.0; // Start binding beyond this distance
+const LARGE_BODY_DAMPING: f32 = 0.999; // Damping to prevent runaway velocities
 
 // Gravity force computation bindings
 @group(0) @binding(0) var<storage, read> gravitational_bodies: array<GravitationalBody>;
@@ -121,7 +122,7 @@ fn compute_gravity_forces(@builtin(global_invocation_id) global_id: vec3<u32>) {
         let explosion = explosions[explosion_idx];
         let explosion_displacement = obj_pos - explosion.position;
         let explosion_distance = length(explosion_displacement);
-        
+
         // Check if object is within explosion radius
         if (explosion_distance <= explosion.current_radius && explosion_distance > 0.001) {
             // Calculate explosion force direction (radial outward from explosion center)
@@ -230,8 +231,8 @@ fn update_gravitational_bodies(@builtin(global_invocation_id) global_id: vec3<u3
             nbody_bodies[body_index].angular_velocity += current_angular_change;
             nbody_bodies[other_idx].angular_velocity += other_angular_change;
 
-            // 2. Orbital angular momentum from impact parameter (NEW!)
-            // Calculate impact parameter (how "off-center" the collision is)
+            // 2. Orbital angular momentum from impact parameter
+            // Calculate impact parameter (how off-center the collision is)
             let collision_center = (current_body.position + other_body.position) * 0.5;
             let impact_arm_current = current_body.position - collision_center;
             let impact_arm_other = other_body.position - collision_center;
@@ -293,5 +294,5 @@ fn update_gravitational_bodies(@builtin(global_invocation_id) global_id: vec3<u3
     nbody_bodies[body_index].position += nbody_bodies[body_index].velocity * delta_time;
     
     // Optional: Apply some damping to prevent runaway velocities
-    nbody_bodies[body_index].velocity *= 0.999;
+    nbody_bodies[body_index].velocity *= LARGE_BODY_DAMPING;
 }

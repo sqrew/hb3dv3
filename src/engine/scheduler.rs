@@ -47,7 +47,7 @@ impl Scheduler {
         // );
 
         large_bodies.spawn_body(
-            LargeBodyType::BlackHoleLarge,
+            LargeBodyType::BlackHole,
             Vec3::new(50.0, 10.0, 50.0),
             &mut physics,
             &mut entity_manager,
@@ -71,14 +71,14 @@ impl Scheduler {
         //     &mut entity_manager,
         // );
 
-        // large_bodies.spawn_binary_pair(
-        //     crate::scene::large_body::LargeBodyType::GasGiant,
-        //     crate::scene::large_body::LargeBodyType::NeutronStar,
-        //     crate::engine::Vec3::new(0.0, 0.0, 0.0),
-        //     200.0, // Separation distance
-        //     &mut physics,
-        //     &mut entity_manager,
-        // );
+        large_bodies.spawn_binary_pair(
+            crate::scene::large_body::LargeBodyType::GasGiant,
+            crate::scene::large_body::LargeBodyType::NeutronStar,
+            crate::engine::Vec3::new(0.0, 0.0, 0.0),
+            200.0, // Separation distance
+            &mut physics,
+            &mut entity_manager,
+        );
 
         Scheduler {
             entity_manager,
@@ -424,9 +424,9 @@ impl Scheduler {
         // Spawn explosion at player position
         self.explosions.spawn_explosion(
             request.position,
-            100.0,    // Moderate radius for defensive use
-            100000.0, // Strong push force to clear enemies
-            0.1,      // Duration in seconds
+            100.0,   // Moderate radius for defensive use
+            50000.0, // Strong push force to clear enemies
+            0.1,     // Duration in seconds
             FalloffType::Constant,
             Color::CYAN, // Cyan explosion visual
             Color::CYAN, // Cyan particles

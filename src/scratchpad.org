@@ -8,7 +8,6 @@
 * ideas
 visual on bodies vs collision bounce size is off
 gravity visuals on large bodies
-make Dispatcher::handle_collision_events() match block BulletHitEnemy's SpawnParticle event look up the enemy and use it's color as the particles color
 use LineInstance to build arbitrary shapes
 
 make large_bodies have a spawn_random_body function
@@ -21,11 +20,9 @@ look into increasing sizes of large bodies, maybe make large versions of each so
 
 
 enemeis:
-gates, blobs, chargers, shield guys, exploders, spawner portals,
+gates, chargers, exploders, spawner portals,
 
 
-wepaon:
-gravity orb to collect bullets/enemies
 one that fires 2d geometric patterns that fly away from player: flowers, triangles/squares, cool shapes
 
 
@@ -33,6 +30,13 @@ make exotic matter use inverseLinear explosion effect to create oscillation inst
 
 velocity altering zones like speed/slow zones... already mechanically supported for the most part
 death sequences are still unused
+
+hold l to ride velocity around gravity?
+figure out player gravity
+add trails to large bodies?
+
+
+
 
 
 
@@ -58,7 +62,6 @@ death sequences are still unused
 
 
   Tidal Forces & Destruction
-  Roche Limit: Objects get torn apart when too close to massive bodies
   Tidal Heating: Objects glow and take damage near massive bodies
   Implementation: Add tidal force calculation to compute shaders, progressive destruction particles
 
@@ -68,13 +71,10 @@ death sequences are still unused
 
 
     Visually Spectacular:
-  - Gravitational Lensing - Projectiles and light bend around massive objects, creating curved bullet trajectories near black holes
-  - Accretion Disks - Swirling matter spirals into black holes/neutron stars with realistic orbital decay
   - Tidal Forces - Large objects get visibly stretched/deformed when approaching massive bodies
 
   Gameplay-Enhancing:
   - Magnetic Fields - Charged projectiles follow curved helical paths around magnetized bodies
-  - Roche Limit Effects - Large asteroids break apart into debris fields when they get too close to planets
 
 
 
@@ -123,50 +123,28 @@ death sequences are still unused
   ---
   The Bad/Concerning:
 
-  1. Severe Performance Issue: Synchronous GPU Readback (physics.rs:659-725)
-  device.poll(wgpu::PollType::Wait).unwrap();
-  This blocks the entire render pipeline waiting for GPU results. You're doing this twice per frame (lines 670, 700). This completely kills parallelism between CPU and GPU.
 
-  Impact: Likely cutting your framerate in half or worse.
+  1. Duplicate Code in physics.rs
+  2. update_gravity() (lines 730-919) and update_gravity_batch() (lines 496-727) are nearly identical
+  3. Both have the same double-readback synchronization issue
+  4. Should be refactored into shared implementation
 
-  2. Duplicate Code in physics.rs
-  - update_gravity() (lines 730-919) and update_gravity_batch() (lines 496-727) are nearly identical
-  - Both have the same double-readback synchronization issue
-  - Should be refactored into shared implementation
+  5. Index Management Fragility (large_body.rs:805-816)
+  6. When removing a body from physics, manually adjusting all higher indices
+  7. Error-prone and doesn't scale well
+  8. Consider using a stable handle/ID system instead of raw indices
 
-  3. Questionable Magic Numbers in physics.wgsl
-  let scaled_frame_dragging = body.frame_dragging_strength * 0.00001; // Scale down by 100,000x (line 105)
-  let collision_distance = (current_body.radius + other_body.radius) * 0.9; // (line 180)
-  nbody_bodies[body_index].velocity *= 0.999; // damping (line 294)
-  These suggest the physics tuning was done by trial-and-error rather than proper unit analysis.
+  9. Padding Confusion (physics.rs:21-36, physics.wgsl:4-17)
+  10. 64-byte alignment with manual padding is error-prone
+  11. Total size: 34 + 4 + 34 + 4 + 4 + 4 + 4 + 4 + 4 + 4 + 4 + 4 = 52 bytes not 64
+  12. Are you actually hitting alignment issues? bytemuck::Pod would catch this.
 
-  4. Arena Binding Force Inconsistency (physics.wgsl:270-284)
-  - Binding only applies to bodies with abs(mass) >= 50000.0
-  - This means LauncherMass (49,000) escapes the arena, but seems arbitrary
-  - Uses abs(current_body.mass) for binding acceleration but not for gravitational acceleration
+  13. No Timestep Validation
+  14. delta_time passed directly to GPU without clamping
+  15. Large timesteps (lag spike) could cause physics explosions
+  16. Consider max timestep capping (e.g., 33ms)
 
-  5. Collision Response Issues in Shader (lines 179-257)
-  - Mutating both bodies in collision pair during iteration creates race conditions
-  nbody_bodies[body_index].velocity -= impulse * other_body.mass;
-  nbody_bodies[other_idx].velocity += impulse * current_body.mass;  // DANGER: other_idx writes during iteration
-  - When body_index=5 processes collision with other_idx=8, it writes to nbody_bodies[8]. But when body_index=8 runs (in parallel or later), it might read stale/corrupted data.
-
-  6. Index Management Fragility (large_body.rs:805-816)
-  - When removing a body from physics, manually adjusting all higher indices
-  - Error-prone and doesn't scale well
-  - Consider using a stable handle/ID system instead of raw indices
-
-  7. Padding Confusion (physics.rs:21-36, physics.wgsl:4-17)
-  - 64-byte alignment with manual padding is error-prone
-  - Total size: 34 + 4 + 34 + 4 + 4 + 4 + 4 + 4 + 4 + 4 + 4 + 4 = 52 bytes not 64
-  - Are you actually hitting alignment issues? bytemuck::Pod would catch this.
-
-  8. No Timestep Validation
-  - delta_time passed directly to GPU without clamping
-  - Large timesteps (lag spike) could cause physics explosions
-  - Consider max timestep capping (e.g., 33ms)
-
-  9. Softening Length Too Small (physics.wgsl:39)
+  17. Softening Length Too Small (physics.wgsl:39)
   const MIN_DISTANCE_SQUARED: f32 = 0.01; // distance = 0.1 units
   For bodies with radius 1.0-80.0, this is way too small for numerical stability.
 
@@ -181,10 +159,9 @@ death sequences are still unused
   ---
   Priority Fixes:
 
-  1. Critical: Fix synchronous GPU readback (use async buffer mapping or double-buffering)
-  2. High: Fix shader collision race conditions (collect impulses, apply in separate pass)
-  3. Medium: Verify/fix struct padding to actually hit 64 bytes
-  4. Medium: Add delta_time clamping
-  5. Low: Extract magic numbers to constants with units in comments
+  1. High: Fix shader collision race conditions (collect impulses, apply in separate pass)
+  2. Medium: Verify/fix struct padding to actually hit 64 bytes
+  3. Medium: Add delta_time clamping
+  4. Low: Extract magic numbers to constants with units in comments
 
 ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
