@@ -667,7 +667,7 @@ impl GraphicsEngine {
                 .render(&mut render_pass, &self.camera_bind_group);
 
             // Update text buffers and render text UI
-            self.text_renderer.update_buffers(&self.queue);
+            self.text_renderer.update_buffers(&self.device, &self.queue);
             self.text_renderer.render(&mut render_pass);
         }
 

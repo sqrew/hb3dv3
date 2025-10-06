@@ -10,12 +10,7 @@ var<uniform> screen: ScreenUniforms;
 struct VertexInput {
     @location(0) position: vec2<f32>,
     @location(1) tex_coords: vec2<f32>,
-}
-
-struct InstanceInput {
-    @location(2) instance_position: vec2<f32>,
-    @location(3) scale: f32,
-    @location(4) color: vec4<f32>,
+    @location(2) color: vec4<f32>,
 }
 
 struct VertexOutput {
@@ -25,23 +20,16 @@ struct VertexOutput {
 }
 
 @vertex
-fn vs_main(
-    vertex: VertexInput,
-    instance: InstanceInput,
-) -> VertexOutput {
+fn vs_main(vertex: VertexInput) -> VertexOutput {
     var out: VertexOutput;
 
-    // Transform vertex position by instance scale and position
-    let scaled_pos = vertex.position * instance.scale;
-    let world_pos = scaled_pos + instance.instance_position;
-
-    // Convert to NDC using actual screen dimensions
-    let ndc_x = (world_pos.x / screen.screen_size.x) * 2.0 - 1.0;
-    let ndc_y = 1.0 - (world_pos.y / screen.screen_size.y) * 2.0; // Flip Y for screen coordinates
+    // Convert world position to NDC using actual screen dimensions
+    let ndc_x = (vertex.position.x / screen.screen_size.x) * 2.0 - 1.0;
+    let ndc_y = 1.0 - (vertex.position.y / screen.screen_size.y) * 2.0; // Flip Y for screen coordinates
 
     out.clip_position = vec4<f32>(ndc_x, ndc_y, 0.0, 1.0);
     out.tex_coords = vertex.tex_coords;
-    out.color = instance.color;
+    out.color = vertex.color;
 
     return out;
 }

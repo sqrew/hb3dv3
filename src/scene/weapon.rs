@@ -143,7 +143,7 @@ impl WeaponStats {
     pub fn large_body_launcher() -> Self {
         Self {
             damage: 0.0,           // Damage comes from physics/collision
-            fire_rate: 10.0,       // 1 shot per second
+            fire_rate: 5.0,        // 1 shot per second
             bullet_speed: 200.0,   // Initial velocity for launched asteroids
             bullet_lifetime: 60.0, // 10 second lifetime for asteroids
             projectile_count: 1,   // Single asteroid per shot

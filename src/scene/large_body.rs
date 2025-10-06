@@ -7,6 +7,9 @@ use crate::scene::PhysicsManager;
 // Particle trail configuration for large bodies
 const LARGE_BODY_TRAIL_INTERVAL: f32 = 0.01; // Spawn particles every 20ms (50 Hz)
 
+// Distance culling configuration
+const MAX_DISTANCE_FROM_ORIGIN: f32 = 5000.0; // Auto-destroy bodies beyond this distance
+
 /// Death sequence state for large bodies
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum DeathState {
@@ -832,6 +835,13 @@ impl LargeBodyManager {
             body.update(delta_time);
             // Update position/velocity from physics simulation
             body.update_from_physics(physics_manager);
+
+            // Distance culling - mark bodies that drift too far for removal
+            let distance_from_origin = body.position.magnitude();
+            if distance_from_origin > MAX_DISTANCE_FROM_ORIGIN {
+                // Mark for immediate removal without death sequence
+                body.death_state = DeathState::ReadyForRemoval;
+            }
         }
 
         // Remove dead bodies (iterate in reverse to avoid index issues)

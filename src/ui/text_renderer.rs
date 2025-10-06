@@ -9,45 +9,22 @@ use crate::graphics::Color;
 #[repr(C)]
 #[derive(Copy, Clone, Debug, Pod, Zeroable)]
 pub struct TextVertex {
-    pub position: [f32; 2],   // 2D position (screen space)
+    pub position: [f32; 2],   // 2D position (world/screen space)
     pub tex_coords: [f32; 2], // UV coordinates into glyph atlas
+    pub color: [f32; 4],      // Text color RGBA
 }
 
 impl TextVertex {
-    pub const ATTRIBS: [wgpu::VertexAttribute; 2] = wgpu::vertex_attr_array![
+    pub const ATTRIBS: [wgpu::VertexAttribute; 3] = wgpu::vertex_attr_array![
         0 => Float32x2, // position
         1 => Float32x2, // tex_coords
+        2 => Float32x4, // color
     ];
 
     pub fn desc() -> wgpu::VertexBufferLayout<'static> {
         wgpu::VertexBufferLayout {
             array_stride: std::mem::size_of::<Self>() as wgpu::BufferAddress,
             step_mode: wgpu::VertexStepMode::Vertex,
-            attributes: &Self::ATTRIBS,
-        }
-    }
-}
-
-// Per-text instance data
-#[repr(C)]
-#[derive(Copy, Clone, Debug, Pod, Zeroable)]
-pub struct TextInstance {
-    pub position: [f32; 2], // Screen position (pixels)
-    pub scale: f32,         // Text scale factor
-    pub color: [f32; 4],    // Text color RGBA
-}
-
-impl TextInstance {
-    pub const ATTRIBS: [wgpu::VertexAttribute; 3] = wgpu::vertex_attr_array![
-        2 => Float32x2, // position
-        3 => Float32,   // scale
-        4 => Float32x4, // color
-    ];
-
-    pub fn desc() -> wgpu::VertexBufferLayout<'static> {
-        wgpu::VertexBufferLayout {
-            array_stride: std::mem::size_of::<Self>() as wgpu::BufferAddress,
-            step_mode: wgpu::VertexStepMode::Instance,
             attributes: &Self::ATTRIBS,
         }
     }
@@ -216,14 +193,14 @@ pub struct TextRenderer {
     font: Font,
     atlas: GlyphAtlas,
     vertex_buffer: wgpu::Buffer,
-    instance_buffer: wgpu::Buffer,
     index_buffer: wgpu::Buffer,
+    vertex_buffer_capacity: usize,
+    index_buffer_capacity: usize,
     pipeline: wgpu::RenderPipeline,
     bind_group: wgpu::BindGroup,
     screen_uniform_buffer: wgpu::Buffer,
     screen_bind_group: wgpu::BindGroup,
     screen_size: [f32; 2],
-    instances: Vec<TextInstance>,
     vertices: Vec<TextVertex>,
     indices: Vec<u16>,
 }
@@ -335,7 +312,7 @@ impl TextRenderer {
             vertex: wgpu::VertexState {
                 module: &shader,
                 entry_point: Some("vs_main"),
-                buffers: &[TextVertex::desc(), TextInstance::desc()],
+                buffers: &[TextVertex::desc()],
                 compilation_options: wgpu::PipelineCompilationOptions::default(),
             },
             fragment: Some(wgpu::FragmentState {
@@ -374,23 +351,19 @@ impl TextRenderer {
         });
 
         // Create buffers (start with some reasonable size)
+        let vertex_buffer_capacity = 1000;
+        let index_buffer_capacity = 1500;
+
         let vertex_buffer = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("Text Vertex Buffer"),
-            size: (std::mem::size_of::<TextVertex>() * 1000) as u64,
-            usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
-            mapped_at_creation: false,
-        });
-
-        let instance_buffer = device.create_buffer(&wgpu::BufferDescriptor {
-            label: Some("Text Instance Buffer"),
-            size: (std::mem::size_of::<TextInstance>() * 100) as u64,
+            size: (std::mem::size_of::<TextVertex>() * vertex_buffer_capacity) as u64,
             usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
         });
 
         let index_buffer = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("Text Index Buffer"),
-            size: (std::mem::size_of::<u16>() * 1500) as u64, // 6 indices per quad
+            size: (std::mem::size_of::<u16>() * index_buffer_capacity) as u64,
             usage: wgpu::BufferUsages::INDEX | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
         });
@@ -399,14 +372,14 @@ impl TextRenderer {
             font,
             atlas,
             vertex_buffer,
-            instance_buffer,
             index_buffer,
+            vertex_buffer_capacity,
+            index_buffer_capacity,
             pipeline,
             bind_group,
             screen_uniform_buffer,
             screen_bind_group,
             screen_size,
-            instances: Vec::new(),
             vertices: Vec::new(),
             indices: Vec::new(),
         }
@@ -442,23 +415,28 @@ impl TextRenderer {
                 let char_width = glyph_info.size[0];
                 let char_height = glyph_info.size[1];
 
-                // Create quad vertices using actual glyph UV coordinates
+                // Create quad vertices with world positions baked in
+                let color_array = color.to_array4();
                 let vertices = [
                     TextVertex {
-                        position: [0.0, 0.0], // Local position - will be transformed by instance
+                        position: [current_x, y],
                         tex_coords: [glyph_info.uv[0], glyph_info.uv[1]], // Top-left UV
+                        color: color_array,
                     },
                     TextVertex {
-                        position: [char_width, 0.0],
+                        position: [current_x + char_width, y],
                         tex_coords: [glyph_info.uv[2], glyph_info.uv[1]], // Top-right UV
+                        color: color_array,
                     },
                     TextVertex {
-                        position: [char_width, char_height],
+                        position: [current_x + char_width, y + char_height],
                         tex_coords: [glyph_info.uv[2], glyph_info.uv[3]], // Bottom-right UV
+                        color: color_array,
                     },
                     TextVertex {
-                        position: [0.0, char_height],
+                        position: [current_x, y + char_height],
                         tex_coords: [glyph_info.uv[0], glyph_info.uv[3]], // Bottom-left UV
+                        color: color_array,
                     },
                 ];
 
@@ -477,20 +455,13 @@ impl TextRenderer {
                 ];
                 self.indices.extend_from_slice(&quad_indices);
 
-                // Add one instance per character with its world position
-                self.instances.push(TextInstance {
-                    position: [current_x, y],
-                    scale: 1.0,
-                    color: color.to_array4(),
-                });
-
                 current_x += glyph_info.advance;
             }
         }
     }
 
     pub fn render(&self, render_pass: &mut wgpu::RenderPass) {
-        if self.instances.is_empty() || self.vertices.is_empty() || self.indices.is_empty() {
+        if self.vertices.is_empty() || self.indices.is_empty() {
             return;
         }
 
@@ -498,29 +469,42 @@ impl TextRenderer {
         render_pass.set_bind_group(0, &self.bind_group, &[]);
         render_pass.set_bind_group(1, &self.screen_bind_group, &[]);
         render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
-        render_pass.set_vertex_buffer(1, self.instance_buffer.slice(..));
         render_pass.set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint16);
 
-        // Draw each character quad as a separate draw call for now
-        // Each character has 6 indices (2 triangles) and 1 instance
-        let indices_per_char = 6;
-        for i in 0..self.instances.len() {
-            let index_start = (i * indices_per_char) as u32;
-            let index_end = index_start + indices_per_char as u32;
-            render_pass.draw_indexed(index_start..index_end, 0, i as u32..(i + 1) as u32);
+        // Draw all characters in a single batched draw call
+        render_pass.draw_indexed(0..self.indices.len() as u32, 0, 0..1);
+    }
+
+    fn resize_buffers_if_needed(&mut self, device: &wgpu::Device) {
+        // Check if we need to resize vertex buffer
+        if self.vertices.len() > self.vertex_buffer_capacity {
+            self.vertex_buffer_capacity = (self.vertices.len() * 2).max(1000);
+            self.vertex_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+                label: Some("Text Vertex Buffer"),
+                size: (std::mem::size_of::<TextVertex>() * self.vertex_buffer_capacity) as u64,
+                usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
+                mapped_at_creation: false,
+            });
+        }
+
+        // Check if we need to resize index buffer
+        if self.indices.len() > self.index_buffer_capacity {
+            self.index_buffer_capacity = (self.indices.len() * 2).max(1500);
+            self.index_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+                label: Some("Text Index Buffer"),
+                size: (std::mem::size_of::<u16>() * self.index_buffer_capacity) as u64,
+                usage: wgpu::BufferUsages::INDEX | wgpu::BufferUsages::COPY_DST,
+                mapped_at_creation: false,
+            });
         }
     }
 
-    pub fn update_buffers(&self, queue: &wgpu::Queue) {
+    pub fn update_buffers(&mut self, device: &wgpu::Device, queue: &wgpu::Queue) {
+        // Resize buffers if needed before writing data
+        self.resize_buffers_if_needed(device);
+
         if !self.vertices.is_empty() {
             queue.write_buffer(&self.vertex_buffer, 0, bytemuck::cast_slice(&self.vertices));
-        }
-        if !self.instances.is_empty() {
-            queue.write_buffer(
-                &self.instance_buffer,
-                0,
-                bytemuck::cast_slice(&self.instances),
-            );
         }
         if !self.indices.is_empty() {
             queue.write_buffer(&self.index_buffer, 0, bytemuck::cast_slice(&self.indices));
@@ -528,7 +512,6 @@ impl TextRenderer {
     }
 
     pub fn clear(&mut self) {
-        self.instances.clear();
         self.vertices.clear();
         self.indices.clear();
     }
