@@ -580,6 +580,7 @@ pub struct MetaBullet {
     seeking: bool,          // Whether this bullet seeks targets
     seeking_force: f32,     // Force strength for seeking behavior
     max_seeking_range: f32, // Maximum range for target acquisition
+    trail_spawn_timer: f32, // Timer for spawning trail particles
     visuals: BulletVisuals,
     // Pooling support
     active: bool,
@@ -613,6 +614,7 @@ impl MetaBullet {
             seeking: false,         // Default: no seeking
             seeking_force: 0.0,     // Default: no seeking force
             max_seeking_range: 0.0, // Default: no seeking range
+            trail_spawn_timer: 0.0, // Default: no trail
             visuals,
             active: true,
         }
@@ -648,6 +650,7 @@ impl MetaBullet {
             seeking: true,
             seeking_force,
             max_seeking_range,
+            trail_spawn_timer: 0.0, // Initialize trail timer
             visuals,
             active: true,
         }
@@ -761,6 +764,18 @@ impl MetaBullet {
         self.max_seeking_range
     }
 
+    pub fn trail_spawn_timer(&self) -> f32 {
+        self.trail_spawn_timer
+    }
+
+    pub fn update_trail_timer(&mut self, dt: f32) {
+        self.trail_spawn_timer += dt;
+    }
+
+    pub fn reset_trail_timer(&mut self) {
+        self.trail_spawn_timer = 0.0;
+    }
+
     pub fn set_velocity(&mut self, velocity: Vec3) {
         self.vel = velocity;
     }
@@ -796,6 +811,7 @@ impl MetaBullet {
         self.seeking = false;
         self.seeking_force = 0.0;
         self.max_seeking_range = 0.0;
+        self.trail_spawn_timer = 0.0;
         self.active = true;
     }
 
@@ -828,6 +844,7 @@ impl MetaBullet {
         self.seeking = true;
         self.seeking_force = seeking_force;
         self.max_seeking_range = max_seeking_range;
+        self.trail_spawn_timer = 0.0;
         self.active = true;
     }
 

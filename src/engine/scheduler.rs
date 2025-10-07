@@ -54,7 +54,7 @@ impl Scheduler {
         );
 
         // large_bodies.spawn_binary_pair(
-        //     crate::scene::large_body::LargeBodyType::ExoticMatter,
+        //     crate::scene::large_body::LargeBodyType::WhiteHole,
         //     crate::scene::large_body::LargeBodyType::BlackHole,
         //     crate::engine::Vec3::new(0.0, 0.0, 0.0),
         //     100.0, // Separation distance
@@ -71,14 +71,14 @@ impl Scheduler {
         //     &mut entity_manager,
         // );
 
-        large_bodies.spawn_binary_pair(
-            crate::scene::large_body::LargeBodyType::GasGiant,
-            crate::scene::large_body::LargeBodyType::NeutronStar,
-            crate::engine::Vec3::new(0.0, 0.0, 0.0),
-            200.0, // Separation distance
-            &mut physics,
-            &mut entity_manager,
-        );
+        // large_bodies.spawn_binary_pair(
+        //     crate::scene::large_body::LargeBodyType::Star,
+        //     crate::scene::large_body::LargeBodyType::NeutronStar,
+        //     crate::engine::Vec3::new(0.0, 0.0, 0.0),
+        //     200.0, // Separation distance
+        //     &mut physics,
+        //     &mut entity_manager,
+        // );
 
         Scheduler {
             entity_manager,

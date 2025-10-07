@@ -5,10 +5,11 @@ use crate::graphics::{Color, Primitive, PrimitiveType};
 use crate::input::{Action, InputManager};
 use crate::scene::{GravityAffected, WeaponManager, WeaponSpawnRequest};
 
-/// Request to spawn a panic explosion
-pub struct PanicExplosionRequest {
-    pub position: Vec3,
-}
+const PLAYER_HEALTH: f32 = 100.0;
+const PLAYER_MASS: f32 = 10.0;
+const PLAYER_SPEED: f32 = 50.0;
+
+const PLAYER_FORCES_MULTIPLIER: f32 = 2.0;
 
 // Dash constants
 const DASH_DURATION: f32 = 0.2; // 150ms dash duration
@@ -17,13 +18,21 @@ const DASH_SPEED_MULTIPLIER: f32 = 5.0; // 6x normal speed during dash
 const IFRAMES_DURATION: f32 = 0.4;
 const IFRAMES_COOLDOWN: f32 = 2.0;
 const DAMAGE_FLASH_DURATION: f32 = 0.4; // How long to show red damage flash
-const FREE_FLIGHT_THRUST_STRENGHT: f32 = 60.0;
-const FREE_FLIGHT_MAX_VELOCITY: f32 = 200.0;
+//
+const FREE_FLIGHT_THRUST_STRENGTH: f32 = 50.0;
+const FREE_FLIGHT_MAX_VELOCITY: f32 = 500.0;
 const FREE_FLIGHT_DAMPING: f32 = 0.9999;
+
+// This lets large bodies throw you from 0point but not too far
+const NORMAL_FLIGHT_MAX_VELOCITY: f32 = 10000.0;
 
 const PANIC_EXPLOSION_COOLDOWN: f32 = 3.0; // 5 second cooldown
 const TRAIL_PARTICLE_INTERVAL: f32 = 0.01; // Spawn trail particles every 50ms
 
+/// Request to spawn a panic explosion
+pub struct PanicExplosionRequest {
+    pub position: Vec3,
+}
 pub struct Player {
     entity_id: EntityId,
     pos: Vec3,
@@ -61,12 +70,12 @@ impl Player {
             entity_id,
             pos: Vec3::new(0.0, 0.0, 0.0),
             vel: Vec3::zeros(),
-            health: 100.0,
-            speed: 50.0,
+            health: PLAYER_HEALTH,
+            speed: PLAYER_SPEED,
             collision_radius: 0.8,
             collision_mask: CollisionMask::from(EntityType::Player),
             weapon_manager: WeaponManager::new(),
-            mass: 10.0, // Player mass in kg
+            mass: PLAYER_MASS,
             applied_force: Vec3::zeros(),
 
             // Dash system initialization
@@ -176,12 +185,9 @@ impl Player {
             self.vel = movement_direction * self.speed * DASH_SPEED_MULTIPLIER;
         } else if free_flight_enabled {
             // FREE FLIGHT MODE: Thrust + physics forces + damping
-            let free_flight_thrust_strength = FREE_FLIGHT_THRUST_STRENGHT;
-            let free_flight_max_velocity = FREE_FLIGHT_MAX_VELOCITY;
-            let free_flight_damping = FREE_FLIGHT_DAMPING;
 
             // Input provides thrust acceleration, not direct velocity
-            let thrust_acceleration = movement_direction * free_flight_thrust_strength;
+            let thrust_acceleration = movement_direction * FREE_FLIGHT_THRUST_STRENGTH;
 
             // Physics forces (gravity, explosions, etc.)
             let physics_acceleration = self.applied_force / self.mass;
@@ -191,18 +197,24 @@ impl Player {
             self.vel += total_acceleration * delta_time;
 
             // Apply damping to prevent infinite drift
-            self.vel *= free_flight_damping;
+            self.vel *= FREE_FLIGHT_DAMPING;
 
             // Cap velocity to prevent extreme speeds (yeeting into space)
             let current_speed = self.vel.magnitude();
-            if current_speed > free_flight_max_velocity {
-                self.vel = self.vel.normalize() * free_flight_max_velocity;
+            if current_speed > FREE_FLIGHT_MAX_VELOCITY {
+                self.vel = self.vel.normalize() * FREE_FLIGHT_MAX_VELOCITY;
             }
         } else {
             // NORMAL MODE: Direct positional control (original behavior)
             let input_velocity = movement_direction * self.speed;
             let gravity_acceleration = self.applied_force / self.mass;
             self.vel = input_velocity + gravity_acceleration * delta_time;
+
+            // Cap velocity to prevent black holes from yeeting player away
+            let current_speed = self.vel.magnitude();
+            if current_speed > NORMAL_FLIGHT_MAX_VELOCITY {
+                self.vel = self.vel.normalize() * NORMAL_FLIGHT_MAX_VELOCITY
+            }
         }
 
         // Update position
@@ -323,7 +335,7 @@ impl GravityAffected for Player {
     }
 
     fn apply_force(&mut self, force: Vec3) {
-        self.applied_force += force;
+        self.applied_force += force * PLAYER_FORCES_MULTIPLIER;
     }
 }
 

@@ -61,9 +61,9 @@ impl LargeBodyType {
     /// Get default radius for this body type (for rendering and collision)
     pub fn default_radius(self) -> f32 {
         match self {
-            LargeBodyType::BlackHole => 2.0, // Small but visible
+            LargeBodyType::BlackHole => 1.0, // Small but visible
             LargeBodyType::BlackHoleLarge => 50.0,
-            LargeBodyType::WhiteHole => 2.0, // Same size as black hole, but opposite effect
+            LargeBodyType::WhiteHole => 1.0, // Same size as black hole, but opposite effect
             LargeBodyType::NeutronStar => 2.5, // Very small but dense
             LargeBodyType::ExoticMatter => 15.0, // Large and visible for its effects
             LargeBodyType::Star => 80.0,     // Large and bright for visibility
@@ -94,7 +94,7 @@ impl LargeBodyType {
     pub fn default_collision_radius_ratio(self) -> f32 {
         match self {
             LargeBodyType::BlackHole => 1.0,
-            LargeBodyType::BlackHoleLarge => 0.67,
+            LargeBodyType::BlackHoleLarge => 1.0,
             LargeBodyType::WhiteHole => 1.0,
             LargeBodyType::NeutronStar => 1.0,
             LargeBodyType::ExoticMatter => 1.0, // Large collision area for oscillating effects
@@ -403,7 +403,7 @@ impl LargeBody {
             self.position,
             self.body_type.color(),
         )
-        .with_uniform_scale(self.radius)
+        .with_uniform_scale(self.radius * 2.0) // Sphere primitive has diameter 1.0, so scale by diameter
         .with_rotation(Vec3::new(0.0, self.rotation, 0.0)) // Rotate around Y-axis
     }
 
@@ -763,6 +763,15 @@ impl LargeBodyManager {
                                 position: body.position,
                             },
                         ));
+                    self.pending_events.push(crate::engine::EventType::Graphics(
+                        crate::engine::GraphicsEvent::SpawnParticles {
+                            position: body.position,
+                            velocity: Vec3::zeros(),
+                            count: 1000,
+                            lifetime: 15.0,
+                            color: Color::RED,
+                        },
+                    ));
                 }
             } else if body.body_type == LargeBodyType::NeutronStar && body.solar_wind_interval > 0.0
             {

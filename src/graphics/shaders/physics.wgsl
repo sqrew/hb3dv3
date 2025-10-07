@@ -178,7 +178,7 @@ fn update_gravitational_bodies(@builtin(global_invocation_id) global_id: vec3<u3
         let distance = sqrt(distance_squared);
 
         // Check for collision (overlapping bodies) - reduced collision distance for closer visual contact
-        let collision_distance = (current_body.radius + other_body.radius) * 0.9;
+        let collision_distance = (current_body.radius + other_body.radius) * 1.0;
         // IMPORTANT: Only process each collision pair once to avoid race conditions
         // Process collision only when body_index < other_idx (each pair processed exactly once)
         if (distance < collision_distance && distance > 0.001 && body_index < other_idx) {

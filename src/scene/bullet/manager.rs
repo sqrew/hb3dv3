@@ -69,6 +69,9 @@ impl BulletManager {
             }
         }
 
+        // Spawn trail particles for seeking metabullets
+        self.spawn_seeking_trail_particles(dt);
+
         // Handle fractal splitting for regular bullets and collect new entity IDs
         let new_fractal_entities = self.handle_fractal_splitting(dt);
 
@@ -130,6 +133,44 @@ impl BulletManager {
             let seeking_acceleration = steering_force / metabullet.mass();
             let new_velocity = metabullet.velocity() + seeking_acceleration * dt;
             metabullet.set_velocity(new_velocity);
+        }
+    }
+
+    /// Spawn trail particles for seeking metabullets
+    fn spawn_seeking_trail_particles(&mut self, dt: f32) {
+        const TRAIL_SPAWN_INTERVAL: f32 = 0.01; // Spawn particles every 20ms (50 per second)
+        const PARTICLE_COUNT: u32 = 1; // Spawn 3 particles per interval
+        const PARTICLE_LIFETIME: f32 = 5.0; // Particles last 0.5 seconds
+
+        let metabullet_indices = self.pool.active_metabullet_indices().to_vec();
+        for index in metabullet_indices {
+            if let Some(metabullet) = self.pool.get_metabullet_mut(index) {
+                if metabullet.active() && metabullet.seeking() {
+                    // Update trail spawn timer
+                    metabullet.update_trail_timer(dt);
+
+                    // Check if it's time to spawn particles
+                    if metabullet.trail_spawn_timer() >= TRAIL_SPAWN_INTERVAL {
+                        // Reset timer
+                        metabullet.reset_trail_timer();
+
+                        // Spawn trail particles at current position
+                        let color = metabullet.visuals().color;
+
+                        // Emit graphics event for particle spawning
+                        self.event_queue
+                            .push(crate::engine::dispatcher::EventType::Graphics(
+                                crate::engine::dispatcher::GraphicsEvent::SpawnParticles {
+                                    position: metabullet.position(),
+                                    velocity: -metabullet.velocity() * 0.1, // Small backward velocity
+                                    count: PARTICLE_COUNT,
+                                    lifetime: PARTICLE_LIFETIME,
+                                    color,
+                                },
+                            ));
+                    }
+                }
+            }
         }
     }
 

@@ -156,7 +156,7 @@ impl ExplosionManager {
     pub fn spawn_simple_shockwave(&mut self, position: Vec3) {
         self.spawn_explosion(
             position,
-            60.0,   // Large radius
+            50.0,   // Large radius
             2000.0, // Strong force
             0.1,    // Duration in seconds
             FalloffType::Quadratic,
@@ -170,9 +170,9 @@ impl ExplosionManager {
     pub fn spawn_solar_wind(&mut self, position: Vec3) {
         self.spawn_explosion(
             position,
-            500.0, // Very large radius
-            500.0, // Moderate force
-            3.0,   // Short duration
+            500.0,  // Very large radius
+            5000.0, // Moderate force
+            3.0,    // Short duration
             FalloffType::Linear,
             Color::ORANGE,
             Color::ORANGE,
@@ -183,9 +183,9 @@ impl ExplosionManager {
     pub fn spawn_anti_wind(&mut self, position: Vec3) {
         self.spawn_explosion(
             position,
-            500.0,  // Very large radius
-            -500.0, // Moderate force
-            3.0,    // Short duration
+            500.0,   // Very large radius
+            -5000.0, // Moderate force
+            3.0,     // Short duration
             FalloffType::Linear,
             Color::GREEN,
             Color::GREEN,
@@ -224,7 +224,7 @@ impl ExplosionManager {
                 color.a = alpha * 0.3;
 
                 let primitive = Primitive::new(PrimitiveType::Sphere, explosion.position, color)
-                    .with_uniform_scale(explosion.current_radius);
+                    .with_uniform_scale(explosion.current_radius * 2.0); // Sphere primitive has diameter 1.0
 
                 primitives.push(primitive);
             }

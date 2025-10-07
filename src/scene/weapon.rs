@@ -49,7 +49,7 @@ impl WeaponStats {
             damage: 25.0,
             fire_rate: 50.0,
             bullet_speed: 100.0,
-            bullet_lifetime: 300.0,
+            bullet_lifetime: 60.0,
             projectile_count: 1,
             spread_angle: 0.0,
             bullet_mass: 0.5, // Standard positive mass
@@ -61,7 +61,7 @@ impl WeaponStats {
             damage: 10.0,
             fire_rate: 150.0,
             bullet_speed: 200.0,
-            bullet_lifetime: 1.0,
+            bullet_lifetime: 2.0,
             projectile_count: 2,
             spread_angle: 30.0,
             bullet_mass: 0.1, // Heavier pellets for shotgun
@@ -71,9 +71,9 @@ impl WeaponStats {
     pub fn anti_gravity_cannon() -> Self {
         Self {
             damage: 25.0,
-            fire_rate: 100.0,       // Slower rate for powerful exotic rounds
-            bullet_speed: 25.0,     // Starts slow but accelerates away from gravity
-            bullet_lifetime: 300.0, // Lives longer to show crazy physics
+            fire_rate: 100.0,      // Slower rate for powerful exotic rounds
+            bullet_speed: 25.0,    // Starts slow but accelerates away from gravity
+            bullet_lifetime: 60.0, // Lives longer to show crazy physics
             projectile_count: 1,
             spread_angle: 0.0,
             bullet_mass: -5.0, // Negative mass for anti-gravity effects!

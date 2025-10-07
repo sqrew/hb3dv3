@@ -20,7 +20,7 @@ impl EnemyManager {
             enemies: Vec::new(),
             event_queue: Vec::new(),
             spawn_timer: 0.0,
-            spawn_interval: 110.5,
+            spawn_interval: 0.5,
         }
     }
 
