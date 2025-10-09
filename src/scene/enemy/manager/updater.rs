@@ -1096,6 +1096,19 @@ pub fn handle_deaths(
                     lifetime: 2.0,
                     color: enemy_color,
                 }));
+
+                // Shape particles for visual flair
+                use crate::graphics::PrimitiveType;
+                event_queue.push(EventType::Graphics(GraphicsEvent::SpawnShapeParticles {
+                    position,
+                    velocity: Vec3::new(0.0, 2.0, 0.0), // Slight upward velocity
+                    count: 8,
+                    lifetime: 2.0,
+                    color: enemy_color,
+                    primitive_type: PrimitiveType::Triangle2D,
+                    angular_velocity: Vec3::new(5.0, 5.0, 5.0), // Spin in all directions
+                    scale: 0.3,
+                }));
             }
             EnemyType::Splitter(data) => {
                 if data.current_generation < data.max_generation {
@@ -1113,6 +1126,19 @@ pub fn handle_deaths(
                         count: 50,
                         lifetime: 1.5,
                         color: enemy_color,
+                    }));
+
+                    // Shape particles for splitter split effect
+                    use crate::graphics::PrimitiveType;
+                    event_queue.push(EventType::Graphics(GraphicsEvent::SpawnShapeParticles {
+                        position,
+                        velocity: Vec3::new(0.0, 1.0, 0.0),
+                        count: 6,
+                        lifetime: 1.5,
+                        color: enemy_color,
+                        primitive_type: PrimitiveType::Diamond2D,
+                        angular_velocity: Vec3::new(3.0, 3.0, 3.0),
+                        scale: 0.25,
                     }));
                 }
             }
@@ -1137,7 +1163,41 @@ pub fn handle_deaths(
                         lifetime: 1.0,
                         color: enemy_color,
                     }));
+
+                    // Shape particles for shield break effect
+                    use crate::graphics::PrimitiveType;
+                    event_queue.push(EventType::Graphics(GraphicsEvent::SpawnShapeParticles {
+                        position,
+                        velocity: Vec3::new(0.0, 0.5, 0.0),
+                        count: 5,
+                        lifetime: 1.2,
+                        color: enemy_color,
+                        primitive_type: PrimitiveType::Hexagon2D,
+                        angular_velocity: Vec3::new(4.0, 4.0, 4.0),
+                        scale: 0.2,
+                    }));
                 }
+            }
+            EnemyType::Cannibal(_) => {
+                // Cannibal death - use star shapes for predatory enemy
+                use crate::graphics::PrimitiveType;
+                event_queue.push(EventType::Graphics(GraphicsEvent::SpawnParticles {
+                    position,
+                    velocity: Vec3::new(0.0, 0.0, 0.0),
+                    count: 100,
+                    lifetime: 1.5,
+                    color: enemy_color,
+                }));
+                event_queue.push(EventType::Graphics(GraphicsEvent::SpawnShapeParticles {
+                    position,
+                    velocity: Vec3::new(0.0, 3.0, 0.0),
+                    count: 10,
+                    lifetime: 1.8,
+                    color: enemy_color,
+                    primitive_type: PrimitiveType::Star2D,
+                    angular_velocity: Vec3::new(6.0, 6.0, 6.0),
+                    scale: 0.35,
+                }));
             }
             _ => {}
         }

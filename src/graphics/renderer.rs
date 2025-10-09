@@ -5,7 +5,7 @@ use winit::{dpi::PhysicalSize, window::Window};
 use crate::graphics::{
     BloomRenderer, CameraUniform, CollisionCompute, Frustum, InstancedLineRenderer,
     LightningEffectManager, ParticleSystem, Primitive, PrimitiveType, Projection,
-    SkyboxRenderer, ThirdPersonCamera, Vertex, constants::*, is_visible_sphere, line_batch::ReusableLineBatch,
+    ShapeParticleSystem, SkyboxRenderer, ThirdPersonCamera, Vertex, constants::*, is_visible_sphere, line_batch::ReusableLineBatch,
     primitive_cache::PrimitiveCache, vertex::LineInstance,
 };
 use crate::ui::text_renderer::TextRenderer;
@@ -97,6 +97,7 @@ pub struct GraphicsEngine {
     primitive_cache: PrimitiveCache,
     line_batch: ReusableLineBatch,
     particles: ParticleSystem,
+    shape_particles: ShapeParticleSystem,
     lightning_manager: LightningEffectManager,
     // Reusable buffer to avoid allocating new Vec every frame
     line_instances_buffer: Vec<LineInstance>,
@@ -447,6 +448,9 @@ impl GraphicsEngine {
             surface_format,
         );
 
+        // Create shape particle system (CPU-based, uses primitive rendering)
+        let shape_particles = ShapeParticleSystem::new();
+
         // Create lightning effect manager
         let lightning_manager = LightningEffectManager::new();
 
@@ -494,6 +498,7 @@ impl GraphicsEngine {
             primitive_cache: PrimitiveCache::new(),
             line_batch: ReusableLineBatch::new(1000), // Estimate 1000 primitives per frame
             particles,
+            shape_particles,
             lightning_manager,
             line_instances_buffer: Vec::with_capacity(10000), // Pre-allocate for typical frame
         })
@@ -813,6 +818,24 @@ impl GraphicsEngine {
             self.line_batch.add_line_instances(laser_trail_lines.to_vec());
         }
 
+        // Add shape particles as primitives
+        for particle in self.shape_particles.particles() {
+            let thickness = DEFAULT_LINE_THICKNESS * 0.5; // Slightly thinner for particles
+
+            // Apply alpha fading to color
+            let mut particle_color = particle.color;
+            particle_color.a *= particle.alpha();
+
+            self.line_batch.add_primitive_with_rotation(
+                particle.primitive_type,
+                particle.position,
+                particle.rotation,
+                crate::graphics::Vec3::new(particle.scale, particle.scale, particle.scale),
+                particle_color,
+                thickness,
+            );
+        }
+
         // Generate all lines using optimized systems with full rotation support
         // Lines are now batched by primitive type for better cache locality
         // Use reusable buffer to avoid allocations that cause frame spikes
@@ -851,6 +874,30 @@ impl GraphicsEngine {
     ) {
         self.particles
             .spawn_particles(position, velocity, count, lifetime, color);
+    }
+
+    /// Spawn shape particles (2D primitives as particles)
+    pub fn spawn_shape_particles(
+        &mut self,
+        position: crate::graphics::Vec3,
+        velocity: crate::graphics::Vec3,
+        count: u32,
+        lifetime: f32,
+        color: crate::graphics::Color,
+        primitive_type: PrimitiveType,
+        angular_velocity: crate::graphics::Vec3,
+        scale: f32,
+    ) {
+        self.shape_particles.spawn_particles(
+            position,
+            velocity,
+            count,
+            lifetime,
+            color,
+            primitive_type,
+            angular_velocity,
+            scale,
+        );
     }
 
     // UI methods
@@ -932,6 +979,7 @@ impl GraphicsEngine {
     /// Update particle system (call before render)
     pub fn update_particles(&mut self, delta_time: f32) {
         self.particles.update(&self.device, &self.queue, delta_time);
+        self.shape_particles.update(delta_time);
     }
 
     /// Update particle system with explosion data for physics interactions

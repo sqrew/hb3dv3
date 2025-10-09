@@ -158,6 +158,27 @@ impl ApplicationHandler for WindowManager {
                                 graphics_engine
                                     .spawn_particles(position, velocity, count, lifetime, color);
                             }
+                            crate::engine::dispatcher::GraphicsEvent::SpawnShapeParticles {
+                                position,
+                                velocity,
+                                count,
+                                lifetime,
+                                color,
+                                primitive_type,
+                                angular_velocity,
+                                scale,
+                            } => {
+                                graphics_engine.spawn_shape_particles(
+                                    position,
+                                    velocity,
+                                    count,
+                                    lifetime,
+                                    color,
+                                    primitive_type,
+                                    angular_velocity,
+                                    scale,
+                                );
+                            }
                             crate::engine::dispatcher::GraphicsEvent::DrawLine {
                                 start,
                                 end,

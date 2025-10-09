@@ -852,6 +852,16 @@ pub enum GraphicsEvent {
         lifetime: f32,
         color: Color,
     },
+    SpawnShapeParticles {
+        position: Vec3,
+        velocity: Vec3,
+        count: u32,
+        lifetime: f32,
+        color: Color,
+        primitive_type: crate::graphics::PrimitiveType,
+        angular_velocity: Vec3, // Rotation speed for visual effect
+        scale: f32,
+    },
     ScreenShake {
         intensity: f32,
         duration: f32,
