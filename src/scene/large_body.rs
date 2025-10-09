@@ -125,10 +125,10 @@ impl LargeBodyType {
     /// Get default ergosphere radius ratio (multiplied by visual radius)
     pub fn default_ergosphere_radius_ratio(self) -> f32 {
         match self {
-            LargeBodyType::BlackHole => 100.0, // Much larger ergosphere for visible frame-dragging
+            LargeBodyType::BlackHole => 20.0, // Much larger ergosphere for visible frame-dragging
             LargeBodyType::BlackHoleLarge => 2.0, // Reduced to match playable area
             LargeBodyType::NeutronStar => 20.0, // Large intense ergosphere
-            LargeBodyType::WhiteHole => 20.0,  // Significant ergosphere effect
+            LargeBodyType::WhiteHole => 20.0, // Significant ergosphere effect
             LargeBodyType::ExoticMatter => 20.0, //
             LargeBodyType::LauncherMass => 20.0,
             _ => 0.0,
@@ -164,6 +164,34 @@ impl LargeBodyType {
             LargeBodyType::ExoticMatter => PrimitiveType::Sphere,
             LargeBodyType::LauncherMass => PrimitiveType::Icosahedron,
             LargeBodyType::Debug => PrimitiveType::Sphere,
+        }
+    }
+
+    /// Get atmosphere radius multiplier (None = no atmosphere)
+    pub fn atmosphere_radius_multiplier(self) -> Option<f32> {
+        match self {
+            LargeBodyType::BlackHole => Some(2.0), // Accretion disk glow
+            LargeBodyType::BlackHoleLarge => Some(1.5), // Subtle glow
+            LargeBodyType::Star => Some(3.5),      // Corona effect
+            LargeBodyType::GasGiant => Some(2.0),  // Thick atmosphere
+            LargeBodyType::Planet => Some(1.5),    // Thin atmosphere
+            LargeBodyType::NeutronStar => Some(2.0), // Radiation glow
+            LargeBodyType::ExoticMatter => Some(2.0), // Energy field
+            _ => None, // WhiteHole, LauncherMass, Debug don't have atmospheres
+        }
+    }
+
+    /// Get atmosphere color with transparency
+    pub fn atmosphere_color(self) -> Color {
+        match self {
+            LargeBodyType::BlackHole => Color::new(0.8, 0.2, 0.8, 0.15), // Purple glow
+            LargeBodyType::BlackHoleLarge => Color::new(0.8, 0.2, 0.8, 0.12), // Purple glow
+            LargeBodyType::Star => Color::new(1.0, 0.6, 0.2, 0.2),       // Orange corona
+            LargeBodyType::GasGiant => Color::new(0.8, 0.8, 0.3, 0.15),  // Yellow haze
+            LargeBodyType::Planet => Color::new(0.3, 0.6, 0.9, 0.1),     // Blue atmosphere
+            LargeBodyType::NeutronStar => Color::new(0.3, 1.0, 0.3, 0.18), // Green radiation
+            LargeBodyType::ExoticMatter => Color::new(1.0, 0.2, 0.8, 0.15), // Magenta field
+            _ => Color::new(1.0, 1.0, 1.0, 0.1),                         // Fallback
         }
     }
 }
@@ -890,12 +918,29 @@ impl LargeBodyManager {
         std::mem::take(&mut self.pending_events)
     }
 
-    /// Get render data for all bodies
+    /// Get render data for all bodies (including atmosphere spheres)
     pub fn get_render_data(&self) -> Vec<Primitive> {
-        self.bodies
-            .iter()
-            .map(|body| body.get_render_data())
-            .collect()
+        let mut primitives = Vec::new();
+
+        for body in &self.bodies {
+            // Add the main body wireframe
+            primitives.push(body.get_render_data());
+
+            // Add atmosphere sphere if this body type has one
+            if let Some(atmo_multiplier) = body.body_type.atmosphere_radius_multiplier() {
+                let atmosphere = Primitive::new(
+                    PrimitiveType::Sphere,
+                    body.position,
+                    body.body_type.atmosphere_color(),
+                )
+                .with_uniform_scale(body.radius * atmo_multiplier * 2.0) // Sphere diameter
+                .with_rotation(Vec3::new(0.0, body.rotation, 0.0));
+
+                primitives.push(atmosphere);
+            }
+        }
+
+        primitives
     }
 
     /// Get reference to all bodies

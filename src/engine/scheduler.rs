@@ -47,7 +47,7 @@ impl Scheduler {
         // );
 
         large_bodies.spawn_body(
-            LargeBodyType::BlackHole,
+            LargeBodyType::BlackHoleLarge,
             Vec3::new(50.0, 10.0, 50.0),
             &mut physics,
             &mut entity_manager,

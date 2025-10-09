@@ -67,6 +67,6 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     
     var final_color = in.color;
     final_color.a *= alpha_falloff;
-    
+
     return final_color;
 }

@@ -78,6 +78,7 @@ pub struct GraphicsEngine {
     skybox_pipeline: wgpu::RenderPipeline,
     line_renderer: InstancedLineRenderer,
     text_renderer: TextRenderer,
+    ui_manager: crate::ui::UIManager,
     bloom_renderer: BloomRenderer,
     skybox_renderer: SkyboxRenderer,
     collision_compute: CollisionCompute,
@@ -419,6 +420,9 @@ impl GraphicsEngine {
         // Create text renderer
         let text_renderer = TextRenderer::new(&device, &queue, &config);
 
+        // Create UI manager
+        let ui_manager = crate::ui::UIManager::new(size.width as f32, size.height as f32);
+
         // Create bloom post-processing renderer
         let bloom_renderer = BloomRenderer::new(
             device.clone(),
@@ -471,6 +475,7 @@ impl GraphicsEngine {
             skybox_pipeline,
             line_renderer,
             text_renderer,
+            ui_manager,
             bloom_renderer,
             skybox_renderer,
             collision_compute,
@@ -513,6 +518,10 @@ impl GraphicsEngine {
             // Resize bloom renderer
             self.bloom_renderer
                 .resize(new_size.width, new_size.height, self.config.format);
+
+            // Update UI manager and text renderer screen sizes
+            self.ui_manager.update_screen_size(new_size.width as f32, new_size.height as f32);
+            self.text_renderer.update_screen_size(&self.queue, new_size.width as f32, new_size.height as f32);
 
             // Recreate depth buffer for new size
             let depth_format = wgpu::TextureFormat::Depth32Float;
@@ -665,6 +674,34 @@ impl GraphicsEngine {
             // Render particles
             self.particles
                 .render(&mut render_pass, &self.camera_bind_group);
+        }
+
+        // Process UI elements and render text UI (outside mutable borrow of render_pass)
+        self.render_ui_elements();
+
+        {
+            let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("UI Render Pass"),
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                    view: self.bloom_renderer.get_scene_texture_view(),
+                    resolve_target: None,
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Load, // Load existing content
+                        store: wgpu::StoreOp::Store,
+                    },
+                    depth_slice: None,
+                })],
+                depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                    view: &self.depth_view,
+                    depth_ops: Some(wgpu::Operations {
+                        load: wgpu::LoadOp::Load, // Load existing depth
+                        store: wgpu::StoreOp::Store,
+                    }),
+                    stencil_ops: None,
+                }),
+                timestamp_writes: None,
+                occlusion_query_set: None,
+            });
 
             // Update text buffers and render text UI
             self.text_renderer.update_buffers(&self.device, &self.queue);
@@ -816,20 +853,67 @@ impl GraphicsEngine {
             .spawn_particles(position, velocity, count, lifetime, color);
     }
 
-    // Text rendering methods
-    pub fn add_text(
-        &mut self,
-        text: &str,
-        position: [f32; 2],
-        font_size: u32,
-        color: crate::graphics::Color,
-    ) {
-        self.text_renderer
-            .add_text(&self.device, &self.queue, text, position, font_size, color);
+    // UI methods
+    pub fn ui_manager(&mut self) -> &mut crate::ui::UIManager {
+        &mut self.ui_manager
     }
 
-    pub fn clear_text(&mut self) {
+    pub fn clear_ui(&mut self) {
+        self.ui_manager.clear();
         self.text_renderer.clear();
+    }
+
+    fn render_ui_elements(&mut self) {
+        // Process all UI elements and render them with alignment
+        for element in self.ui_manager.elements() {
+            // Measure text dimensions for alignment
+            let text_size = self.text_renderer.measure_text(
+                &self.device,
+                &self.queue,
+                &element.text,
+                element.style.font_size,
+            );
+
+            // Calculate aligned position
+            let mut x = element.position.x;
+            let mut y = element.position.y;
+
+            // Apply horizontal alignment
+            match element.style.align_h {
+                crate::ui::HorizontalAlign::Left => {
+                    // No adjustment needed
+                }
+                crate::ui::HorizontalAlign::Center => {
+                    x -= text_size[0] / 2.0;
+                }
+                crate::ui::HorizontalAlign::Right => {
+                    x -= text_size[0];
+                }
+            }
+
+            // Apply vertical alignment
+            match element.style.align_v {
+                crate::ui::VerticalAlign::Top => {
+                    // No adjustment needed
+                }
+                crate::ui::VerticalAlign::Center => {
+                    y -= text_size[1] / 2.0;
+                }
+                crate::ui::VerticalAlign::Bottom => {
+                    y -= text_size[1];
+                }
+            }
+
+            // Render the text at the aligned position
+            self.text_renderer.add_text(
+                &self.device,
+                &self.queue,
+                &element.text,
+                [x, y],
+                element.style.font_size,
+                element.style.color,
+            );
+        }
     }
 
     /// Set physics buffers for gravitational particle effects

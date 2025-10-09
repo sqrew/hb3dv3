@@ -515,4 +515,40 @@ impl TextRenderer {
         self.vertices.clear();
         self.indices.clear();
     }
+
+    /// Measure text dimensions without rendering
+    pub fn measure_text(
+        &mut self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        text: &str,
+        font_size: u32,
+    ) -> [f32; 2] {
+        let mut width: f32 = 0.0;
+        let mut height: f32 = 0.0;
+
+        for character in text.chars() {
+            if character.is_whitespace() {
+                if character == ' ' {
+                    width += font_size as f32 * 0.5;
+                }
+                continue;
+            }
+
+            if let Some(glyph_info) = self
+                .atlas
+                .get_or_cache_glyph(device, queue, &self.font, character, font_size)
+            {
+                width += glyph_info.advance;
+                height = height.max(glyph_info.size[1]);
+            }
+        }
+
+        [width, height]
+    }
+
+    pub fn update_screen_size(&mut self, queue: &wgpu::Queue, width: f32, height: f32) {
+        self.screen_size = [width, height];
+        queue.write_buffer(&self.screen_uniform_buffer, 0, bytemuck::cast_slice(&self.screen_size));
+    }
 }

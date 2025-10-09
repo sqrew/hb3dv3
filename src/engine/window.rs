@@ -316,40 +316,39 @@ impl ApplicationHandler for WindowManager {
                         self.last_fps_update = now;
                     }
 
-                    graphics_engine.clear_text();
-                    graphics_engine.add_text(
-                        &format!("FPS: {:.1}", self.displayed_fps), // Readable FPS display!
-                        [10.0, 10.0],                               // Top-left corner
-                        32,                                         // Good readable size
-                        crate::graphics::Color::YELLOW,             // Classic FPS counter color
-                    );
+                    graphics_engine.clear_ui();
+
+                    // Add FPS counter using UIManager
+                    let ui = graphics_engine.ui_manager();
+                    ui.add_element(crate::ui::UIElement::new(
+                        format!("FPS: {:.1}", self.displayed_fps),
+                        crate::ui::Position::top_left(),
+                        crate::ui::TextStyle::new(32, crate::graphics::Color::YELLOW),
+                    ));
 
                     // Display score and multiplier
                     let scoring_system = self.engine.scheduler.scoring().system();
-                    graphics_engine.add_text(
-                        &format!("SCORE: {}", scoring_system.score()),
-                        [10.0, 50.0],                  // Below FPS counter
-                        32,                            // Same readable size
-                        crate::graphics::Color::WHITE, // White for score
-                    );
-                    graphics_engine.add_text(
-                        &format!("MULTI: {:.1}x", scoring_system.multiplier()),
-                        [10.0, 90.0],                  // Below score
-                        32,                            // Same readable size
-                        crate::graphics::Color::GREEN, // Green for multiplier
-                    );
+                    ui.add_element(crate::ui::UIElement::new(
+                        format!("SCORE: {}", scoring_system.score()),
+                        crate::ui::Position::new(10.0, 50.0),
+                        crate::ui::TextStyle::new(32, crate::graphics::Color::WHITE),
+                    ));
+                    ui.add_element(crate::ui::UIElement::new(
+                        format!("MULTI: {:.1}x", scoring_system.multiplier()),
+                        crate::ui::Position::new(10.0, 90.0),
+                        crate::ui::TextStyle::new(32, crate::graphics::Color::GREEN),
+                    ));
 
                     // Display game time with milliseconds
                     let total_time = self.engine.total_time();
                     let minutes = (total_time / 60.0) as u32;
                     let seconds = (total_time % 60.0) as u32;
                     let milliseconds = ((total_time % 1.0) * 1000.0) as u32;
-                    graphics_engine.add_text(
-                        &format!("TIME: {:02}:{:02}.{:03}", minutes, seconds, milliseconds),
-                        [10.0, 130.0],                // Below multiplier
-                        32,                           // Same readable size
-                        crate::graphics::Color::CYAN, // Cyan for time
-                    );
+                    ui.add_element(crate::ui::UIElement::new(
+                        format!("TIME: {:02}:{:02}.{:03}", minutes, seconds, milliseconds),
+                        crate::ui::Position::new(10.0, 130.0),
+                        crate::ui::TextStyle::new(32, crate::graphics::Color::CYAN),
+                    ));
 
                     // Lightning test - press 'K' to spawn lightning bolts
                     if self

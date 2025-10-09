@@ -174,4 +174,12 @@ impl UIManager {
         let position = Position::center(self.screen_width, self.screen_height);
         self.add_element(UIElement::new(text, position, style));
     }
+
+    pub fn screen_width(&self) -> f32 {
+        self.screen_width
+    }
+
+    pub fn screen_height(&self) -> f32 {
+        self.screen_height
+    }
 }
