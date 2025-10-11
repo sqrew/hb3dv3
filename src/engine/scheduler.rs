@@ -46,12 +46,12 @@ impl Scheduler {
             &mut entity_manager,
         );
 
-        // large_bodies.spawn_body(
-        //     LargeBodyType::BlackHole,
-        //     Vec3::new(50.0, 10.0, 50.0),
-        //     &mut physics,
-        //     &mut entity_manager,
-        // );
+        large_bodies.spawn_body(
+            LargeBodyType::BlackHole,
+            Vec3::new(50.0, 10.0, 50.0),
+            &mut physics,
+            &mut entity_manager,
+        );
 
         // large_bodies.spawn_binary_pair(
         //     crate::scene::large_body::LargeBodyType::WhiteHole,
@@ -421,17 +421,18 @@ impl Scheduler {
         use crate::graphics::Color;
         use crate::scene::explosion::FalloffType;
 
-        // Spawn explosion at player position
-        self.explosions.spawn_explosion(
+        // Spawn explosion at player position with dramatic rings
+        let explosion = self.explosions.spawn_explosion(
             request.position,
-            100.0,   // Moderate radius for defensive use
-            50000.0, // Strong push force to clear enemies
-            0.1,     // Duration in seconds
+            100.0,    // Moderate radius for defensive use
+            100000.0, // Strong push force to clear enemies
+            0.1,      // Duration in seconds
             FalloffType::Constant,
             Color::CYAN, // Cyan explosion visual
             Color::CYAN, // Cyan particles
-            200,         // Lots of particles for impact
+            200,      // Lots of particles for impact
         );
+        explosion.has_rings = true; // Enable torus shockwave rings
     }
 
     /// Restart the game by resetting all managers to initial state

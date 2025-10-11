@@ -32,6 +32,7 @@ velocity altering zones like speed/slow zones... already mechanically supported 
 
 
 properly handle death sequences for all large bodies
+body merging
 
 
 
@@ -161,3 +162,141 @@ properly handle death sequences for all large bodies
   4. Low: Extract magic numbers to constants with units in comments
 
 ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+A
+
+
+
+
+
+
+
+
+
+
+
+Physically Realistic Features
+
+  1. Roche Limit & Tidal Disruption
+  - Bodies that venture too close to massive objects get torn apart by tidal forces
+  - Could spawn a debris field of smaller bodies when disruption occurs
+  - Visually dramatic and physically accurate
+  - Implementation: Check distance vs. (primary_mass / satellite_mass)^(1/3) * satellite_radius * 2.46 and break up body into fragments
+
+  2. Accretion Disk Formation
+  - Objects spiraling into black holes/stars form visible particle disks
+  - Could emit radiation/light effects as matter gets compressed
+  - Implementation: Spawn high-velocity particles in orbital paths when bodies get very close but don't collide
+
+  3. Gravitational Slingshot Boost Indicator
+  - Show trajectory prediction lines when approaching bodies at high speed
+  - Visual/audio feedback when player executes a successful gravity assist
+  - Award bonus multiplier for stylish maneuvers
+  - Implementation: Calculate velocity change before/after close approach, spawn particle trail effect
+
+  4. Tidal Locking
+  - Bodies in close orbit gradually synchronize their rotation to always face each other
+  - Adds realism to long-running binary systems
+  - Implementation: Torque calculation based on tidal bulge asymmetry, gradually adjust angular_velocity toward orbital period
+
+  Visual/Aesthetic Additions
+
+  5. Gravitational Lensing
+  - Light bending near massive objects (especially black holes)
+  - Screen-space shader effect that warps the skybox/background
+  - Implementation: Post-process shader that samples from distorted UV coordinates based on body mass & distance
+
+  6. Particle Ring Systems
+  - Saturn-like rings around gas giants and planets
+  - Could be debris from destroyed moons
+  - Implementation: Spawn many small particles in stable circular orbits with thin vertical distribution
+
+  7. Gravitational Wave Shockwaves
+  - When large bodies collide or orbit rapidly, emit visible ripples in space
+  - Could apply screen shake or distortion effects
+  - Implementation: Expanding ring effect similar to explosions but with oscillating intensity
+
+  8. Comet Tails
+  - Small bodies with elliptical orbits develop particle tails when near stars
+  - Tail always points away from nearest star
+  - Implementation: Spawn particles with velocity based on solar wind direction, longer lifetime
+
+  Gameplay-Oriented Features
+
+  9. Lagrange Point Markers
+  - Show stable L4/L5 points in binary systems
+  - Could spawn collectibles or enemies there
+  - Strategic positions for player to camp/ambush
+  - Implementation: Calculate L4/L5 positions ±60° along orbit, spawn marker primitives
+
+  10. Body Merging System
+  - Colliding bodies can merge into larger bodies (mass/momentum conservation)
+  - BlackHole + Star → Larger BlackHole (dramatic!)
+  - Could trigger special effects based on merger type
+  - Implementation: In collision code, create new body with combined mass/momentum, destroy originals
+
+  11. Capture Mechanics
+  - Small objects can be "captured" into orbit when conditions are right
+  - Player could collect mini-moons that orbit and provide bonuses
+  - Enemies could orbit you and need to be shaken off
+  - Implementation: Check relative velocity vs escape velocity, apply gentle binding force
+
+  12. Gravity Wells as Tactical Space
+  - Hide behind planets to break line-of-sight
+  - Use gravity to bend bullets around obstacles
+  - Enemies get "stuck" in deep gravity wells
+  - Implementation: Already have the physics, just need AI to react tactically
+
+  Complex Dynamic Systems
+
+  13. Stellar Evolution Chain
+  - Stars age over time: Star → Red Giant → Supernova → Neutron Star/Black Hole
+  - Size/mass/color changes as they evolve
+  - Implementation: Age-based state machine with smooth transitions, emit particles during supernova
+
+  14. Orbital Resonances
+  - Bodies in 2:1, 3:2 ratio orbits create beautiful stable patterns
+  - Could be puzzle elements ("create a stable 3-body resonance")
+  - Implementation: Monitor orbital periods, spawn visual markers when resonance detected
+
+  15. Asteroid Belt Generator
+  - Spawn a field of small asteroids in a ring
+  - Could be mining resource zones
+  - Collisions create fragments
+  - Implementation: Spawn many small LauncherMass bodies with slightly varied orbital parameters
+
+  16. Multi-Star Systems
+  - Binary, trinary, and figure-8 orbit systems
+  - You already have binary pair spawning - extend to more complex configurations
+  - Implementation: Pre-calculate stable configurations (like figure-8 choreography) and spawn with precise initial conditions
+
+  Exotic/Sci-Fi Additions
+
+  17. Wormhole Pairs
+  - Two bodies that teleport objects passing through them
+  - Could create strategic shortcuts or puzzle elements
+  - Implementation: New LargeBodyType::Wormhole, check collisions and teleport position/velocity to paired wormhole
+
+  18. Micro Black Holes
+  - Player-spawned temporary black holes as weapons
+  - Small radius but intense gravity
+  - Implementation: New weapon type that spawns short-lived BlackHole with high mass, small radius
+
+  19. Gravitational Mines
+  - Deployable objects that pull enemies in or create chaotic orbital patterns
+  - Implementation: Similar to large bodies but with trigger radius and special behaviors
+
+  20. Plasma Ejections
+  - Stars periodically eject coronal mass ejections that push objects
+  - Could be hazards or boost opportunities
+  - Implementation: Directional explosion events spawned from star position
+
+  ---
+  My Top 5 Recommendations:
+
+  Given your current architecture and what would be most fun:
+
+  1. Body Merging - Incredibly satisfying, works with existing collision system
+  2. Gravitational Slingshot Feedback - Gameplay depth, rewards skill, feels amazing
+  3. Accretion Disks - Visually stunning, relatively simple particle effect
+  4. Lagrange Points - Tactical gameplay, educational, easy to calculate
+  5. Tidal Disruption - Dramatic visual effect, physically accurate, uses existing debris system

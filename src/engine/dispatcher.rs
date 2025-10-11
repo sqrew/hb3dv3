@@ -454,7 +454,7 @@ impl Dispatcher {
                 particle_color,
                 particle_count,
             } => {
-                scheduler.explosions_mut().spawn_explosion(
+                let explosion = scheduler.explosions_mut().spawn_explosion(
                     position,
                     max_radius,
                     force_strength,
@@ -464,6 +464,7 @@ impl Dispatcher {
                     particle_color,
                     particle_count,
                 );
+                // use explosion.has_rings = true here if you want every explosion to have rings
 
                 // Apply damage to enemies within damage radius
                 if damage > 0.0 && damage_radius > 0.0 {

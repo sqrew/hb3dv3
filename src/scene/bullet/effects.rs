@@ -123,7 +123,11 @@ pub struct ImplosionOnHitEffect {
 }
 
 impl OnHitEffect for ImplosionOnHitEffect {
-    fn on_hit(&self, _hit_position: Vec3, _target_id: Option<EntityId>) -> Vec<ChainLightningEvent> {
+    fn on_hit(
+        &self,
+        _hit_position: Vec3,
+        _target_id: Option<EntityId>,
+    ) -> Vec<ChainLightningEvent> {
         // We don't return chain lightning events
         // The explosion will be triggered via downcasting in the manager
         Vec::new()

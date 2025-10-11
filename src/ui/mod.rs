@@ -2,6 +2,12 @@ pub mod text_renderer;
 
 use crate::graphics::Color;
 
+const DEFAULT_FONT_SIZE: u32 = 16;
+const LEFT_PADDING: f32 = 10.0;
+const RIGHT_PADDING: f32 = 10.0;
+const TOP_PADDING: f32 = 10.0;
+const BOTTOM_PADDING: f32 = 30.0; // 10 plus extra for font height
+
 #[derive(Debug, Clone, Copy)]
 pub enum HorizontalAlign {
     Left,
@@ -28,27 +34,30 @@ impl Position {
     }
 
     pub fn top_left() -> Self {
-        Self { x: 10.0, y: 10.0 }
+        Self {
+            x: LEFT_PADDING,
+            y: RIGHT_PADDING,
+        }
     }
 
     pub fn top_right(screen_width: f32) -> Self {
         Self {
-            x: screen_width - 10.0,
-            y: 10.0,
+            x: screen_width - RIGHT_PADDING,
+            y: TOP_PADDING,
         }
     }
 
     pub fn bottom_left(screen_height: f32) -> Self {
         Self {
-            x: 10.0,
-            y: screen_height - 30.0,
+            x: LEFT_PADDING,
+            y: screen_height - BOTTOM_PADDING,
         }
     }
 
     pub fn bottom_right(screen_width: f32, screen_height: f32) -> Self {
         Self {
-            x: screen_width - 10.0,
-            y: screen_height - 30.0,
+            x: screen_width - RIGHT_PADDING,
+            y: screen_height - BOTTOM_PADDING,
         }
     }
 
@@ -71,7 +80,7 @@ pub struct TextStyle {
 impl Default for TextStyle {
     fn default() -> Self {
         Self {
-            font_size: 16,
+            font_size: DEFAULT_FONT_SIZE,
             color: Color::WHITE,
             align_h: HorizontalAlign::Left,
             align_v: VerticalAlign::Top,
@@ -124,7 +133,7 @@ impl UIElement {
         Self {
             text: text.into(),
             position,
-            style: TextStyle::new(14, Color::GREEN),
+            style: TextStyle::new(DEFAULT_FONT_SIZE, Color::GREEN),
         }
     }
 }
