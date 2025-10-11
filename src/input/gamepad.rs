@@ -1,4 +1,4 @@
-use gilrs::{Axis, Button, EventType, GamepadId, Gilrs};
+use gilrs::{Axis, Button, EventType, GamepadId};
 use std::collections::{HashMap, HashSet};
 
 #[derive(Debug, Clone)]
@@ -136,6 +136,7 @@ impl GamepadManager {
                 // Auto-select first gamepad
                 if self.active_gamepad.is_none() {
                     self.active_gamepad = Some(id);
+                    println!("Gamepad connected and selected: ID {:?}", id);
                 }
             }
 
@@ -147,39 +148,26 @@ impl GamepadManager {
                 // Clear active gamepad if it was this one
                 if self.active_gamepad == Some(id) {
                     self.active_gamepad = None;
+                    println!("Active gamepad disconnected");
                 }
 
                 self.gamepads.remove(&id);
             }
 
-            EventType::ButtonPressed(button, code) => {
+            // For all other event types, just forward to the gamepad state
+            _ => {
                 if let Some(gamepad) = self.gamepads.get_mut(&id) {
-                    gamepad.handle_event(&EventType::ButtonPressed(*button, *code));
+                    gamepad.handle_event(event);
                 }
             }
-
-            EventType::ButtonReleased(button, code) => {
-                if let Some(gamepad) = self.gamepads.get_mut(&id) {
-                    gamepad.handle_event(&EventType::ButtonReleased(*button, *code));
-                }
-            }
-
-            EventType::AxisChanged(axis, value, code) => {
-                if let Some(gamepad) = self.gamepads.get_mut(&id) {
-                    gamepad.handle_event(&EventType::AxisChanged(*axis, *value, *code));
-                }
-            }
-
-            _ => {}
         }
     }
 
-    pub fn update(&mut self, _gilrs: &mut Gilrs, active_id: Option<GamepadId>) {
-        self.active_gamepad = active_id;
-
+    pub fn update(&mut self) {
         // Don't update gamepad names every frame - they're already set on connection
         // This was causing frame stalls due to expensive gamepad.name() calls
         // Names are set once in handle_gilrs_event() when gamepads connect
+        // Active gamepad selection is now handled internally in handle_gilrs_event()
     }
 
     /// Clear the just_pressed/just_released state after game systems have processed input

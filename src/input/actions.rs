@@ -58,6 +58,7 @@ pub enum Action {
 #[derive(Debug, Clone)]
 pub struct InputBinding {
     pub keyboard: Option<KeyCode>,
+    pub mouse_button: Option<winit::event::MouseButton>,
     pub gamepad_button: Option<Button>,
     pub gamepad_axis: Option<(Axis, f32)>, // axis and threshold
 }
@@ -66,6 +67,7 @@ impl InputBinding {
     pub fn keyboard(key: KeyCode) -> Self {
         Self {
             keyboard: Some(key),
+            mouse_button: None,
             gamepad_button: None,
             gamepad_axis: None,
         }
@@ -74,14 +76,16 @@ impl InputBinding {
     pub fn gamepad_axis(axis: Axis, threshold: f32) -> Self {
         Self {
             keyboard: None,
+            mouse_button: None,
             gamepad_button: None,
             gamepad_axis: Some((axis, threshold)),
         }
     }
 
-    pub fn mouse_button(_button: winit::event::MouseButton) -> Self {
+    pub fn mouse_button(button: winit::event::MouseButton) -> Self {
         Self {
             keyboard: None,
+            mouse_button: Some(button),
             gamepad_button: None,
             gamepad_axis: None,
         }
@@ -319,13 +323,19 @@ impl ActionBindings {
         &self,
         action: Action,
         keyboard: &KeyboardState,
-        _mouse: &MouseState,
+        mouse: &MouseState,
         gamepad: &GamepadManager,
     ) -> bool {
         if let Some(bindings) = self.bindings.get(&action) {
             for binding in bindings {
                 if let Some(key) = binding.keyboard {
                     if keyboard.is_key_pressed(key) {
+                        return true;
+                    }
+                }
+
+                if let Some(button) = binding.mouse_button {
+                    if mouse.is_button_pressed(button) {
                         return true;
                     }
                 }
@@ -353,13 +363,19 @@ impl ActionBindings {
         &self,
         action: Action,
         keyboard: &KeyboardState,
-        _mouse: &MouseState,
+        mouse: &MouseState,
         gamepad: &GamepadManager,
     ) -> bool {
         if let Some(bindings) = self.bindings.get(&action) {
             for binding in bindings {
                 if let Some(key) = binding.keyboard {
                     if keyboard.is_key_just_pressed(key) {
+                        return true;
+                    }
+                }
+
+                if let Some(button) = binding.mouse_button {
+                    if mouse.is_button_just_pressed(button) {
                         return true;
                     }
                 }
@@ -378,7 +394,7 @@ impl ActionBindings {
         &self,
         action: Action,
         keyboard: &KeyboardState,
-        _mouse: &MouseState,
+        mouse: &MouseState,
         gamepad: &GamepadManager,
     ) -> f32 {
         if let Some(bindings) = self.bindings.get(&action) {
@@ -386,6 +402,12 @@ impl ActionBindings {
                 // Check digital inputs first (keyboard/buttons)
                 if let Some(key) = binding.keyboard {
                     if keyboard.is_key_pressed(key) {
+                        return 1.0;
+                    }
+                }
+
+                if let Some(button) = binding.mouse_button {
+                    if mouse.is_button_pressed(button) {
                         return 1.0;
                     }
                 }
@@ -430,6 +452,24 @@ impl ActionBindings {
                 }
             }
         }
+
+        // Check for scroll wheel on zoom actions
+        match action {
+            Action::CameraZoomIn => {
+                let scroll = mouse.scroll_delta();
+                if scroll > 0.0 {
+                    return scroll;
+                }
+            }
+            Action::CameraZoomOut => {
+                let scroll = mouse.scroll_delta();
+                if scroll < 0.0 {
+                    return -scroll;
+                }
+            }
+            _ => {}
+        }
+
         0.0
     }
 

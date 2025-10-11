@@ -97,17 +97,20 @@ impl MouseState {
     }
 
     pub fn update(&mut self) {
+        // Reset delta if no movement this frame
+        if self.position == self.last_position {
+            self.delta = (0.0, 0.0);
+        }
+    }
+
+    /// Clear transient state after game systems have processed input
+    pub fn clear_transient_state(&mut self) {
         // Clear per-frame state
         self.just_pressed_buttons.clear();
         self.just_released_buttons.clear();
         self.scroll_delta = 0.0;
         self.cursor_entered = false;
         self.cursor_left = false;
-        
-        // Reset delta if no movement this frame
-        if self.position == self.last_position {
-            self.delta = (0.0, 0.0);
-        }
     }
 
     // Position queries

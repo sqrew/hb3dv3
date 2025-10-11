@@ -307,6 +307,17 @@ impl ApplicationHandler for WindowManager {
                             (camera.angle_vertical - (mouse_dy * 0.005) as f32).clamp(-1.4, 1.4);
                     }
 
+                    // Camera zoom controls (keyboard +/- and mouse scroll wheel)
+                    let zoom_in = self.input_manager.get_action_value(Action::CameraZoomIn);
+                    let zoom_out = self.input_manager.get_action_value(Action::CameraZoomOut);
+
+                    if zoom_in > 0.0 {
+                        camera.distance = (camera.distance - zoom_in * delta_time * 20.0).max(3.0);
+                    }
+                    if zoom_out > 0.0 {
+                        camera.distance = (camera.distance + zoom_out * delta_time * 20.0).min(50.0);
+                    }
+
                     // Update camera to follow player (with time for skybox animation)
                     let total_time = self.engine.total_time();
                     graphics_engine.update_camera_with_time(
