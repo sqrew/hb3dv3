@@ -38,20 +38,20 @@ impl Scheduler {
             &mut entity_manager,
         );
 
-        // large_bodies.spawn_body_with_lifetime(
-        //     LargeBodyType::BlackHole,
-        //     Vec3::new(100.0, 100.0, 100.0),
-        //     2.0, //how long to live
-        //     &mut physics,
-        //     &mut entity_manager,
-        // );
-
-        large_bodies.spawn_body(
-            LargeBodyType::BlackHoleLarge,
-            Vec3::new(50.0, 10.0, 50.0),
+        large_bodies.spawn_body_with_lifetime(
+            LargeBodyType::BlackHole,
+            Vec3::new(100.0, 100.0, 100.0), //position
+            5.0,                            //seconds long to live
             &mut physics,
             &mut entity_manager,
         );
+
+        // large_bodies.spawn_body(
+        //     LargeBodyType::BlackHole,
+        //     Vec3::new(50.0, 10.0, 50.0),
+        //     &mut physics,
+        //     &mut entity_manager,
+        // );
 
         // large_bodies.spawn_binary_pair(
         //     crate::scene::large_body::LargeBodyType::WhiteHole,
@@ -460,9 +460,10 @@ impl Scheduler {
         self.scoring = ScoreMultiplierManager::new();
 
         // Recreate initial large bodies
-        self.large_bodies.spawn_body(
+        self.large_bodies.spawn_body_with_lifetime(
             LargeBodyType::BlackHole,
             Vec3::new(50.0, 10.0, 50.0),
+            4.0,
             &mut self.physics,
             &mut self.entity_manager,
         );

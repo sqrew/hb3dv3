@@ -28,10 +28,10 @@ one that fires 2d geometric patterns that fly away from player: flowers, triangl
 make exotic matter use inverseLinear explosion effect to create oscillation instead of explosions (maybe)
 
 velocity altering zones like speed/slow zones... already mechanically supported for the most part
-death sequences are still unused
 
 
 
+properly handle death sequences for all large bodies
 
 
 

@@ -109,14 +109,14 @@ impl LargeBodyType {
     /// Get default angular velocity for this body type (radians per second)
     pub fn default_angular_velocity(self) -> f32 {
         match self {
-            LargeBodyType::BlackHole => 2.0, // Fast spinning black hole for frame-dragging
+            LargeBodyType::BlackHole => 10.0, // Fast spinning black hole for frame-dragging
             LargeBodyType::BlackHoleLarge => 1.0, // Spinning black hole for frame-dragging
             LargeBodyType::WhiteHole => -3.0, // Counter-rotating white hole
             LargeBodyType::NeutronStar => 12.0, // Extremely fast pulsar rotation
             LargeBodyType::ExoticMatter => 6.0, // Rapid oscillating rotation for visual effect
-            LargeBodyType::Star => 0.5,      // Moderate stellar rotation
-            LargeBodyType::GasGiant => 1.0,  // Fast rotation like Jupiter
-            LargeBodyType::Planet => 0.3,    // Earth-like rotation (slower)
+            LargeBodyType::Star => 0.5,       // Moderate stellar rotation
+            LargeBodyType::GasGiant => 1.0,   // Fast rotation like Jupiter
+            LargeBodyType::Planet => 0.3,     // Earth-like rotation (slower)
             LargeBodyType::LauncherMass => 3.0,
             LargeBodyType::Debug => 0.5, // Debug body with moderate rotation
         }
@@ -125,7 +125,7 @@ impl LargeBodyType {
     /// Get default ergosphere radius ratio (multiplied by visual radius)
     pub fn default_ergosphere_radius_ratio(self) -> f32 {
         match self {
-            LargeBodyType::BlackHole => 20.0, // Much larger ergosphere for visible frame-dragging
+            LargeBodyType::BlackHole => 30.0, // Much larger ergosphere for visible frame-dragging
             LargeBodyType::BlackHoleLarge => 2.0, // Reduced to match playable area
             LargeBodyType::NeutronStar => 20.0, // Large intense ergosphere
             LargeBodyType::WhiteHole => 20.0, // Significant ergosphere effect
@@ -226,6 +226,9 @@ pub struct LargeBody {
 
     // Particle trail system
     trail_particle_timer: f32, // Timer for spawning trail particles
+
+    // Event queue for death sequence effects
+    pending_events: Vec<crate::engine::dispatcher::EventType>,
 }
 
 impl LargeBody {
@@ -263,6 +266,7 @@ impl LargeBody {
             max_lifetime: None, // Eternal by default
             death_state: DeathState::Alive,
             trail_particle_timer: 0.0,
+            pending_events: Vec::new(),
         }
     }
 
@@ -306,6 +310,7 @@ impl LargeBody {
             max_lifetime: None, // Eternal by default
             death_state: DeathState::Alive,
             trail_particle_timer: 0.0,
+            pending_events: Vec::new(),
         }
     }
 
@@ -357,6 +362,7 @@ impl LargeBody {
                 // Count down death sequence timer
                 let new_timer = timer - delta_time;
                 if new_timer <= 0.0 {
+                    self.on_death_sequence_complete();
                     self.death_state = DeathState::ReadyForRemoval;
                 } else {
                     self.death_state = DeathState::DeathSequence { timer: new_timer };
@@ -484,6 +490,11 @@ impl LargeBody {
         self.max_lifetime.map(|max| (self.age / max).min(1.0))
     }
 
+    /// Drain pending events from this body
+    pub fn drain_events(&mut self) -> Vec<crate::engine::dispatcher::EventType> {
+        std::mem::take(&mut self.pending_events)
+    }
+
     /// Trigger death sequence for this large body type
     fn trigger_death_sequence(&mut self) {
         match self.body_type {
@@ -492,7 +503,21 @@ impl LargeBody {
                 println!("💥 BlackHole evaporating in burst of Hawking radiation!");
                 self.radius *= 2.5; // Dramatic expansion before death
 
-                // Could spawn particles, change color, etc.
+                self.pending_events
+                    .push(crate::engine::dispatcher::EventType::Explosion(
+                        crate::engine::dispatcher::ExplosionEvent::Custom {
+                            position: self.position,
+                            max_radius: self.radius * 500.0,
+                            force_strength: -50000.0,
+                            duration: 2.0,
+                            falloff_type: crate::scene::FalloffType::Linear,
+                            damage: 0.0,
+                            damage_radius: 0.0,
+                            explosion_color: Color::MAGENTA,
+                            particle_color: Color::MAGENTA,
+                            particle_count: 500,
+                        },
+                    ));
             }
 
             LargeBodyType::BlackHoleLarge => {
@@ -500,6 +525,22 @@ impl LargeBody {
                 println!("🕳️💥 Supermassive BlackHole undergoing final evaporation!");
                 self.radius *= 4.0; // Even larger expansion for supermassive
                 // Could spawn intense gravitational waves, spacetime distortion effects
+                //
+                self.pending_events
+                    .push(crate::engine::dispatcher::EventType::Explosion(
+                        crate::engine::dispatcher::ExplosionEvent::Custom {
+                            position: self.position,
+                            max_radius: self.radius * 10.0,
+                            force_strength: -500000.0,
+                            duration: 2.0,
+                            falloff_type: crate::scene::FalloffType::Linear,
+                            damage: 0.0,
+                            damage_radius: 0.0,
+                            explosion_color: Color::MAGENTA,
+                            particle_color: Color::MAGENTA,
+                            particle_count: 5000,
+                        },
+                    ));
             }
 
             LargeBodyType::WhiteHole => {
@@ -507,6 +548,21 @@ impl LargeBody {
                 println!("🌟 WhiteHole ejecting all accumulated matter!");
                 self.mass *= 0.1; // Lose most mass in final ejection
                 // Could spawn outward-moving matter particles
+                self.pending_events
+                    .push(crate::engine::dispatcher::EventType::Explosion(
+                        crate::engine::dispatcher::ExplosionEvent::Custom {
+                            position: self.position,
+                            max_radius: self.radius * 500.0,
+                            force_strength: 50000.0,
+                            duration: 2.0,
+                            falloff_type: crate::scene::FalloffType::Linear,
+                            damage: 0.0,
+                            damage_radius: 0.0,
+                            explosion_color: Color::WHITE,
+                            particle_color: Color::WHITE,
+                            particle_count: 5000,
+                        },
+                    ));
             }
 
             LargeBodyType::Star => {
@@ -555,6 +611,155 @@ impl LargeBody {
                 // Simple debug death
                 println!("🔧 Debug body completing lifecycle test");
                 // No special effects, just clean removal
+            }
+        }
+    }
+
+    /// Called when death sequence completes (right before removal)
+    fn on_death_sequence_complete(&mut self) {
+        match self.body_type {
+            LargeBodyType::BlackHole => {
+                // Final collapse - spawn intense particle burst and shockwave
+                println!("🌌 BlackHole final collapse!");
+
+                // Spawn final explosion
+                self.pending_events
+                    .push(crate::engine::dispatcher::EventType::Explosion(
+                        crate::engine::dispatcher::ExplosionEvent::Custom {
+                            position: self.position,
+                            max_radius: self.radius * 500.0,
+                            force_strength: 5000.0,
+                            duration: 2.0,
+                            falloff_type: crate::scene::FalloffType::Linear,
+                            damage: 0.0,
+                            damage_radius: 0.0,
+                            explosion_color: Color::ORANGE,
+                            particle_color: Color::ORANGE,
+                            particle_count: 1000,
+                        },
+                    ));
+            }
+
+            LargeBodyType::BlackHoleLarge => {
+                // Supermassive collapse - even more dramatic
+                println!("💫 Supermassive BlackHole final collapse!");
+
+                // Multiple shockwaves
+                self.pending_events
+                    .push(crate::engine::dispatcher::EventType::Explosion(
+                        crate::engine::dispatcher::ExplosionEvent::Custom {
+                            position: self.position,
+                            max_radius: 800.0,
+                            force_strength: 100000.0,
+                            duration: 2.0,
+                            falloff_type: crate::scene::FalloffType::Quadratic,
+                            damage: 0.0,
+                            damage_radius: 0.0,
+                            explosion_color: Color::MAGENTA,
+                            particle_color: Color::MAGENTA,
+                            particle_count: 2000,
+                        },
+                    ));
+            }
+
+            LargeBodyType::Star => {
+                // Supernova remnant - spawn neutron star core
+                println!(
+                    "⭐ Star supernova complete - neutron star remnant forming!  TODO: NOT IMPLEMENTED YET"
+                );
+
+                // Final explosion burst
+                self.pending_events
+                    .push(crate::engine::dispatcher::EventType::Explosion(
+                        crate::engine::dispatcher::ExplosionEvent::Custom {
+                            position: self.position,
+                            max_radius: 600.0,
+                            force_strength: 80000.0,
+                            duration: 1.5,
+                            falloff_type: crate::scene::FalloffType::Linear,
+                            damage: 0.0,
+                            damage_radius: 0.0,
+                            explosion_color: Color::RED,
+                            particle_color: Color::ORANGE,
+                            particle_count: 1500,
+                        },
+                    ));
+
+                // TODO: Could spawn a NeutronStar here as a remnant
+                // This would require passing PhysicsManager and EntityManager
+            }
+
+            LargeBodyType::ExoticMatter => {
+                // Annihilation complete - reality warping effects
+                println!("⚡ Exotic Matter annihilation complete!");
+
+                // Multiple expanding energy rings
+                self.pending_events
+                    .push(crate::engine::dispatcher::EventType::Explosion(
+                        crate::engine::dispatcher::ExplosionEvent::Custom {
+                            position: self.position,
+                            max_radius: 400.0,
+                            force_strength: 120000.0,
+                            duration: 1.0,
+                            falloff_type: crate::scene::FalloffType::Linear,
+                            damage: 0.0,
+                            damage_radius: 0.0,
+                            explosion_color: Color::MAGENTA,
+                            particle_color: Color::WHITE,
+                            particle_count: 2000,
+                        },
+                    ));
+            }
+
+            LargeBodyType::Planet | LargeBodyType::GasGiant => {
+                // Planetary breakup complete - debris field
+                println!("🪐 Planetary body fragmentation complete!");
+            }
+
+            LargeBodyType::LauncherMass => {
+                self.pending_events
+                    .push(crate::engine::dispatcher::EventType::Graphics(
+                        crate::engine::dispatcher::GraphicsEvent::SpawnShapeParticles {
+                            position: self.position,
+                            velocity: Vec3::zeros(),
+                            count: 8,
+                            lifetime: 1.0,
+                            color: Color::WHITE,
+                            primitive_type: PrimitiveType::Star2D,
+                            angular_velocity: Vec3::new(3.0, 3.0, 3.0),
+                            scale: 0.5,
+                        },
+                    ));
+
+                self.pending_events
+                    .push(crate::engine::dispatcher::EventType::Explosion(
+                        crate::engine::dispatcher::ExplosionEvent::Custom {
+                            position: self.position,
+                            max_radius: self.radius * 10.0,
+                            force_strength: 5000.0,
+                            duration: 1.0,
+                            falloff_type: crate::scene::FalloffType::Linear,
+                            damage: 0.0,
+                            damage_radius: 0.0,
+                            explosion_color: Color::WHITE,
+                            particle_color: Color::WHITE,
+                            particle_count: 500,
+                        },
+                    ));
+            }
+
+            _ => {
+                // Default: small particle effect
+                self.pending_events
+                    .push(crate::engine::dispatcher::EventType::Graphics(
+                        crate::engine::dispatcher::GraphicsEvent::SpawnParticles {
+                            position: self.position,
+                            velocity: Vec3::zeros(),
+                            count: 200,
+                            lifetime: 5.0,
+                            color: self.body_type.color(),
+                        },
+                    ));
             }
         }
     }
@@ -872,6 +1077,10 @@ impl LargeBodyManager {
             body.update(delta_time);
             // Update position/velocity from physics simulation
             body.update_from_physics(physics_manager);
+
+            // Collect events from body (e.g., death sequence effects)
+            let body_events = body.drain_events();
+            self.pending_events.extend(body_events);
 
             // Distance culling - mark bodies that drift too far for removal
             let distance_from_origin = body.position.magnitude();

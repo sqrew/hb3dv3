@@ -12,22 +12,22 @@ const PLAYER_SPEED: f32 = 50.0;
 const PLAYER_FORCES_MULTIPLIER: f32 = 2.0;
 
 // Dash constants
-const DASH_DURATION: f32 = 0.2; // 150ms dash duration
+const DASH_DURATION: f32 = 0.2; // 200ms dash duration
 const DASH_COOLDOWN: f32 = 1.0; // 1 second cooldown
 const DASH_SPEED_MULTIPLIER: f32 = 5.0; // 6x normal speed during dash
 const IFRAMES_DURATION: f32 = 0.4;
 const IFRAMES_COOLDOWN: f32 = 2.0;
 const DAMAGE_FLASH_DURATION: f32 = 0.4; // How long to show red damage flash
 //
-const FREE_FLIGHT_THRUST_STRENGTH: f32 = 50.0;
+const FREE_FLIGHT_THRUST_STRENGTH: f32 = 100.0;
 const FREE_FLIGHT_MAX_VELOCITY: f32 = 500.0;
 const FREE_FLIGHT_DAMPING: f32 = 0.9999;
 
-// This lets large bodies throw you from 0point but not too far
+// This lets large bodies throw you from pos Vec3(0, 0, 0) but not too far
 const NORMAL_FLIGHT_MAX_VELOCITY: f32 = 10000.0;
 
 const PANIC_EXPLOSION_COOLDOWN: f32 = 3.0; // 5 second cooldown
-const TRAIL_PARTICLE_INTERVAL: f32 = 0.01; // Spawn trail particles every 50ms
+const TRAIL_PARTICLE_INTERVAL: f32 = 0.01; // Spawn trail particles every interval in seconds
 
 /// Request to spawn a panic explosion
 pub struct PanicExplosionRequest {
