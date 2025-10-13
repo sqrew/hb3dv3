@@ -32,6 +32,25 @@ struct FractalUniforms {
 @group(1) @binding(0)
 var<uniform> fractal: FractalUniforms;
 
+// Lighting uniforms - for dynamic celestial body lighting
+struct Light {
+    position: vec3<f32>,
+    intensity: f32,      // Can be negative for "darkness" sources
+    color: vec3<f32>,
+    radius: f32,         // Influence radius
+}
+
+struct LightingUniforms {
+    light_count: u32,
+    _padding1: u32,
+    _padding2: u32,
+    _padding3: u32,
+    lights: array<Light, 32>, // Support up to 32 lights
+}
+
+@group(2) @binding(0)
+var<uniform> lighting: LightingUniforms;
+
 // Vertex input
 struct VertexInput {
     @location(0) position: vec3<f32>,
@@ -884,7 +903,39 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     // Additional edge highlight sparkles (very subtle)
     let edge_highlight = total_edge_glow * 0.08 * abs(sin(time * 3.5));
 
-    let final_color = color + sparkle_color * total_sparkle + bright_lavender * edge_highlight * 0.6; // Reduced edge highlight
+    let fractal_color = color + sparkle_color * total_sparkle + bright_lavender * edge_highlight * 0.6; // Reduced edge highlight
+
+    // DYNAMIC CELESTIAL LIGHTING SYSTEM
+    // Calculate lighting influence from all active light sources
+    var lighting_influence = vec3<f32>(0.0, 0.0, 0.0);
+
+    for (var i = 0u; i < lighting.light_count && i < 32u; i++) {
+        let light = lighting.lights[i];
+
+        // Calculate distance from camera to light (camera is the observer position)
+        let light_to_camera = in.camera_position - light.position;
+        let distance_to_light = length(light_to_camera);
+
+        // Inverse square falloff with radius scaling
+        let attenuation = light.radius / (distance_to_light * distance_to_light + 1.0);
+
+        // Apply smooth falloff at edge of influence radius
+        let falloff = smoothstep(light.radius * 2.0, light.radius * 0.3, distance_to_light);
+
+        // Calculate final light contribution (can be negative!)
+        let light_strength = light.intensity * attenuation * falloff;
+        let light_contribution = light.color * light_strength;
+
+        // Accumulate lighting (negative lights will subtract)
+        lighting_influence += light_contribution;
+    }
+
+    // Apply lighting influence to fractal colors
+    // Positive lights brighten, negative lights darken
+    let lit_color = fractal_color + lighting_influence;
+
+    // Clamp to valid range to prevent artifacts
+    let final_color = clamp(lit_color, vec3<f32>(0.0, 0.0, 0.0), vec3<f32>(1.0, 1.0, 1.0));
 
     return vec4<f32>(final_color, 1.0);
 }

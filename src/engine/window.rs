@@ -338,6 +338,10 @@ impl ApplicationHandler for WindowManager {
                     // Update skybox animation
                     graphics_engine.update_skybox(delta_time);
 
+                    // Update lighting from large bodies
+                    let lighting_data = self.engine.scheduler.large_bodies().get_lighting_data();
+                    graphics_engine.update_lighting(lighting_data);
+
                     // Add FPS counter UI (update only 10 times per second)
                     let current_fps = 1.0 / delta_time;
                     let now = std::time::Instant::now();

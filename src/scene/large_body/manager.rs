@@ -1,6 +1,6 @@
 use crate::engine::Vec3;
 use crate::engine::entity::EntityId;
-use crate::graphics::{Color, Primitive, PrimitiveType};
+use crate::graphics::{Color, Light, LightingUniforms, Primitive, PrimitiveType};
 use crate::scene::PhysicsManager;
 
 use super::body::{BodySpawnRequest, LargeBody};
@@ -709,5 +709,125 @@ impl LargeBodyManager {
     /// Get body by entity ID
     pub fn get_body(&self, entity_id: EntityId) -> Option<&LargeBody> {
         self.bodies.iter().find(|b| b.entity_id() == entity_id)
+    }
+
+    /// Collect lighting data from all large bodies for rendering
+    pub fn get_lighting_data(&self) -> LightingUniforms {
+        let mut lighting = LightingUniforms::new();
+
+        for body in &self.bodies {
+            // Skip bodies that are dead or too far away
+            if body.is_dead() {
+                continue;
+            }
+
+            // Determine light properties based on body type
+            let (intensity, color, radius) = match body.body_type() {
+                // POSITIVE LIGHT SOURCES (Brightness emitters)
+                LargeBodyType::Star => {
+                    // Stars emit intense warm light
+                    let intensity = 0.8 * (body.mass() / 200_000.0).min(2.0);
+                    let color = Color {
+                        r: 1.0,
+                        g: 0.9,
+                        b: 0.6,
+                        a: 1.0,
+                    };
+                    let radius = body.radius() * 15.0; // Wide influence
+                    (intensity, color, radius)
+                }
+                LargeBodyType::WhiteHole => {
+                    // White holes emit intense repulsive white light
+                    let intensity = 0.6 * (body.mass().abs() / 150_000.0).min(1.5);
+                    let color = Color {
+                        r: 0.9,
+                        g: 0.95,
+                        b: 1.0,
+                        a: 1.0,
+                    };
+                    let radius = body.radius() * 12.0;
+                    (intensity, color, radius)
+                }
+                LargeBodyType::NeutronStar => {
+                    // Neutron stars emit harsh blue-white light
+                    let intensity = 0.5 * (body.mass() / 100_000.0).min(1.0);
+                    let color = Color {
+                        r: 0.8,
+                        g: 0.9,
+                        b: 1.0,
+                        a: 1.0,
+                    };
+                    let radius = body.radius() * 10.0; // Compact but intense
+                    (intensity, color, radius)
+                }
+                LargeBodyType::Planet | LargeBodyType::GasGiant => {
+                    // Planets emit soft reflected light
+                    let intensity = 0.15 * (body.radius() / 30.0).min(0.5);
+                    let body_color = body.body_type().color();
+                    let color = Color {
+                        r: body_color.r * 0.7,
+                        g: body_color.g * 0.7,
+                        b: body_color.b * 0.7,
+                        a: 1.0,
+                    };
+                    let radius = body.radius() * 5.0;
+                    (intensity, color, radius)
+                }
+
+                // NEGATIVE LIGHT SOURCES (Darkness emitters)
+                LargeBodyType::BlackHole => {
+                    // Black holes emit darkness
+                    let intensity = -0.6 * (body.mass() / 200_000.0).min(1.5);
+                    let color = Color {
+                        r: 0.0,
+                        g: 0.0,
+                        b: 0.1, // Subtle blue tint to the darkness
+                        a: 1.0,
+                    };
+                    let radius = body.radius() * 20.0; // Wide darkness influence
+                    (intensity, color, radius)
+                }
+                LargeBodyType::BlackHoleLarge => {
+                    // Large black holes emit more intense darkness
+                    let intensity = -1.0 * (body.mass() / 300_000.0).min(2.5);
+                    let color = Color {
+                        r: 0.0,
+                        g: 0.0,
+                        b: 0.05,
+                        a: 1.0,
+                    };
+                    let radius = body.radius() * 25.0; // Massive darkness radius
+                    (intensity, color, radius)
+                }
+                LargeBodyType::ExoticMatter => {
+                    // Exotic matter creates weird flickering darkness
+                    let time_factor = (body.age() * 2.0).sin() * 0.5 + 0.5;
+                    let intensity = -0.4 * time_factor;
+                    let color = Color {
+                        r: 0.2,
+                        g: 0.1,
+                        b: 0.3, // Purple-tinted darkness
+                        a: 1.0,
+                    };
+                    let radius = body.radius() * 12.0;
+                    (intensity, color, radius)
+                }
+
+                // NON-EMITTING BODIES
+                LargeBodyType::LauncherMass | LargeBodyType::Debug => {
+                    // These don't emit light
+                    continue;
+                }
+            };
+
+            // Create light and add to uniforms
+            let light = Light::new(body.position(), intensity, color, radius);
+            if !lighting.add_light(light) {
+                // Hit max lights, stop adding
+                break;
+            }
+        }
+
+        lighting
     }
 }

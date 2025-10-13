@@ -334,6 +334,9 @@ impl LargeBody {
     pub fn radius(&self) -> f32 {
         self.radius
     }
+    pub fn mass(&self) -> f32 {
+        self.mass
+    }
     pub fn velocity(&self) -> Vec3 {
         self.velocity
     }

@@ -4,7 +4,7 @@ use winit::{dpi::PhysicalSize, window::Window};
 
 use crate::graphics::{
     BloomRenderer, CameraUniform, CollisionCompute, Frustum, InstancedLineRenderer,
-    LightningEffectManager, ParticleSystem, Primitive, PrimitiveType, Projection,
+    LightingUniforms, LightningEffectManager, ParticleSystem, Primitive, PrimitiveType, Projection,
     ShapeParticleSystem, SkyboxRenderer, ThirdPersonCamera, Vertex, constants::*, is_visible_sphere, line_batch::ReusableLineBatch,
     primitive_cache::PrimitiveCache, vertex::LineInstance,
 };
@@ -91,6 +91,8 @@ pub struct GraphicsEngine {
     fractal_uniform: FractalUniform,
     fractal_buffer: wgpu::Buffer,
     fractal_bind_group: wgpu::BindGroup,
+    lighting_buffer: wgpu::Buffer,
+    lighting_bind_group: wgpu::BindGroup,
     depth_texture: wgpu::Texture,
     depth_view: wgpu::TextureView,
     frame_count: u32,
@@ -359,10 +361,45 @@ impl GraphicsEngine {
             label: Some("fractal_bind_group"),
         });
 
+        // Create lighting uniform buffer (group 2)
+        let lighting_uniforms = LightingUniforms::new();
+        let lighting_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Lighting Buffer"),
+            contents: bytemuck::cast_slice(&[lighting_uniforms]),
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+        });
+
+        let lighting_bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            entries: &[wgpu::BindGroupLayoutEntry {
+                binding: 0,
+                visibility: wgpu::ShaderStages::FRAGMENT,
+                ty: wgpu::BindingType::Buffer {
+                    ty: wgpu::BufferBindingType::Uniform,
+                    has_dynamic_offset: false,
+                    min_binding_size: None,
+                },
+                count: None,
+            }],
+            label: Some("lighting_bind_group_layout"),
+        });
+
+        let lighting_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            layout: &lighting_bind_group_layout,
+            entries: &[wgpu::BindGroupEntry {
+                binding: 0,
+                resource: lighting_buffer.as_entire_binding(),
+            }],
+            label: Some("lighting_bind_group"),
+        });
+
         let skybox_pipeline_layout =
             device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: Some("Skybox Pipeline Layout"),
-                bind_group_layouts: &[&skybox_camera_bind_group_layout, &fractal_bind_group_layout],
+                bind_group_layouts: &[
+                    &skybox_camera_bind_group_layout,
+                    &fractal_bind_group_layout,
+                    &lighting_bind_group_layout,
+                ],
                 push_constant_ranges: &[],
             });
 
@@ -492,6 +529,8 @@ impl GraphicsEngine {
             fractal_uniform,
             fractal_buffer,
             fractal_bind_group,
+            lighting_buffer,
+            lighting_bind_group,
             depth_texture,
             depth_view,
             frame_count: 0,
@@ -1032,6 +1071,15 @@ impl GraphicsEngine {
         );
     }
 
+    /// Update lighting uniforms from large body lighting data
+    pub fn update_lighting(&mut self, lighting_data: LightingUniforms) {
+        self.queue.write_buffer(
+            &self.lighting_buffer,
+            0,
+            bytemuck::cast_slice(&[lighting_data]),
+        );
+    }
+
     /// Spawn a lightning bolt between two points
     pub fn spawn_lightning(
         &mut self,
@@ -1115,6 +1163,7 @@ impl GraphicsEngine {
         render_pass.set_pipeline(&self.skybox_pipeline);
         render_pass.set_bind_group(0, &self.skybox_bind_group, &[]); // Camera uniforms
         render_pass.set_bind_group(1, &self.fractal_bind_group, &[]); // Fractal uniforms
+        render_pass.set_bind_group(2, &self.lighting_bind_group, &[]); // Lighting uniforms
 
         // Render the filled sphere
         render_pass.set_vertex_buffer(0, vertex_buffer.slice(..));
