@@ -71,7 +71,7 @@ impl LargeBodyType {
             LargeBodyType::BlackHoleLarge => Color::MAGENTA,
             LargeBodyType::WhiteHole => Color::WHITE,
             LargeBodyType::NeutronStar => Color::GREEN,
-            LargeBodyType::ExoticMatter => Color::MAGENTA,
+            LargeBodyType::ExoticMatter => Color::PINK,
             LargeBodyType::Star => Color::RED,
             LargeBodyType::GasGiant => Color::YELLOW,
             LargeBodyType::Planet => Color::CYAN,
@@ -174,14 +174,14 @@ impl LargeBodyType {
     /// Get atmosphere color with transparency
     pub fn atmosphere_color(self) -> Color {
         match self {
-            LargeBodyType::BlackHole => Color::new(0.8, 0.2, 0.8, 0.15), // Purple glow
-            LargeBodyType::BlackHoleLarge => Color::new(0.8, 0.2, 0.8, 0.12), // Purple glow
-            LargeBodyType::Star => Color::new(1.0, 0.6, 0.2, 0.2),       // Orange corona
-            LargeBodyType::GasGiant => Color::new(0.8, 0.8, 0.3, 0.15),  // Yellow haze
-            LargeBodyType::Planet => Color::new(0.3, 0.6, 0.9, 0.1),     // Blue atmosphere
-            LargeBodyType::NeutronStar => Color::new(0.3, 1.0, 0.3, 0.18), // Green radiation
-            LargeBodyType::ExoticMatter => Color::new(1.0, 0.2, 0.8, 0.15), // Magenta field
-            _ => Color::new(1.0, 1.0, 1.0, 0.1),                         // Fallback
+            LargeBodyType::BlackHole => Color::PURPLE,
+            LargeBodyType::BlackHoleLarge => Color::PURPLE,
+            LargeBodyType::Star => Color::ORANGE,
+            LargeBodyType::GasGiant => Color::YELLOW,
+            LargeBodyType::Planet => Color::NAVY,
+            LargeBodyType::NeutronStar => Color::GREEN,
+            LargeBodyType::ExoticMatter => Color::MAGENTA,
+            _ => Color::new(1.0, 1.0, 1.0, 0.1), // Fallback
         }
     }
 }

@@ -15,6 +15,7 @@ fix resetting game spawning a bhole
 ui lower case text is top-aligned for some reason - this took forever to fix last time
 
 
+
 look into increasing sizes of large bodies, maybe make large versions of each so they feel more impactful
 
 
@@ -32,7 +33,6 @@ velocity altering zones like speed/slow zones... already mechanically supported 
 
 
 properly handle death sequences for all large bodies
-body births and merging
 
 
 

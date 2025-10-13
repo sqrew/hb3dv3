@@ -18,6 +18,20 @@ pub enum SpawnRequest {
         spread_angle: f32,       // Cone spread angle
         lifetime: f32,           // Lifetime for asteroids
     },
+    /// Spawn a binary pair of orbiting bodies
+    BinaryPair {
+        body_type1: LargeBodyType,
+        body_type2: LargeBodyType,
+        center_position: Vec3,
+        separation_distance: f32,
+    },
+    /// Spawn a rogue body moving at high velocity
+    RogueBody {
+        body_type: LargeBodyType,
+        position: Vec3,
+        velocity: Vec3,
+        lifetime: f32,
+    },
 }
 
 /// Automatic spawner for maintaining a population of large bodies
@@ -50,6 +64,14 @@ pub struct BodySpawner {
     asteroid_speed_range: (f32, f32), // (min, max) speed in units/sec
     asteroid_spread_angle: f32,  // Cone spread angle in radians
     asteroid_lifetime: f32,      // Lifetime for shower asteroids
+
+    // Binary pair event configuration
+    binary_pair_chance: f32, // Probability of binary pair (0.0-1.0)
+    binary_separation_range: (f32, f32), // (min, max) separation distance
+
+    // Rogue body event configuration
+    rogue_body_chance: f32,        // Probability of rogue body (0.0-1.0)
+    rogue_speed_range: (f32, f32), // (min, max) speed in units/sec
 }
 
 impl BodySpawner {
@@ -80,12 +102,20 @@ impl BodySpawner {
                 LargeBodyType::BlackHoleLarge,
                 LargeBodyType::ExoticMatter,
             ],
-            // Asteroid shower configuration (8% chance for dramatic effect)
+            // Asteroid shower configuration (5% chance for dramatic effect)
             asteroid_shower_chance: 0.05,
             asteroid_count_range: (20, 60),
             asteroid_speed_range: (50.0, 250.0),
             asteroid_spread_angle: 0.5, // ~28 degrees cone
             asteroid_lifetime: 30.0,
+
+            // Binary pair configuration (10% chance for interesting dynamics)
+            binary_pair_chance: 0.10,
+            binary_separation_range: (100.0, 1000.0),
+
+            // Rogue body configuration (10% chance for chaotic element)
+            rogue_body_chance: 0.10,
+            rogue_speed_range: (100.0, 500.0),
         }
     }
 
@@ -121,6 +151,12 @@ impl BodySpawner {
             asteroid_speed_range: (80.0, 150.0),
             asteroid_spread_angle: 0.5,
             asteroid_lifetime: 30.0,
+            // Use default binary pair config
+            binary_pair_chance: 0.10,
+            binary_separation_range: (80.0, 200.0),
+            // Use default rogue body config
+            rogue_body_chance: 0.08,
+            rogue_speed_range: (100.0, 300.0),
         }
     }
 
@@ -148,9 +184,11 @@ impl BodySpawner {
         // Reset timer
         self.spawn_timer = self.spawn_interval;
 
+        // Roll for special events (asteroid shower, binary pair, rogue body)
+        let event_roll = rand::random::<f32>();
+
         // Roll for asteroid shower event!
-        let shower_roll = rand::random::<f32>();
-        if shower_roll < self.asteroid_shower_chance {
+        if event_roll < self.asteroid_shower_chance {
             // ASTEROID SHOWER EVENT!
             // Generate random direction (spherical coordinates)
             let theta = rand::random::<f32>() * std::f32::consts::TAU; // 0 to 2π
@@ -173,7 +211,86 @@ impl BodySpawner {
             });
         }
 
-        // Normal single body spawn
+        // Roll for binary pair event!
+        if event_roll < self.asteroid_shower_chance + self.binary_pair_chance {
+            // BINARY PAIR EVENT!
+            // Select two random body types (they can be the same or different)
+            if self.enabled_body_types.is_empty() {
+                return None;
+            }
+
+            let body_type1_index =
+                (rand::random::<f32>() * self.enabled_body_types.len() as f32).floor() as usize;
+            let body_type1 =
+                self.enabled_body_types[body_type1_index % self.enabled_body_types.len()];
+
+            let body_type2_index =
+                (rand::random::<f32>() * self.enabled_body_types.len() as f32).floor() as usize;
+            let body_type2 =
+                self.enabled_body_types[body_type2_index % self.enabled_body_types.len()];
+
+            // Generate random spawn position
+            let center_position = self.generate_spawn_position(player_position);
+
+            // Random separation distance
+            let separation = self.binary_separation_range.0
+                + rand::random::<f32>()
+                    * (self.binary_separation_range.1 - self.binary_separation_range.0);
+
+            return Some(SpawnRequest::BinaryPair {
+                body_type1,
+                body_type2,
+                center_position,
+                separation_distance: separation,
+            });
+        }
+
+        // Roll for rogue body event!
+        if event_roll
+            < self.asteroid_shower_chance + self.binary_pair_chance + self.rogue_body_chance
+        {
+            // ROGUE BODY EVENT!
+            // Select random body type
+            if self.enabled_body_types.is_empty() {
+                return None;
+            }
+
+            let body_type_index =
+                (rand::random::<f32>() * self.enabled_body_types.len() as f32).floor() as usize;
+            let body_type =
+                self.enabled_body_types[body_type_index % self.enabled_body_types.len()];
+
+            // Generate random spawn position (far from center)
+            let spawn_position = self.generate_spawn_position(player_position);
+
+            // Generate random velocity direction (toward center with some randomness)
+            let to_center = -spawn_position.normalize();
+            let random_offset = Vec3::new(
+                (rand::random::<f32>() - 0.5) * 0.3,
+                (rand::random::<f32>() - 0.5) * 0.3,
+                (rand::random::<f32>() - 0.5) * 0.3,
+            );
+            let velocity_direction = (to_center + random_offset).normalize();
+
+            // Random speed within range
+            let speed = self.rogue_speed_range.0
+                + rand::random::<f32>() * (self.rogue_speed_range.1 - self.rogue_speed_range.0);
+
+            let velocity = velocity_direction * speed;
+
+            // Generate random lifetime
+            let lifetime =
+                self.lifetime_min + rand::random::<f32>() * (self.lifetime_max - self.lifetime_min);
+
+            return Some(SpawnRequest::RogueBody {
+                body_type,
+                position: spawn_position,
+                velocity,
+                lifetime,
+            });
+        }
+
+        // Normal single body spawn (fallback)
         // Select random body type
         if self.enabled_body_types.is_empty() {
             return None;

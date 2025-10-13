@@ -117,11 +117,79 @@ The engine supports advanced rendering features including bloom effects, frustum
 - **Bullet-Bullet Deflection**: Elastic collision physics between projectiles for emergent gameplay
 
 ### Large Body System
-- **9 Celestial Body Types**: BlackHole, WhiteHole, Star, Planet, NeutronStar, GasGiant, Asteroid, SpaceStation, Moon
-- **Individual Properties**: Each type has distinct mass, radius, color, and collision characteristics  
-- **Exotic Matter Physics**: WhiteHoles have negative mass, creating repulsive gravitational effects
-- **Ratio-Based Collision**: Visual radius vs collision radius separation for gameplay tuning (e.g., 0.75 ratio for BlackHoles)
-- **Physics Integration**: Large bodies participate in N-body gravitational simulation with proper negative mass handling
+A complete celestial mechanics simulation system with emergent lifecycle dynamics. Located in `src/scene/large_body/` as a modular sub-system.
+
+**Module Structure:**
+- `body_type.rs` (196 lines) - Type definitions, defaults, death states
+- `body.rs` (670 lines) - Individual body lifecycle, physics integration, death sequences
+- `spawner.rs` (256 lines) - Automatic population management and asteroid showers
+- `manager.rs` (632 lines) - Collection management, spawn coordination, absorption processing
+- `mod.rs` - Public API re-exports
+
+**10 Celestial Body Types:**
+- BlackHole, BlackHoleLarge, WhiteHole, Star, NeutronStar, ExoticMatter, GasGiant, Planet, LauncherMass, Debug
+- Each type has distinct mass, radius, color, collision characteristics, angular velocity, and ergosphere effects
+- WhiteHoles use negative mass for repulsive gravitational effects
+- BlackHoleLarge is special - can absorb other bodies on collision
+
+**Lifecycle System:**
+- Age tracking with configurable lifetimes (20-60s from spawner, custom for death-spawned)
+- Death state machine: Alive → DeathSequence → ReadyForRemoval
+- **Animated death sequences**: Radius changes smoothly over death duration with quadratic easing
+  - Star: 5.0x expansion (supernova)
+  - BlackHole: 2.5x expansion (Hawking radiation)
+  - BlackHoleLarge: 4.0x expansion (supermassive evaporation)
+  - NeutronStar: 0.5x collapse (implosion)
+  - GasGiant: 3.0x expansion, Planet: 1.5x expansion
+  - ExoticMatter: 8.0x expansion (annihilation)
+- Type-specific death sequence effects with explosions, particles, and shockwaves
+- Distance culling at 5000 units from origin
+
+**Death-Spawning System:**
+- Bodies can spawn new bodies during death sequences (e.g., Star → NeutronStar)
+- Spawned bodies inherit position and partial velocity from parent
+- Configurable lifetimes for spawned remnants
+- Queued processing prevents physics index conflicts
+- Extensible for complex death chains (Star → NeutronStar → BlackHole)
+
+**BlackHoleLarge Absorption:**
+- Absorbs any body on collision (collision-based trigger via dispatcher)
+- 100% of victim's mass gained (uses absolute value to handle negative mass)
+- Radius increases by victim's full radius
+- **-2s lifetime reduction per absorption** - grows more unstable with each meal
+- Creates natural death cycle: spawn → absorb → grow → destabilize → spectacular death
+- Tracks absorption count for gameplay feedback
+- Dramatic particle effects at absorption point (300 particles pulled toward black hole)
+
+**Automatic Spawner:**
+- Maintains 3-10 bodies (target: 6) with 4s spawn interval
+- Random body types from enabled pool (excludes LauncherMass - shower-only)
+- Lifetimes: 20-60s randomized
+- Spawn radius: 100-1000 units, avoids player within 100 units
+- 5% chance for asteroid shower events instead of single spawn
+- Configurable at runtime via spawner_mut()
+
+**Asteroid Shower Events:**
+- 20-60 LauncherMass bodies spawn from random direction 1000 units away
+- Random speeds: 50-250 units/sec with 0.5 radian cone spread
+- Each asteroid gets random lifetime multiplier (0.5-1.5x base)
+- Creates dramatic temporary influx of gravitational masses
+- Spherical coordinate generation for realistic trajectories
+
+**Visual Effects:**
+- Body-specific colors and primitive types (Icosahedron for LauncherMass, Spheres for others)
+- Atmospheric rendering for Star, GasGiant, Planet, NeutronStar, BlackHole with transparency
+- Particle trails following each body (1 particle every 20ms, 15s lifetime)
+- Solar wind emissions (Stars: every 6s, WhiteHoles: 2s, NeutronStars: 8s, ExoticMatter: 0.2s)
+- Death sequence explosions with type-specific colors and particle counts
+
+**Physics Integration:**
+- Each body maintains physics_index for N-body gravitational simulation
+- Position/velocity synchronized with GPU physics system each frame
+- Angular velocity updates from physics (spin changes from interactions)
+- Careful index tracking when bodies are removed (all higher indices decremented)
+- Frame-dragging effects for spinning bodies (BlackHole, NeutronStar)
+- Ergosphere radius and strength calculated per body type
 
 ### Particle Effects
 - **Collision-Triggered Particles**: Different particle effects for each collision type

@@ -551,6 +551,59 @@ impl LargeBodyManager {
                         entity_manager,
                     );
                 }
+                SpawnRequest::BinaryPair {
+                    body_type1,
+                    body_type2,
+                    center_position,
+                    separation_distance,
+                } => {
+                    // BINARY PAIR EVENT!
+                    let (id1, id2) = self.spawn_binary_pair(
+                        body_type1,
+                        body_type2,
+                        center_position,
+                        separation_distance,
+                        physics_manager,
+                        entity_manager,
+                    );
+
+                    println!(
+                        "🌌 Spawner: Created binary pair {:?} + {:?} at {:?} (separation: {:.1}) (IDs: {:?}, {:?}, total: {})",
+                        body_type1,
+                        body_type2,
+                        center_position,
+                        separation_distance,
+                        id1,
+                        id2,
+                        self.bodies.len()
+                    );
+                }
+                SpawnRequest::RogueBody {
+                    body_type,
+                    position,
+                    velocity,
+                    lifetime,
+                } => {
+                    // ROGUE BODY EVENT!
+                    let _entity_id = self.spawn_body_with_velocity_and_lifetime(
+                        body_type,
+                        position,
+                        velocity,
+                        lifetime,
+                        physics_manager,
+                        entity_manager,
+                    );
+
+                    println!(
+                        "🌌 Spawner: Created rogue {:?} at {:?} with velocity {:?} (speed: {:.1}, lifetime: {:.1}s, total: {})",
+                        body_type,
+                        position,
+                        velocity,
+                        velocity.magnitude(),
+                        lifetime,
+                        self.bodies.len()
+                    );
+                }
             }
         }
 
