@@ -31,6 +31,9 @@ impl Scheduler {
         let mut physics = PhysicsManager::new();
         let mut large_bodies = LargeBodyManager::new();
 
+        // Enable automatic spawner to maintain a living population of large bodies
+        large_bodies.enable_spawner();
+
         large_bodies.spawn_body(
             LargeBodyType::Debug,
             Vec3::new(0.0, 0.0, 0.0),
@@ -169,8 +172,9 @@ impl Scheduler {
         }
 
         // Update large bodies (these get their physics from the PhysicsManager N-body simulation)
+        let player_pos = self.player.player().position();
         self.large_bodies
-            .update(delta_time, &mut self.physics, &mut self.entity_manager);
+            .update(delta_time, player_pos, &mut self.physics, &mut self.entity_manager);
 
         // Apply gravitational forces to all affected objects BEFORE enemy AI updates
         if let (Some(device), Some(queue)) = (device, queue) {

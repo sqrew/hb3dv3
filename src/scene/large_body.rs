@@ -196,6 +196,255 @@ impl LargeBodyType {
     }
 }
 
+/// Type of spawn request from the spawner
+#[derive(Debug, Clone)]
+pub enum SpawnRequest {
+    /// Spawn a single large body
+    SingleBody {
+        body_type: LargeBodyType,
+        position: Vec3,
+        lifetime: f32,
+    },
+    /// Spawn an asteroid shower event
+    AsteroidShower {
+        direction: Vec3,         // Direction asteroids come from
+        count: usize,            // Number of asteroids
+        speed_range: (f32, f32), // (min, max) speed
+        spread_angle: f32,       // Cone spread angle
+        lifetime: f32,           // Lifetime for asteroids
+    },
+}
+
+/// Automatic spawner for maintaining a population of large bodies
+#[derive(Debug, Clone)]
+pub struct BodySpawner {
+    // Pool management
+    target_body_count: usize, // Maintain approximately this many bodies
+    min_body_count: usize,    // Spawn more aggressively if below this
+    max_body_count: usize,    // Stop spawning if above this
+
+    // Spawn timing
+    spawn_interval: f32, // Minimum seconds between spawns
+    spawn_timer: f32,    // Current countdown timer
+
+    // Lifetime configuration
+    lifetime_min: f32, // Minimum lifetime for spawned bodies (seconds)
+    lifetime_max: f32, // Maximum lifetime for spawned bodies (seconds)
+
+    // Spawn location strategy
+    spawn_radius_min: f32,    // Minimum distance from origin to spawn
+    spawn_radius_max: f32,    // Maximum distance from origin to spawn
+    avoid_player_radius: f32, // Don't spawn within this distance of player
+
+    // Body type selection (simple approach - equal probability for now)
+    enabled_body_types: Vec<LargeBodyType>, // Types that can be spawned
+
+    // Asteroid shower event configuration
+    asteroid_shower_chance: f32, // Probability of asteroid shower (0.0-1.0)
+    asteroid_count_range: (usize, usize), // (min, max) asteroids in shower
+    asteroid_speed_range: (f32, f32), // (min, max) speed in units/sec
+    asteroid_spread_angle: f32,  // Cone spread angle in radians
+    asteroid_lifetime: f32,      // Lifetime for shower asteroids
+}
+
+impl BodySpawner {
+    /// Create a new body spawner with default configuration
+    pub fn new() -> Self {
+        Self {
+            target_body_count: 8,
+            min_body_count: 4,
+            max_body_count: 15,
+            spawn_interval: 3.0,
+            spawn_timer: 3.0, // Start with first spawn ready
+            lifetime_min: 20.0,
+            lifetime_max: 60.0,
+            spawn_radius_min: 100.0,
+            spawn_radius_max: 400.0,
+            avoid_player_radius: 80.0,
+            // THIS IS THE LIST OF BODY TYPES ALLOWED TO BE SPAWNED BY THE SPAWNER
+            // Note: LauncherMass removed - only appears in asteroid showers
+            enabled_body_types: vec![
+                LargeBodyType::Planet,
+                LargeBodyType::Star,
+                LargeBodyType::GasGiant,
+                LargeBodyType::NeutronStar,
+                LargeBodyType::BlackHole,
+                LargeBodyType::WhiteHole,
+                LargeBodyType::BlackHoleLarge,
+                LargeBodyType::ExoticMatter,
+            ],
+            // Asteroid shower configuration (8% chance for dramatic effect)
+            asteroid_shower_chance: 0.08,
+            asteroid_count_range: (20, 40),
+            asteroid_speed_range: (80.0, 150.0),
+            asteroid_spread_angle: 0.5, // ~28 degrees cone
+            asteroid_lifetime: 30.0,
+        }
+    }
+
+    /// Create a custom spawner with specific configuration
+    #[allow(clippy::too_many_arguments)]
+    pub fn new_custom(
+        target_body_count: usize,
+        min_body_count: usize,
+        max_body_count: usize,
+        spawn_interval: f32,
+        lifetime_min: f32,
+        lifetime_max: f32,
+        spawn_radius_min: f32,
+        spawn_radius_max: f32,
+        avoid_player_radius: f32,
+        enabled_body_types: Vec<LargeBodyType>,
+    ) -> Self {
+        Self {
+            target_body_count,
+            min_body_count,
+            max_body_count,
+            spawn_interval,
+            spawn_timer: spawn_interval,
+            lifetime_min,
+            lifetime_max,
+            spawn_radius_min,
+            spawn_radius_max,
+            avoid_player_radius,
+            enabled_body_types,
+            // Use default asteroid shower config
+            asteroid_shower_chance: 0.08,
+            asteroid_count_range: (20, 40),
+            asteroid_speed_range: (80.0, 150.0),
+            asteroid_spread_angle: 0.5,
+            asteroid_lifetime: 30.0,
+        }
+    }
+
+    /// Update spawner and potentially return a spawn request
+    /// Returns Some(SpawnRequest) if something should be spawned
+    pub fn update(
+        &mut self,
+        delta_time: f32,
+        current_body_count: usize,
+        player_position: Vec3,
+    ) -> Option<SpawnRequest> {
+        // Update spawn timer
+        self.spawn_timer -= delta_time;
+
+        // Check if we should spawn
+        let should_spawn = self.spawn_timer <= 0.0
+            && current_body_count < self.max_body_count
+            && (current_body_count < self.target_body_count
+                || current_body_count < self.min_body_count);
+
+        if !should_spawn {
+            return None;
+        }
+
+        // Reset timer
+        self.spawn_timer = self.spawn_interval;
+
+        // Roll for asteroid shower event!
+        let shower_roll = rand::random::<f32>();
+        if shower_roll < self.asteroid_shower_chance {
+            // ASTEROID SHOWER EVENT!
+            // Generate random direction (spherical coordinates)
+            let theta = rand::random::<f32>() * std::f32::consts::TAU; // 0 to 2π
+            let phi = rand::random::<f32>() * std::f32::consts::PI; // 0 to π
+
+            let direction = Vec3::new(phi.sin() * theta.cos(), phi.sin() * theta.sin(), phi.cos());
+
+            // Random count within range
+            let count = self.asteroid_count_range.0
+                + (rand::random::<f32>()
+                    * (self.asteroid_count_range.1 - self.asteroid_count_range.0) as f32)
+                    as usize;
+
+            return Some(SpawnRequest::AsteroidShower {
+                direction,
+                count,
+                speed_range: self.asteroid_speed_range,
+                spread_angle: self.asteroid_spread_angle,
+                lifetime: self.asteroid_lifetime,
+            });
+        }
+
+        // Normal single body spawn
+        // Select random body type
+        if self.enabled_body_types.is_empty() {
+            return None;
+        }
+
+        let body_type_index =
+            (rand::random::<f32>() * self.enabled_body_types.len() as f32).floor() as usize;
+        let body_type = self.enabled_body_types[body_type_index % self.enabled_body_types.len()];
+
+        // Generate random spawn position
+        let spawn_position = self.generate_spawn_position(player_position);
+
+        // Generate random lifetime
+        let lifetime =
+            self.lifetime_min + rand::random::<f32>() * (self.lifetime_max - self.lifetime_min);
+
+        Some(SpawnRequest::SingleBody {
+            body_type,
+            position: spawn_position,
+            lifetime,
+        })
+    }
+
+    /// Generate a random spawn position based on configuration
+    fn generate_spawn_position(&self, player_position: Vec3) -> Vec3 {
+        let max_attempts = 20;
+        for _ in 0..max_attempts {
+            // Generate random angle
+            let theta = rand::random::<f32>() * std::f32::consts::TAU; // 0 to 2π
+            let phi = rand::random::<f32>() * std::f32::consts::PI; // 0 to π
+
+            // Generate random radius within range
+            let radius = self.spawn_radius_min
+                + rand::random::<f32>() * (self.spawn_radius_max - self.spawn_radius_min);
+
+            // Convert spherical to Cartesian coordinates
+            let x = radius * phi.sin() * theta.cos();
+            let y = radius * phi.sin() * theta.sin();
+            let z = radius * phi.cos();
+
+            let position = Vec3::new(x, y, z);
+
+            // Check distance from player
+            let distance_to_player = (position - player_position).magnitude();
+            if distance_to_player >= self.avoid_player_radius {
+                return position;
+            }
+        }
+
+        // Fallback: spawn at max radius on X-axis
+        Vec3::new(self.spawn_radius_max, 0.0, 0.0)
+    }
+
+    // Getters and setters for runtime configuration
+    pub fn set_target_body_count(&mut self, count: usize) {
+        self.target_body_count = count;
+    }
+
+    pub fn set_spawn_interval(&mut self, interval: f32) {
+        self.spawn_interval = interval;
+    }
+
+    pub fn set_lifetime_range(&mut self, min: f32, max: f32) {
+        self.lifetime_min = min;
+        self.lifetime_max = max;
+    }
+
+    pub fn add_body_type(&mut self, body_type: LargeBodyType) {
+        if !self.enabled_body_types.contains(&body_type) {
+            self.enabled_body_types.push(body_type);
+        }
+    }
+
+    pub fn remove_body_type(&mut self, body_type: LargeBodyType) {
+        self.enabled_body_types.retain(|t| *t != body_type);
+    }
+}
+
 /// A large gravitational body ss in the game world
 #[derive(Debug, Clone)]
 pub struct LargeBody {
@@ -570,6 +819,21 @@ impl LargeBody {
                 println!("⭐ Star going supernova!");
                 self.radius *= 5.0; // Massive expansion
                 // Could spawn shockwave, change to red giant color
+                self.pending_events
+                    .push(crate::engine::dispatcher::EventType::Explosion(
+                        crate::engine::dispatcher::ExplosionEvent::Custom {
+                            position: self.position,
+                            max_radius: self.radius * 10.0,
+                            force_strength: 50000.0,
+                            duration: 2.0,
+                            falloff_type: crate::scene::FalloffType::Linear,
+                            damage: 0.0,
+                            damage_radius: 0.0,
+                            explosion_color: Color::WHITE,
+                            particle_color: Color::WHITE,
+                            particle_count: 5000,
+                        },
+                    ));
             }
 
             LargeBodyType::NeutronStar => {
@@ -649,10 +913,10 @@ impl LargeBody {
                     .push(crate::engine::dispatcher::EventType::Explosion(
                         crate::engine::dispatcher::ExplosionEvent::Custom {
                             position: self.position,
-                            max_radius: 800.0,
+                            max_radius: self.radius * 10.0,
                             force_strength: 100000.0,
                             duration: 2.0,
-                            falloff_type: crate::scene::FalloffType::Quadratic,
+                            falloff_type: crate::scene::FalloffType::Linear,
                             damage: 0.0,
                             damage_radius: 0.0,
                             explosion_color: Color::MAGENTA,
@@ -673,15 +937,15 @@ impl LargeBody {
                     .push(crate::engine::dispatcher::EventType::Explosion(
                         crate::engine::dispatcher::ExplosionEvent::Custom {
                             position: self.position,
-                            max_radius: 600.0,
-                            force_strength: 80000.0,
+                            max_radius: self.radius * 10.0,
+                            force_strength: 100000.0,
                             duration: 1.5,
                             falloff_type: crate::scene::FalloffType::Linear,
                             damage: 0.0,
                             damage_radius: 0.0,
                             explosion_color: Color::RED,
                             particle_color: Color::ORANGE,
-                            particle_count: 1500,
+                            particle_count: 5000,
                         },
                     ));
 
@@ -698,9 +962,9 @@ impl LargeBody {
                     .push(crate::engine::dispatcher::EventType::Explosion(
                         crate::engine::dispatcher::ExplosionEvent::Custom {
                             position: self.position,
-                            max_radius: 400.0,
-                            force_strength: 120000.0,
-                            duration: 1.0,
+                            max_radius: self.radius * 10.0,
+                            force_strength: 100000.0,
+                            duration: 1.5,
                             falloff_type: crate::scene::FalloffType::Linear,
                             damage: 0.0,
                             damage_radius: 0.0,
@@ -769,6 +1033,8 @@ impl LargeBody {
 pub struct LargeBodyManager {
     bodies: Vec<LargeBody>,
     pending_events: Vec<crate::engine::dispatcher::EventType>,
+    spawner: Option<BodySpawner>,      // Optional automatic spawner
+    pending_spawns: Vec<SpawnRequest>, // Queued spawn requests
 }
 
 impl LargeBodyManager {
@@ -776,7 +1042,111 @@ impl LargeBodyManager {
         Self {
             bodies: Vec::new(),
             pending_events: Vec::new(),
+            spawner: None,
+            pending_spawns: Vec::new(),
         }
+    }
+
+    /// Enable automatic body spawning with default configuration
+    pub fn enable_spawner(&mut self) {
+        self.spawner = Some(BodySpawner::new());
+        println!("🌌 Large body spawner enabled with default configuration");
+    }
+
+    /// Enable automatic body spawning with custom configuration
+    pub fn enable_spawner_custom(&mut self, spawner: BodySpawner) {
+        self.spawner = Some(spawner);
+        println!("🌌 Large body spawner enabled with custom configuration");
+    }
+
+    /// Disable automatic body spawning
+    pub fn disable_spawner(&mut self) {
+        self.spawner = None;
+        println!("🌌 Large body spawner disabled");
+    }
+
+    /// Get mutable reference to spawner for configuration
+    pub fn spawner_mut(&mut self) -> Option<&mut BodySpawner> {
+        self.spawner.as_mut()
+    }
+
+    /// Check if spawner is enabled
+    pub fn is_spawner_enabled(&self) -> bool {
+        self.spawner.is_some()
+    }
+
+    /// Trigger an asteroid shower event - spawns multiple launcher masses from a direction
+    pub fn trigger_asteroid_shower(
+        &mut self,
+        direction_from: Vec3, // Direction the asteroids come from (will be normalized)
+        count: usize,
+        speed_range: (f32, f32), // (min, max) speed in units/second
+        spread_angle: f32,       // Cone spread angle in radians (0.0 = parallel, PI = hemisphere)
+        lifetime: f32,           // Lifetime for all asteroids
+        physics: &mut PhysicsManager,
+        entity_manager: &mut crate::engine::entity::EntityManager,
+    ) {
+        let direction = direction_from.normalize();
+
+        // Spawn position: far out in the direction (beyond normal play area)
+        let spawn_distance = 600.0; // Start far outside the play area
+        let base_spawn_pos = direction * spawn_distance;
+
+        println!(
+            "☄️  Triggering asteroid shower: {} asteroids from direction {:?}",
+            count, direction
+        );
+
+        for i in 0..count {
+            // Add random spread to spawn position (creates a cluster effect)
+            let spread_radius = 50.0 + (i as f32 * 10.0); // Spread increases with each asteroid
+            let random_offset = Vec3::new(
+                (rand::random::<f32>() - 0.5) * spread_radius,
+                (rand::random::<f32>() - 0.5) * spread_radius,
+                (rand::random::<f32>() - 0.5) * spread_radius,
+            );
+            let spawn_pos = base_spawn_pos + random_offset;
+
+            // Calculate velocity toward center with spread
+            let base_velocity_direction = -direction; // Opposite of spawn direction
+
+            // Add cone spread using spherical coordinates
+            let theta = (rand::random::<f32>() - 0.5) * spread_angle;
+            let phi = rand::random::<f32>() * std::f32::consts::TAU;
+
+            // Create perpendicular vectors for rotation
+            let arbitrary = if direction.y.abs() < 0.9 {
+                Vec3::new(0.0, 1.0, 0.0)
+            } else {
+                Vec3::new(1.0, 0.0, 0.0)
+            };
+            let perp1 = direction.cross(&arbitrary).normalize();
+            let perp2 = direction.cross(&perp1).normalize();
+
+            // Apply spread rotation
+            let spread_offset =
+                perp1 * (theta.sin() * phi.cos()) + perp2 * (theta.sin() * phi.sin());
+            let velocity_direction = (base_velocity_direction + spread_offset).normalize();
+
+            // Random speed within range
+            let speed = speed_range.0 + rand::random::<f32>() * (speed_range.1 - speed_range.0);
+            let velocity = velocity_direction * speed;
+
+            // Spawn the launcher mass with velocity and lifetime
+            let _entity_id = self.spawn_body_with_velocity_and_lifetime(
+                LargeBodyType::LauncherMass,
+                spawn_pos,
+                velocity,
+                lifetime,
+                physics,
+                entity_manager,
+            );
+        }
+
+        println!(
+            "☄️  Asteroid shower launched! {} asteroids heading toward center",
+            count
+        );
     }
 
     /// Spawn a new large body
@@ -975,6 +1345,7 @@ impl LargeBodyManager {
     pub fn update(
         &mut self,
         delta_time: f32,
+        player_position: Vec3,
         physics_manager: &mut PhysicsManager,
         entity_manager: &mut crate::engine::entity::EntityManager,
     ) {
@@ -996,15 +1367,17 @@ impl LargeBodyManager {
                                 position: body.position,
                             },
                         ));
-                    self.pending_events.push(crate::engine::EventType::Graphics(
-                        crate::engine::GraphicsEvent::SpawnParticles {
-                            position: body.position,
-                            velocity: Vec3::zeros(),
-                            count: 1000,
-                            lifetime: 15.0,
-                            color: Color::RED,
-                        },
-                    ));
+                    if body.body_type == LargeBodyType::Star {
+                        self.pending_events.push(crate::engine::EventType::Graphics(
+                            crate::engine::GraphicsEvent::SpawnParticles {
+                                position: body.position,
+                                velocity: Vec3::zeros(),
+                                count: 1000,
+                                lifetime: 15.0,
+                                color: Color::RED,
+                            },
+                        ));
+                    }
                 }
             } else if body.body_type == LargeBodyType::NeutronStar && body.solar_wind_interval > 0.0
             {
@@ -1118,6 +1491,65 @@ impl LargeBodyManager {
                     "🪦 Large body {:?} died of old age at {:.1}s",
                     body.body_type, body.age
                 );
+            }
+        }
+
+        // Update spawner if enabled (after removing dead bodies so count is accurate)
+        if let Some(spawner) = &mut self.spawner {
+            if let Some(spawn_request) =
+                spawner.update(delta_time, self.bodies.len(), player_position)
+            {
+                // Queue the spawn request instead of spawning immediately
+                // This prevents index tracking issues during the update loop
+                self.pending_spawns.push(spawn_request);
+            }
+        }
+
+        // Process all pending spawns AFTER all physics and index updates are complete
+        // This ensures physics indices remain consistent
+        // Take ownership of pending spawns to avoid borrow checker issues
+        let spawns_to_process = std::mem::take(&mut self.pending_spawns);
+        for spawn_request in spawns_to_process {
+            match spawn_request {
+                SpawnRequest::SingleBody {
+                    body_type,
+                    position,
+                    lifetime,
+                } => {
+                    let _entity_id = self.spawn_body_with_lifetime(
+                        body_type,
+                        position,
+                        lifetime,
+                        physics_manager,
+                        entity_manager,
+                    );
+
+                    println!(
+                        "🌌 Spawner: Created {:?} at {:?} with {:.1}s lifetime (total: {})",
+                        body_type,
+                        position,
+                        lifetime,
+                        self.bodies.len()
+                    );
+                }
+                SpawnRequest::AsteroidShower {
+                    direction,
+                    count,
+                    speed_range,
+                    spread_angle,
+                    lifetime,
+                } => {
+                    // ASTEROID SHOWER EVENT!
+                    self.trigger_asteroid_shower(
+                        direction,
+                        count,
+                        speed_range,
+                        spread_angle,
+                        lifetime,
+                        physics_manager,
+                        entity_manager,
+                    );
+                }
             }
         }
     }

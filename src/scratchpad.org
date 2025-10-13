@@ -32,7 +32,9 @@ velocity altering zones like speed/slow zones... already mechanically supported 
 
 
 properly handle death sequences for all large bodies
-body merging
+body births and merging
+
+
 
 
 
