@@ -362,24 +362,48 @@ impl Dispatcher {
                 });
             }
             CollisionEvent::LargeBodyHitLargeBody {
-                large_body_a_id: _,
-                large_body_b_id: _,
+                large_body_a_id,
+                large_body_b_id,
                 impact_point,
             } => {
-                // PARTICLES CANNOT SPAWN HERE DUE TO FRAME SPIKING
-                // SHUT UP LOL
-                graphics_events.push(GraphicsEvent::SpawnParticles {
-                    position: impact_point,
-                    velocity: Vec3::new(0.0, 0.0, 0.0), // Sparks spread in all directions
-                    count: 20,
-                    lifetime: 3.0, // Quick flash effect
-                    color: Color::WHITE,
-                });
+                // Check if either body is a BlackHoleLarge - if so, handle absorption
+                let body_a = scheduler.large_bodies().get_body(large_body_a_id);
+                let body_b = scheduler.large_bodies().get_body(large_body_b_id);
 
-                // Queue a shockwave explosion event for physics effects
-                explosion_events.push(ExplosionEvent::Shockwave {
-                    position: impact_point,
-                });
+                let mut absorption_handled = false;
+
+                if let (Some(a), Some(b)) = (body_a, body_b) {
+                    use crate::scene::LargeBodyType;
+
+                    // Check if A is BlackHoleLarge
+                    if a.body_type() == LargeBodyType::BlackHoleLarge {
+                        scheduler.large_bodies_mut().queue_absorption(large_body_a_id, large_body_b_id);
+                        absorption_handled = true;
+                    }
+                    // Check if B is BlackHoleLarge
+                    else if b.body_type() == LargeBodyType::BlackHoleLarge {
+                        scheduler.large_bodies_mut().queue_absorption(large_body_b_id, large_body_a_id);
+                        absorption_handled = true;
+                    }
+                }
+
+                // Normal collision effects (unless absorption is happening)
+                if !absorption_handled {
+                    // PARTICLES CANNOT SPAWN HERE DUE TO FRAME SPIKING
+                    // SHUT UP LOL
+                    graphics_events.push(GraphicsEvent::SpawnParticles {
+                        position: impact_point,
+                        velocity: Vec3::new(0.0, 0.0, 0.0), // Sparks spread in all directions
+                        count: 20,
+                        lifetime: 3.0, // Quick flash effect
+                        color: Color::WHITE,
+                    });
+
+                    // Queue a shockwave explosion event for physics effects
+                    explosion_events.push(ExplosionEvent::Shockwave {
+                        position: impact_point,
+                    });
+                }
             }
             CollisionEvent::PlayerHitCollectible {
                 player_id: _,

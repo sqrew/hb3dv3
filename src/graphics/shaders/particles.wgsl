@@ -56,7 +56,7 @@ struct Explosion {
 // Constants
 const MAX_PARTICLES: u32 = 262144u;
 const GRAVITATIONAL_CONSTANT: f32 = 6.674e-1; // Match physics system constant
-const MAX_DISTANCE_FROM_ORIGIN: f32 = 1000.0; // Maximum distance allowed from spawn location
+const MAX_DISTANCE_FROM_ORIGIN: f32 = 3000.0; // Maximum distance allowed from spawn location
 const MAX_PARTICLE_VELOCITY: f32 = 300.0; // Prevent particles from being yeeted too far
 const AIR_RESISTANCE: f32 = 0.995;
 
