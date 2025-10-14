@@ -240,6 +240,7 @@ impl LargeBodyManager {
         body_type2: LargeBodyType,
         center_position: Vec3,
         separation_distance: f32,
+        lifetime: f32,
         physics: &mut PhysicsManager,
         entity_manager: &mut crate::engine::entity::EntityManager,
     ) -> (EntityId, EntityId) {
@@ -331,6 +332,14 @@ impl LargeBodyManager {
             entity_manager,
         );
 
+        // Set lifetime for both bodies in the binary pair
+        if let Some(body1) = self.bodies.iter_mut().find(|b| b.entity_id() == entity1) {
+            body1.set_max_lifetime(Some(lifetime));
+        }
+        if let Some(body2) = self.bodies.iter_mut().find(|b| b.entity_id() == entity2) {
+            body2.set_max_lifetime(Some(lifetime));
+        }
+
         (entity1, entity2)
     }
 
@@ -371,6 +380,33 @@ impl LargeBodyManager {
                                 color: Color::RED,
                             },
                         ));
+                    } else if body.body_type() == LargeBodyType::WhiteHole {
+                        // Spawn radiating lightning bolts for WhiteHole pulse
+                        let lightning_count = 8;
+                        let pulse_radius = body.radius() * 100.0;
+
+                        for i in 0..lightning_count {
+                            // Create evenly distributed directions around the sphere
+                            let theta = (i as f32 / lightning_count as f32) * std::f32::consts::TAU;
+                            let phi = rand::random_range(0.0..std::f32::consts::PI);
+
+                            // Calculate endpoint in spherical coordinates
+                            let direction = Vec3::new(
+                                phi.sin() * theta.cos(),
+                                phi.sin() * theta.sin(),
+                                phi.cos(),
+                            );
+
+                            let end_point = body.position() + direction * pulse_radius;
+
+                            // Spawn lightning bolt radiating outward from white hole
+                            self.pending_events.push(crate::engine::EventType::Graphics(
+                                crate::engine::GraphicsEvent::SpawnLightning {
+                                    start: body.position(),
+                                    end: end_point,
+                                },
+                            ));
+                        }
                     }
                 }
             } else if body.body_type() == LargeBodyType::NeutronStar
@@ -407,6 +443,39 @@ impl LargeBodyManager {
                                 particle_count: 0,
                             },
                         ));
+
+                    // Spawn radiating lightning bolts for ExoticMatter pulse
+                    let lightning_count = 4;
+                    let pulse_radius = body.radius() * 10.0;
+
+                    for i in 0..lightning_count {
+                        // Create evenly distributed directions around the sphere
+                        let theta = (i as f32 / lightning_count as f32) * std::f32::consts::TAU;
+                        let phi = rand::random_range(0.0..std::f32::consts::PI);
+
+                        // Calculate endpoint in spherical coordinates
+                        let direction =
+                            Vec3::new(phi.sin() * theta.cos(), phi.sin() * theta.sin(), phi.cos());
+
+                        let end_point = body.position() + direction * pulse_radius;
+
+                        // Spawn lightning bolt radiating outward from exotic matter
+                        self.pending_events.push(crate::engine::EventType::Graphics(
+                            crate::engine::GraphicsEvent::SpawnLightning {
+                                start: body.position(),
+                                end: end_point,
+                            },
+                        ));
+                    }
+                    self.pending_events.push(crate::engine::EventType::Graphics(
+                        crate::engine::GraphicsEvent::SpawnParticles {
+                            position: body.position(),
+                            velocity: Vec3::zeros(),
+                            count: 10,
+                            lifetime: 15.0,
+                            color: Color::PINK,
+                        },
+                    ));
                 }
             }
 
@@ -556,6 +625,7 @@ impl LargeBodyManager {
                     body_type2,
                     center_position,
                     separation_distance,
+                    lifetime,
                 } => {
                     // BINARY PAIR EVENT!
                     let (id1, id2) = self.spawn_binary_pair(
@@ -563,16 +633,18 @@ impl LargeBodyManager {
                         body_type2,
                         center_position,
                         separation_distance,
+                        lifetime,
                         physics_manager,
                         entity_manager,
                     );
 
                     println!(
-                        "🌌 Spawner: Created binary pair {:?} + {:?} at {:?} (separation: {:.1}) (IDs: {:?}, {:?}, total: {})",
+                        "🌌 Spawner: Created binary pair {:?} + {:?} at {:?} (separation: {:.1}, lifetime: {:.1}s) (IDs: {:?}, {:?}, total: {})",
                         body_type1,
                         body_type2,
                         center_position,
                         separation_distance,
+                        lifetime,
                         id1,
                         id2,
                         self.bodies.len()
@@ -733,7 +805,7 @@ impl LargeBodyManager {
                         b: 0.6,
                         a: 1.0,
                     };
-                    let radius = body.radius() * 15.0; // Wide influence
+                    let radius = body.radius() * 10.0; // Wide influence
                     (intensity, color, radius)
                 }
                 LargeBodyType::WhiteHole => {
@@ -745,19 +817,19 @@ impl LargeBodyManager {
                         b: 1.0,
                         a: 1.0,
                     };
-                    let radius = body.radius() * 12.0;
+                    let radius = body.radius() * 100.0;
                     (intensity, color, radius)
                 }
                 LargeBodyType::NeutronStar => {
-                    // Neutron stars emit harsh blue-white light
+                    // Neutron stars emit harsh green-white light
                     let intensity = 0.5 * (body.mass() / 100_000.0).min(1.0);
                     let color = Color {
                         r: 0.8,
-                        g: 0.9,
-                        b: 1.0,
+                        g: 1.0,
+                        b: 0.9,
                         a: 1.0,
                     };
-                    let radius = body.radius() * 10.0; // Compact but intense
+                    let radius = body.radius() * 100.0; // Compact but intense
                     (intensity, color, radius)
                 }
                 LargeBodyType::Planet | LargeBodyType::GasGiant => {
@@ -770,7 +842,7 @@ impl LargeBodyManager {
                         b: body_color.b * 0.7,
                         a: 1.0,
                     };
-                    let radius = body.radius() * 5.0;
+                    let radius = body.radius() * 100.0;
                     (intensity, color, radius)
                 }
 
@@ -784,7 +856,7 @@ impl LargeBodyManager {
                         b: 0.1, // Subtle blue tint to the darkness
                         a: 1.0,
                     };
-                    let radius = body.radius() * 20.0; // Wide darkness influence
+                    let radius = body.radius() * 100.0; // Wide darkness influence
                     (intensity, color, radius)
                 }
                 LargeBodyType::BlackHoleLarge => {
@@ -796,7 +868,7 @@ impl LargeBodyManager {
                         b: 0.05,
                         a: 1.0,
                     };
-                    let radius = body.radius() * 25.0; // Massive darkness radius
+                    let radius = body.radius() * 10.0; // Massive darkness radius
                     (intensity, color, radius)
                 }
                 LargeBodyType::ExoticMatter => {
@@ -809,7 +881,7 @@ impl LargeBodyManager {
                         b: 0.3, // Purple-tinted darkness
                         a: 1.0,
                     };
-                    let radius = body.radius() * 12.0;
+                    let radius = body.radius() * 100.0;
                     (intensity, color, radius)
                 }
 

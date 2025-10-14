@@ -24,6 +24,7 @@ pub enum SpawnRequest {
         body_type2: LargeBodyType,
         center_position: Vec3,
         separation_distance: f32,
+        lifetime: f32,
     },
     /// Spawn a rogue body moving at high velocity
     RogueBody {
@@ -90,7 +91,7 @@ impl BodySpawner {
             avoid_player_radius: 100.0,
             // THIS IS THE LIST OF BODY TYPES ALLOWED TO BE SPAWNED BY THE SPAWNER
             // LauncherMass removed - only appears in asteroid showers
-            // BlackHoleLarge only spawns from BlackHole death event
+            // BlackHoleLarge NOT INCLUDED; only spawns from BlackHole on_death_sequence_complete
             //
             enabled_body_types: vec![
                 LargeBodyType::Planet,
@@ -99,7 +100,6 @@ impl BodySpawner {
                 LargeBodyType::NeutronStar,
                 LargeBodyType::BlackHole,
                 LargeBodyType::WhiteHole,
-                LargeBodyType::BlackHoleLarge,
                 LargeBodyType::ExoticMatter,
             ],
             // Asteroid shower configuration (5% chance for dramatic effect)
@@ -237,11 +237,16 @@ impl BodySpawner {
                 + rand::random::<f32>()
                     * (self.binary_separation_range.1 - self.binary_separation_range.0);
 
+            // Generate random lifetime
+            let lifetime =
+                self.lifetime_min + rand::random::<f32>() * (self.lifetime_max - self.lifetime_min);
+
             return Some(SpawnRequest::BinaryPair {
                 body_type1,
                 body_type2,
                 center_position,
                 separation_distance: separation,
+                lifetime,
             });
         }
 

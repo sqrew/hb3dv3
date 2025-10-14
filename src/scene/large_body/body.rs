@@ -372,6 +372,9 @@ impl LargeBody {
     pub fn set_trail_particle_timer(&mut self, timer: f32) {
         self.trail_particle_timer = timer;
     }
+    pub fn set_max_lifetime(&mut self, lifetime: Option<f32>) {
+        self.max_lifetime = lifetime;
+    }
     pub fn set_death_state(&mut self, state: DeathState) {
         self.death_state = state;
     }
@@ -471,6 +474,17 @@ impl LargeBody {
                 },
             ));
 
+        // Queue lightning bolts from victim to black hole for dramatic effect
+        for _ in 0..5 {
+            self.pending_events
+                .push(crate::engine::dispatcher::EventType::Graphics(
+                    crate::engine::dispatcher::GraphicsEvent::SpawnLightning {
+                        start: victim.position,
+                        end: self.position,
+                    },
+                ));
+        }
+
         true
     }
 
@@ -522,6 +536,34 @@ impl LargeBody {
                             particle_count: 5000,
                         },
                     ));
+
+                // Spawn radiating lightning bolts visualizing intense Hawking radiation
+                let lightning_count = 20;
+                let radiation_radius = self.radius * 150.0;
+
+                for i in 0..lightning_count {
+                    // Create evenly distributed directions around the sphere
+                    let theta = (i as f32 / lightning_count as f32) * std::f32::consts::TAU;
+                    let phi = rand::random_range(0.0..std::f32::consts::PI);
+
+                    // Calculate endpoint in spherical coordinates
+                    let direction = Vec3::new(
+                        phi.sin() * theta.cos(),
+                        phi.sin() * theta.sin(),
+                        phi.cos(),
+                    );
+
+                    let end_point = self.position + direction * radiation_radius;
+
+                    // Lightning bolts radiate outward - Hawking radiation escaping
+                    self.pending_events
+                        .push(crate::engine::dispatcher::EventType::Graphics(
+                            crate::engine::dispatcher::GraphicsEvent::SpawnLightning {
+                                start: self.position,
+                                end: end_point,
+                            },
+                        ));
+                }
             }
 
             LargeBodyType::WhiteHole => {
@@ -635,6 +677,58 @@ impl LargeBody {
                             particle_count: 1000,
                         },
                     ));
+
+                self.pending_events
+                    .push(crate::engine::dispatcher::EventType::Graphics(
+                        crate::engine::dispatcher::GraphicsEvent::SpawnShapeParticles {
+                            position: self.position,
+                            velocity: Vec3::zeros(),
+                            count: 8,
+                            lifetime: 1.0,
+                            color: Color::WHITE,
+                            primitive_type: PrimitiveType::Circle2D,
+                            angular_velocity: Vec3::new(3.0, 3.0, 3.0),
+                            scale: 0.5,
+                        },
+                    ));
+
+                let chance = rand::random_range(0.0..1.0);
+                if chance < 0.1 {
+                    // Spawn inward-collapsing lightning bolts visualizing the transformation
+                    let lightning_count = 16;
+                    let collapse_radius = self.radius * 100.0;
+
+                    for i in 0..lightning_count {
+                        // Create evenly distributed directions around the sphere
+                        let theta = (i as f32 / lightning_count as f32) * std::f32::consts::TAU;
+                        let phi = rand::random_range(0.0..std::f32::consts::PI);
+
+                        // Calculate start point in spherical coordinates (outside)
+                        let direction = Vec3::new(
+                            phi.sin() * theta.cos(),
+                            phi.sin() * theta.sin(),
+                            phi.cos(),
+                        );
+
+                        let start_point = self.position + direction * collapse_radius;
+
+                        // Lightning bolts point inward toward the forming supermassive black hole
+                        self.pending_events
+                            .push(crate::engine::dispatcher::EventType::Graphics(
+                                crate::engine::dispatcher::GraphicsEvent::SpawnLightning {
+                                    start: start_point,
+                                    end: self.position,
+                                },
+                            ));
+                    }
+
+                    self.pending_body_spawns.push(BodySpawnRequest {
+                        body_type: LargeBodyType::BlackHoleLarge,
+                        position: self.position,
+                        velocity: self.velocity * 0.5, // Carry forward half the momentum
+                        lifetime: Some(45.0), // Dense remnant lasts longer than typical spawned bodies
+                    });
+                }
             }
 
             LargeBodyType::BlackHoleLarge => {
@@ -646,7 +740,7 @@ impl LargeBody {
                     .push(crate::engine::dispatcher::EventType::Explosion(
                         crate::engine::dispatcher::ExplosionEvent::Custom {
                             position: self.position,
-                            max_radius: self.radius * 10.0,
+                            max_radius: self.radius * 100.0,
                             force_strength: 100000.0,
                             duration: 2.0,
                             falloff_type: crate::scene::FalloffType::Linear,
@@ -655,6 +749,19 @@ impl LargeBody {
                             explosion_color: Color::MAGENTA,
                             particle_color: Color::MAGENTA,
                             particle_count: 2000,
+                        },
+                    ));
+                self.pending_events
+                    .push(crate::engine::dispatcher::EventType::Graphics(
+                        crate::engine::dispatcher::GraphicsEvent::SpawnShapeParticles {
+                            position: self.position,
+                            velocity: Vec3::zeros(),
+                            count: 8,
+                            lifetime: 1.0,
+                            color: Color::WHITE,
+                            primitive_type: PrimitiveType::Circle2D,
+                            angular_velocity: Vec3::new(3.0, 3.0, 3.0),
+                            scale: 0.5,
                         },
                     ));
             }
@@ -709,8 +816,8 @@ impl LargeBody {
                             damage: 0.0,
                             damage_radius: 0.0,
                             explosion_color: Color::MAGENTA,
-                            particle_color: Color::WHITE,
-                            particle_count: 2000,
+                            particle_color: Color::MAGENTA,
+                            particle_count: 1000,
                         },
                     ));
             }
@@ -718,6 +825,20 @@ impl LargeBody {
             LargeBodyType::Planet | LargeBodyType::GasGiant => {
                 // Planetary breakup complete - debris field
                 println!("🪐 Planetary body fragmentation complete!");
+
+                self.pending_events
+                    .push(crate::engine::dispatcher::EventType::Graphics(
+                        crate::engine::dispatcher::GraphicsEvent::SpawnShapeParticles {
+                            position: self.position,
+                            velocity: Vec3::zeros(),
+                            count: 8,
+                            lifetime: 1.0,
+                            color: Color::WHITE,
+                            primitive_type: PrimitiveType::Star2D,
+                            angular_velocity: Vec3::new(3.0, 3.0, 3.0),
+                            scale: 0.5,
+                        },
+                    ));
             }
 
             LargeBodyType::LauncherMass => {
@@ -750,6 +871,42 @@ impl LargeBody {
                             particle_count: 500,
                         },
                     ));
+            }
+
+            LargeBodyType::NeutronStar => {
+                // Spawn inward-collapsing lightning bolts visualizing the collapse
+                let lightning_count = 16;
+                let collapse_radius = self.radius * 100.0;
+
+                for i in 0..lightning_count {
+                    // Create evenly distributed directions around the sphere
+                    let theta = (i as f32 / lightning_count as f32) * std::f32::consts::TAU;
+                    let phi = rand::random_range(0.0..std::f32::consts::PI);
+
+                    // Calculate start point in spherical coordinates (outside)
+                    let direction =
+                        Vec3::new(phi.sin() * theta.cos(), phi.sin() * theta.sin(), phi.cos());
+
+                    let start_point = self.position + direction * collapse_radius;
+
+                    // Lightning bolts point inward toward the collapsing core
+                    self.pending_events
+                        .push(crate::engine::dispatcher::EventType::Graphics(
+                            crate::engine::dispatcher::GraphicsEvent::SpawnLightning {
+                                start: start_point,
+                                end: self.position,
+                            },
+                        ));
+                }
+
+                self.pending_body_spawns.push(BodySpawnRequest {
+                    body_type: LargeBodyType::BlackHole,
+                    position: self.position,
+                    velocity: self.velocity * 0.5, // Carry forward half the momentum
+                    lifetime: Some(45.0),          //
+                });
+
+                println!("🌟 → Blackhole from neutron star collapse spawned (45s lifetime)");
             }
 
             _ => {

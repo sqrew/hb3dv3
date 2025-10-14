@@ -35,14 +35,14 @@ impl LargeBodyType {
     /// Get default mass for this body type (in kg, scaled for gameplay)
     pub fn default_mass(self) -> f32 {
         match self {
-            LargeBodyType::BlackHole => 1_000_000.0, // Extreme mass
-            LargeBodyType::BlackHoleLarge => 10_000_000.0,
-            LargeBodyType::WhiteHole => -900_000.0, // Slightly less negative mass for stability
-            LargeBodyType::NeutronStar => 500_000.0, // Very high mass
-            LargeBodyType::ExoticMatter => 250_000.0, // High mass for strong oscillating effects
-            LargeBodyType::Star => 200_000.0,       // Very high mass for strong gravity
-            LargeBodyType::GasGiant => 100_000.0,   // Large mass
-            LargeBodyType::Planet => 50_000.0,      // Medium mass
+            LargeBodyType::BlackHole => 10_000_000.0, // Extreme mass
+            LargeBodyType::BlackHoleLarge => 100_000_000.0,
+            LargeBodyType::WhiteHole => -9000_000.0, // Slightly less negative mass for stability
+            LargeBodyType::NeutronStar => 5000_000.0, // Very high mass
+            LargeBodyType::ExoticMatter => 5000_000.0, // High mass for strong oscillating effects
+            LargeBodyType::Star => 3000_000.0,       // Very high mass for strong gravity
+            LargeBodyType::GasGiant => 1500_000.0,   // Large mass
+            LargeBodyType::Planet => 500_000.0,      // Medium mass
             LargeBodyType::LauncherMass => 49_000.0,
             LargeBodyType::Debug => 100.0, // Debug body with small but reasonable mass
         }
@@ -54,9 +54,9 @@ impl LargeBodyType {
             LargeBodyType::BlackHole => 1.0, // Small but visible
             LargeBodyType::BlackHoleLarge => 50.0,
             LargeBodyType::WhiteHole => 1.0, // Same size as black hole, but opposite effect
-            LargeBodyType::NeutronStar => 2.5, // Very small but dense
+            LargeBodyType::NeutronStar => 3.0, // Very small but dense
             LargeBodyType::ExoticMatter => 15.0, // Large and visible for its effects
-            LargeBodyType::Star => 80.0,     // Large and bright for visibility
+            LargeBodyType::Star => 100.0,    // Large and bright for visibility
             LargeBodyType::GasGiant => 20.0, // Very large
             LargeBodyType::Planet => 10.0,   // Medium size
             LargeBodyType::LauncherMass => 3.0,
@@ -74,7 +74,7 @@ impl LargeBodyType {
             LargeBodyType::ExoticMatter => Color::PINK,
             LargeBodyType::Star => Color::RED,
             LargeBodyType::GasGiant => Color::YELLOW,
-            LargeBodyType::Planet => Color::CYAN,
+            LargeBodyType::Planet => Color::NAVY,
             LargeBodyType::LauncherMass => Color::WHITE,
             LargeBodyType::Debug => Color::random_color(),
         }
@@ -178,9 +178,9 @@ impl LargeBodyType {
             LargeBodyType::BlackHoleLarge => Color::PURPLE,
             LargeBodyType::Star => Color::ORANGE,
             LargeBodyType::GasGiant => Color::YELLOW,
-            LargeBodyType::Planet => Color::NAVY,
+            LargeBodyType::Planet => Color::CYAN,
             LargeBodyType::NeutronStar => Color::GREEN,
-            LargeBodyType::ExoticMatter => Color::MAGENTA,
+            LargeBodyType::ExoticMatter => Color::PINK,
             _ => Color::new(1.0, 1.0, 1.0, 0.1), // Fallback
         }
     }

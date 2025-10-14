@@ -6,10 +6,8 @@
 - [[#random][Random]]
 
 * ideas
-gravity visuals on large bodies
 use LineInstance to build arbitrary shapes
 
-make large_bodies have a spawn_random_body function
 fix resetting game spawning a bhole
 
 ui lower case text is top-aligned for some reason - this took forever to fix last time
@@ -45,7 +43,6 @@ properly handle death sequences for all large bodies
 * Random
    Visual Polish:
   - Pulsing effects: Stars could pulsate brightness, black holes could have event horizon effects
-  - Particle trails: Comets with tails, black holes with accretion disk particles
 
   Physics Enhancements:
   - Tidal forces: Objects get stretched/torn apart when too close to massive bodies
@@ -85,65 +82,25 @@ properly handle death sequences for all large bodies
 
 
 
-
-
-
-
-
-
-
-
-
-
-   1. Excellent GPU Architecture (physics.rs)
-  - Clean separation between CPU/GPU with fallback to CPU when GPU unavailable
-  - Proper buffer management with staging buffers for readback
-  - Efficient batched processing of gravity calculations
-  - Dual compute pipelines (gravity forces + N-body simulation) is smart design
-
-  2. Strong Physics Shader (physics.wgsl)
-  - Frame-dragging/ergosphere effects are sophisticated and well-implemented (lines 90-116)
-  - Collision detection with elastic response including angular momentum transfer (lines 179-257)
-  - Proper handling of negative mass (lines 84-88, 275-284)
-  - Multiple explosion falloff types with clean implementation
-  - Orbital angular momentum from impact parameter is excellent (lines 231-247)
-
-  3. Rich Large Body Type System (large_body.rs)
-  - 9+ distinct body types with individual properties
-  - Death sequences with type-specific effects are creative
-  - Binary pair spawning with proper orbital mechanics
-  - Lifecycle management with age/lifetime tracking
-
-  4. Good Integration Patterns
-  - Large bodies properly register with physics system
-  - Bidirectional sync between large_body entities and physics GPU data
-  - Event system for solar winds and death sequences
-
-  ---
   The Bad/Concerning:
 
 
-  1. Duplicate Code in physics.rs
-  2. update_gravity() (lines 730-919) and update_gravity_batch() (lines 496-727) are nearly identical
-  3. Both have the same double-readback synchronization issue
-  4. Should be refactored into shared implementation
+  1. Index Management Fragility (large_body.rs:805-816)
+  2. When removing a body from physics, manually adjusting all higher indices
+  3. Error-prone and doesn't scale well
+  4. Consider using a stable handle/ID system instead of raw indices
 
-  5. Index Management Fragility (large_body.rs:805-816)
-  6. When removing a body from physics, manually adjusting all higher indices
-  7. Error-prone and doesn't scale well
-  8. Consider using a stable handle/ID system instead of raw indices
+  5. Padding Confusion (physics.rs:21-36, physics.wgsl:4-17)
+  6. 64-byte alignment with manual padding is error-prone
+  7. Total size: 34 + 4 + 34 + 4 + 4 + 4 + 4 + 4 + 4 + 4 + 4 + 4 = 52 bytes not 64
+  8. Are you actually hitting alignment issues? bytemuck::Pod would catch this.
 
-  9. Padding Confusion (physics.rs:21-36, physics.wgsl:4-17)
-  10. 64-byte alignment with manual padding is error-prone
-  11. Total size: 34 + 4 + 34 + 4 + 4 + 4 + 4 + 4 + 4 + 4 + 4 + 4 = 52 bytes not 64
-  12. Are you actually hitting alignment issues? bytemuck::Pod would catch this.
+  9. No Timestep Validation
+  10. delta_time passed directly to GPU without clamping
+  11. Large timesteps (lag spike) could cause physics explosions
+  12. Consider max timestep capping (e.g., 33ms)
 
-  13. No Timestep Validation
-  14. delta_time passed directly to GPU without clamping
-  15. Large timesteps (lag spike) could cause physics explosions
-  16. Consider max timestep capping (e.g., 33ms)
-
-  17. Softening Length Too Small (physics.wgsl:39)
+  13. Softening Length Too Small (physics.wgsl:39)
   const MIN_DISTANCE_SQUARED: f32 = 0.01; // distance = 0.1 units
   For bodies with radius 1.0-80.0, this is way too small for numerical stability.
 
@@ -158,14 +115,8 @@ properly handle death sequences for all large bodies
   ---
   Priority Fixes:
 
-  1. High: Fix shader collision race conditions (collect impulses, apply in separate pass)
-  2. Medium: Verify/fix struct padding to actually hit 64 bytes
-  3. Medium: Add delta_time clamping
-  4. Low: Extract magic numbers to constants with units in comments
-
-──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-A
-
+  1. Medium: Verify/fix struct padding to actually hit 64 bytes
+  2. Medium: Add delta_time clamping
 
 
 
@@ -189,17 +140,6 @@ Physically Realistic Features
   - Could emit radiation/light effects as matter gets compressed
   - Implementation: Spawn high-velocity particles in orbital paths when bodies get very close but don't collide
 
-  3. Gravitational Slingshot Boost Indicator
-  - Show trajectory prediction lines when approaching bodies at high speed
-  - Visual/audio feedback when player executes a successful gravity assist
-  - Award bonus multiplier for stylish maneuvers
-  - Implementation: Calculate velocity change before/after close approach, spawn particle trail effect
-
-  4. Tidal Locking
-  - Bodies in close orbit gradually synchronize their rotation to always face each other
-  - Adds realism to long-running binary systems
-  - Implementation: Torque calculation based on tidal bulge asymmetry, gradually adjust angular_velocity toward orbital period
-
   Visual/Aesthetic Additions
 
   5. Gravitational Lensing
@@ -222,54 +162,14 @@ Physically Realistic Features
   - Tail always points away from nearest star
   - Implementation: Spawn particles with velocity based on solar wind direction, longer lifetime
 
-  Gameplay-Oriented Features
-
-  9. Lagrange Point Markers
-  - Show stable L4/L5 points in binary systems
-  - Could spawn collectibles or enemies there
-  - Strategic positions for player to camp/ambush
-  - Implementation: Calculate L4/L5 positions ±60° along orbit, spawn marker primitives
-
-  10. Body Merging System
-  - Colliding bodies can merge into larger bodies (mass/momentum conservation)
-  - BlackHole + Star → Larger BlackHole (dramatic!)
-  - Could trigger special effects based on merger type
-  - Implementation: In collision code, create new body with combined mass/momentum, destroy originals
-
-  11. Capture Mechanics
-  - Small objects can be "captured" into orbit when conditions are right
-  - Player could collect mini-moons that orbit and provide bonuses
-  - Enemies could orbit you and need to be shaken off
-  - Implementation: Check relative velocity vs escape velocity, apply gentle binding force
-
-  12. Gravity Wells as Tactical Space
-  - Hide behind planets to break line-of-sight
-  - Use gravity to bend bullets around obstacles
-  - Enemies get "stuck" in deep gravity wells
-  - Implementation: Already have the physics, just need AI to react tactically
 
   Complex Dynamic Systems
 
-  13. Stellar Evolution Chain
-  - Stars age over time: Star → Red Giant → Supernova → Neutron Star/Black Hole
-  - Size/mass/color changes as they evolve
-  - Implementation: Age-based state machine with smooth transitions, emit particles during supernova
 
-  14. Orbital Resonances
-  - Bodies in 2:1, 3:2 ratio orbits create beautiful stable patterns
-  - Could be puzzle elements ("create a stable 3-body resonance")
-  - Implementation: Monitor orbital periods, spawn visual markers when resonance detected
-
-  15. Asteroid Belt Generator
-  - Spawn a field of small asteroids in a ring
-  - Could be mining resource zones
-  - Collisions create fragments
-  - Implementation: Spawn many small LauncherMass bodies with slightly varied orbital parameters
-
-  16. Multi-Star Systems
-  - Binary, trinary, and figure-8 orbit systems
-  - You already have binary pair spawning - extend to more complex configurations
-  - Implementation: Pre-calculate stable configurations (like figure-8 choreography) and spawn with precise initial conditions
+  10. Multi-Star Systems
+  11. Binary, trinary, and figure-8 orbit systems
+  12. You already have binary pair spawning - extend to more complex configurations
+  13. Implementation: Pre-calculate stable configurations (like figure-8 choreography) and spawn with precise initial conditions
 
   Exotic/Sci-Fi Additions
 
@@ -297,8 +197,6 @@ Physically Realistic Features
 
   Given your current architecture and what would be most fun:
 
-  1. Body Merging - Incredibly satisfying, works with existing collision system
-  2. Gravitational Slingshot Feedback - Gameplay depth, rewards skill, feels amazing
-  3. Accretion Disks - Visually stunning, relatively simple particle effect
-  4. Lagrange Points - Tactical gameplay, educational, easy to calculate
-  5. Tidal Disruption - Dramatic visual effect, physically accurate, uses existing debris system
+  1. Gravitational Slingshot Feedback - Gameplay depth, rewards skill, feels amazing
+  2. Accretion Disks - Visually stunning, relatively simple particle effect
+  3. Tidal Disruption - Dramatic visual effect, physically accurate, uses existing debris system
