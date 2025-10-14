@@ -538,8 +538,8 @@ impl LargeBody {
                     ));
 
                 // Spawn radiating lightning bolts visualizing intense Hawking radiation
-                let lightning_count = 20;
-                let radiation_radius = self.radius * 150.0;
+                let lightning_count = 128;
+                let radiation_radius = self.radius * 100.0;
 
                 for i in 0..lightning_count {
                     // Create evenly distributed directions around the sphere
@@ -547,11 +547,8 @@ impl LargeBody {
                     let phi = rand::random_range(0.0..std::f32::consts::PI);
 
                     // Calculate endpoint in spherical coordinates
-                    let direction = Vec3::new(
-                        phi.sin() * theta.cos(),
-                        phi.sin() * theta.sin(),
-                        phi.cos(),
-                    );
+                    let direction =
+                        Vec3::new(phi.sin() * theta.cos(), phi.sin() * theta.sin(), phi.cos());
 
                     let end_point = self.position + direction * radiation_radius;
 
@@ -704,11 +701,8 @@ impl LargeBody {
                         let phi = rand::random_range(0.0..std::f32::consts::PI);
 
                         // Calculate start point in spherical coordinates (outside)
-                        let direction = Vec3::new(
-                            phi.sin() * theta.cos(),
-                            phi.sin() * theta.sin(),
-                            phi.cos(),
-                        );
+                        let direction =
+                            Vec3::new(phi.sin() * theta.cos(), phi.sin() * theta.sin(), phi.cos());
 
                         let start_point = self.position + direction * collapse_radius;
 

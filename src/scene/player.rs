@@ -18,7 +18,6 @@ const DASH_SPEED_MULTIPLIER: f32 = 5.0; // 6x normal speed during dash
 const IFRAMES_DURATION: f32 = 0.4;
 const IFRAMES_COOLDOWN: f32 = 2.0;
 const DAMAGE_FLASH_DURATION: f32 = 0.4; // How long to show red damage flash
-//
 const FREE_FLIGHT_THRUST_STRENGTH: f32 = 100.0;
 const FREE_FLIGHT_MAX_VELOCITY: f32 = 500.0;
 const FREE_FLIGHT_DAMPING: f32 = 0.9999;
@@ -245,6 +244,10 @@ impl Player {
 
     pub fn position(&self) -> Vec3 {
         self.pos
+    }
+
+    pub fn velocity(&self) -> Vec3 {
+        self.vel
     }
 
     pub fn entity_id(&self) -> EntityId {

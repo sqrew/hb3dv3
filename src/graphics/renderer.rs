@@ -915,6 +915,19 @@ impl GraphicsEngine {
             .spawn_particles(position, velocity, count, lifetime, color);
     }
 
+    /// Spawn particle burst - particles radiate outward in a sphere
+    pub fn spawn_particle_burst(
+        &mut self,
+        position: crate::graphics::Vec3,
+        count: u32,
+        speed: f32,
+        lifetime: f32,
+        color: crate::graphics::Color,
+    ) {
+        self.particles
+            .spawn_particle_burst(position, count, speed, lifetime, color);
+    }
+
     /// Spawn shape particles (2D primitives as particles)
     pub fn spawn_shape_particles(
         &mut self,

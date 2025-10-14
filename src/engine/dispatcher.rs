@@ -377,25 +377,28 @@ impl Dispatcher {
 
                     // Check if A is BlackHoleLarge
                     if a.body_type() == LargeBodyType::BlackHoleLarge {
-                        scheduler.large_bodies_mut().queue_absorption(large_body_a_id, large_body_b_id);
+                        scheduler
+                            .large_bodies_mut()
+                            .queue_absorption(large_body_a_id, large_body_b_id);
                         absorption_handled = true;
                     }
                     // Check if B is BlackHoleLarge
                     else if b.body_type() == LargeBodyType::BlackHoleLarge {
-                        scheduler.large_bodies_mut().queue_absorption(large_body_b_id, large_body_a_id);
+                        scheduler
+                            .large_bodies_mut()
+                            .queue_absorption(large_body_b_id, large_body_a_id);
                         absorption_handled = true;
                     }
                 }
 
                 // Normal collision effects (unless absorption is happening)
                 if !absorption_handled {
-                    // PARTICLES CANNOT SPAWN HERE DUE TO FRAME SPIKING
-                    // SHUT UP LOL
-                    graphics_events.push(GraphicsEvent::SpawnParticles {
+                    // Use burst for dramatic large body collisions (rare events)
+                    graphics_events.push(GraphicsEvent::SpawnParticleBurst {
                         position: impact_point,
-                        velocity: Vec3::new(0.0, 0.0, 0.0), // Sparks spread in all directions
-                        count: 20,
-                        lifetime: 3.0, // Quick flash effect
+                        speed: 100.0,
+                        count: 100, // Higher count OK for rare events
+                        lifetime: 2.0,
                         color: Color::WHITE,
                     });
 
@@ -874,6 +877,13 @@ pub enum GraphicsEvent {
         position: Vec3,
         velocity: Vec3,
         count: u32,
+        lifetime: f32,
+        color: Color,
+    },
+    SpawnParticleBurst {
+        position: Vec3,
+        count: u32,
+        speed: f32, // Radial outward speed
         lifetime: f32,
         color: Color,
     },

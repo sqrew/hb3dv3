@@ -158,6 +158,16 @@ impl ApplicationHandler for WindowManager {
                                 graphics_engine
                                     .spawn_particles(position, velocity, count, lifetime, color);
                             }
+                            crate::engine::dispatcher::GraphicsEvent::SpawnParticleBurst {
+                                position,
+                                count,
+                                speed,
+                                lifetime,
+                                color,
+                            } => {
+                                graphics_engine
+                                    .spawn_particle_burst(position, count, speed, lifetime, color);
+                            }
                             crate::engine::dispatcher::GraphicsEvent::SpawnShapeParticles {
                                 position,
                                 velocity,
@@ -315,7 +325,8 @@ impl ApplicationHandler for WindowManager {
                         camera.distance = (camera.distance - zoom_in * delta_time * 20.0).max(3.0);
                     }
                     if zoom_out > 0.0 {
-                        camera.distance = (camera.distance + zoom_out * delta_time * 20.0).min(50.0);
+                        camera.distance =
+                            (camera.distance + zoom_out * delta_time * 20.0).min(50.0);
                     }
 
                     // Update camera to follow player (with time for skybox animation)
@@ -384,6 +395,14 @@ impl ApplicationHandler for WindowManager {
                         format!("TIME: {:02}:{:02}.{:03}", minutes, seconds, milliseconds),
                         crate::ui::Position::new(10.0, 130.0),
                         crate::ui::TextStyle::new(32, crate::graphics::Color::CYAN),
+                    ));
+                    // Display player's current movement speed (scalar)
+                    let player_vel = self.engine.scheduler.player().player().velocity();
+                    let speed = player_vel.magnitude();
+                    ui.add_element(crate::ui::UIElement::new(
+                        format!("SPEED: {:.1}", speed),
+                        crate::ui::Position::new(10.0, 170.0),
+                        crate::ui::TextStyle::new(32, crate::graphics::Color::RED),
                     ));
 
                     // Lightning test - press 'K' to spawn lightning bolts

@@ -3,7 +3,7 @@ use crate::scene::physics::GravitationalBody;
 use wgpu::util::DeviceExt;
 
 /// Maximum number of particles in the system
-const MAX_PARTICLES: u32 = 262144;
+const MAX_PARTICLES: u32 = 524288;
 
 /// Maximum spawn requests per frame
 /// Reduced from 4096 to prevent GPU command queue backlog that causes rendering to stop
@@ -45,8 +45,12 @@ struct SpawnRequest {
     velocity: [f32; 3],
     lifetime: f32,
     color: [f32; 4],    // RGBA
-    _padding: [f32; 4], // Ensure 16-byte alignment
+    spawn_mode: u32,    // 0 = point spawn, 1 = burst spawn
+    _padding: [f32; 3], // Ensure 16-byte alignment
 }
+
+// Compile-time size check to ensure GPU/CPU struct alignment
+const _: () = assert!(std::mem::size_of::<SpawnRequest>() == 64);
 
 /// GPU explosion data structure (matches shader)
 #[repr(C)]
@@ -467,7 +471,35 @@ impl ParticleSystem {
                 velocity: [velocity.x, velocity.y, velocity.z],
                 lifetime,
                 color: [color.r, color.g, color.b, color.a],
-                _padding: [0.0; 4],
+                spawn_mode: 0, // Point spawn mode
+                _padding: [0.0; 3],
+            });
+        }
+    }
+
+    /// Add a particle burst spawn request - particles radiate outward in a sphere
+    pub fn spawn_particle_burst(
+        &mut self,
+        position: Vec3,
+        count: u32,
+        speed: f32,
+        lifetime: f32,
+        color: crate::graphics::Color,
+    ) {
+        if self.spawn_queue.len() < MAX_SPAWN_REQUESTS as usize {
+            // Safety: Clamp burst count to reasonable limit to prevent GPU overload
+            // Higher limit OK since bursts are rare events and frame batching throttles overall throughput
+            const MAX_BURST_PARTICLES: u32 = 1024;
+            let safe_count = count.min(MAX_BURST_PARTICLES).max(1);
+
+            self.spawn_queue.push(SpawnRequest {
+                position: [position.x, position.y, position.z],
+                count: safe_count,
+                velocity: [speed, 0.0, 0.0], // velocity.x stores the radial speed
+                lifetime,
+                color: [color.r, color.g, color.b, color.a],
+                spawn_mode: 1, // Burst spawn mode
+                _padding: [0.0; 3],
             });
         }
     }
@@ -750,7 +782,8 @@ impl ParticleSystem {
             let batch_size = self.spawn_queue.len().min(MAX_SPAWNS_PER_FRAME);
 
             // Take a batch without draining yet (we'll clear after GPU processing)
-            let batch: Vec<SpawnRequest> = self.spawn_queue.iter().take(batch_size).copied().collect();
+            let batch: Vec<SpawnRequest> =
+                self.spawn_queue.iter().take(batch_size).copied().collect();
 
             if !batch.is_empty() {
                 let data_bytes = bytemuck::cast_slice::<SpawnRequest, u8>(&batch);
@@ -766,8 +799,10 @@ impl ParticleSystem {
 
             // Log if we have a backlog
             if self.spawn_queue.len() > batch_size {
-                println!("⏳ Particle spawn backlog: {} requests queued for next frame",
-                    self.spawn_queue.len() - batch_size);
+                println!(
+                    "⏳ Particle spawn backlog: {} requests queued for next frame",
+                    self.spawn_queue.len() - batch_size
+                );
             }
 
             batch_size

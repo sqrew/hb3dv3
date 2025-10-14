@@ -15,7 +15,10 @@ struct SpawnRequest {
     velocity: vec3<f32>,
     lifetime: f32,
     color: vec4<f32>, // RGBA
-    padding: vec4<f32>, // For alignment
+    spawn_mode: u32, // 0 = point spawn, 1 = burst spawn
+    pad1: f32,
+    pad2: f32,
+    pad3: f32,
 }
 
 struct GravitationalBody {
@@ -54,7 +57,7 @@ struct Explosion {
 @group(0) @binding(8) var<uniform> explosion_count: u32;
 
 // Constants
-const MAX_PARTICLES: u32 = 262144u;
+const MAX_PARTICLES: u32 = 524288u;
 const GRAVITATIONAL_CONSTANT: f32 = 6.674e-1; // Match physics system constant
 const MAX_DISTANCE_FROM_ORIGIN: f32 = 3000.0; // Maximum distance allowed from spawn location
 const MAX_PARTICLE_VELOCITY: f32 = 300.0; // Prevent particles from being yeeted too far
@@ -67,6 +70,25 @@ fn random(seed: u32) -> f32 {
     s = ((s >> 16u) ^ s) * 0x45d9f3bu;
     s = (s >> 16u) ^ s;
     return f32(s & 0xFFFFu) / 65535.0;
+}
+
+// Generate evenly distributed point on sphere using Fibonacci sphere algorithm
+fn fibonacci_sphere(i: u32, n: u32) -> vec3<f32> {
+    // Safety check: avoid division by zero
+    if (n <= 1u) {
+        return vec3<f32>(0.0, 1.0, 0.0); // Return up vector for edge case
+    }
+
+    let phi = 3.141592653589793 * (sqrt(5.0) - 1.0); // Golden angle in radians
+    let y = 1.0 - (f32(i) / f32(n - 1u)) * 2.0;  // y goes from 1 to -1
+    let radius = sqrt(1.0 - y * y);  // radius at y
+
+    let theta = phi * f32(i);
+
+    let x = cos(theta) * radius;
+    let z = sin(theta) * radius;
+
+    return normalize(vec3<f32>(x, y, z));
 }
 
 @compute @workgroup_size(64)
@@ -222,25 +244,36 @@ fn spawn_particles(@builtin(global_invocation_id) global_id: vec3<u32>) {
         
         // Only spawn if we found a free slot
         if (found_slot) {
-            // Generate random velocity based on collision direction
-            let rand1 = random(particle_seed + 1u) * 2.0 - 1.0;
-            let rand2 = random(particle_seed + 2u) * 2.0 - 1.0;
-            let rand3 = random(particle_seed + 3u) * 2.0 - 1.0;
+            var final_velocity: vec3<f32>;
             let rand4 = random(particle_seed + 4u);
-            
-            // Generate random velocity with much higher speeds for proper delta time
-            let speed = 1.0 + rand4 * 9.0; // Random speed between 30-90 (4x+ increase for dramatic effect)
-            
-            // Create a more dramatic burst with wider spread
-            let random_direction = normalize(vec3<f32>(
-                rand1 * 1.5,           // Wider horizontal spread
-                abs(rand2) * 0.8 + 0.3, // Mix of upward and horizontal (0.3 to 1.1 range)  
-                rand3 * 1.5            // Wider horizontal spread
-            ));
-            
-            // Apply the speed to the direction
-            let final_velocity = random_direction * speed;
-            
+
+            // Check spawn mode (explicit comparison for safety)
+            if (spawn_req.spawn_mode == 1u && spawn_req.count > 0u) {
+                // Burst mode - evenly distributed spherical pattern
+                let direction = fibonacci_sphere(i, spawn_req.count);
+                let speed = spawn_req.velocity.x; // Speed stored in velocity.x for burst mode
+                let speed_variation = 0.8 + rand4 * 0.4; // Small speed variation
+                final_velocity = direction * speed * speed_variation;
+            } else {
+                // Point spawn mode - random velocity (original behavior, default)
+                let rand1 = random(particle_seed + 1u) * 2.0 - 1.0;
+                let rand2 = random(particle_seed + 2u) * 2.0 - 1.0;
+                let rand3 = random(particle_seed + 3u) * 2.0 - 1.0;
+
+                // Generate random velocity with much higher speeds for proper delta time
+                let speed = 1.0 + rand4 * 9.0; // Random speed between 30-90
+
+                // Create a more dramatic burst with wider spread
+                let random_direction = normalize(vec3<f32>(
+                    rand1 * 1.5,           // Wider horizontal spread
+                    abs(rand2) * 0.8 + 0.3, // Mix of upward and horizontal (0.3 to 1.1 range)
+                    rand3 * 1.5            // Wider horizontal spread
+                ));
+
+                // Apply the speed to the direction
+                final_velocity = random_direction * speed;
+            }
+
             particles[particle_index] = Particle(
                 spawn_req.position,
                 final_velocity,
@@ -248,7 +281,7 @@ fn spawn_particles(@builtin(global_invocation_id) global_id: vec3<u32>) {
                 spawn_req.lifetime,
                 spawn_req.color // Use collision event color
             );
-            
+
             atomicAdd(&alive_count, 1u);
         }
     }
