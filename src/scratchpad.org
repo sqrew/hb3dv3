@@ -33,7 +33,8 @@ velocity altering zones like speed/slow zones... already mechanically supported 
 properly handle death sequences for all large bodies
 
 
-
+player becoming a large body
+if die, become a black hole could consume a lot of enemies, respawn?
 
 
 

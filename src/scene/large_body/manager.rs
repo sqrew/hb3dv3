@@ -406,6 +406,15 @@ impl LargeBodyManager {
                                     end: end_point,
                                 },
                             ));
+                            self.pending_events.push(crate::engine::EventType::Graphics(
+                                crate::engine::GraphicsEvent::SpawnParticleBurst {
+                                    position: body.position(),
+                                    speed: 100.0,
+                                    count: 100,
+                                    lifetime: 5.0,
+                                    color: Color::WHITE,
+                                },
+                            ));
                         }
                     }
                 }

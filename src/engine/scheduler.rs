@@ -173,8 +173,12 @@ impl Scheduler {
 
         // Update large bodies (these get their physics from the PhysicsManager N-body simulation)
         let player_pos = self.player.player().position();
-        self.large_bodies
-            .update(delta_time, player_pos, &mut self.physics, &mut self.entity_manager);
+        self.large_bodies.update(
+            delta_time,
+            player_pos,
+            &mut self.physics,
+            &mut self.entity_manager,
+        );
 
         // Apply gravitational forces to all affected objects BEFORE enemy AI updates
         if let (Some(device), Some(queue)) = (device, queue) {
@@ -434,7 +438,7 @@ impl Scheduler {
             FalloffType::Constant,
             Color::CYAN, // Cyan explosion visual
             Color::CYAN, // Cyan particles
-            200,      // Lots of particles for impact
+            1000,        // Lots of particles for impact
         );
         explosion.has_rings = true; // Enable torus shockwave rings
     }
